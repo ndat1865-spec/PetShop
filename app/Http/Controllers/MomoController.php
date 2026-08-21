@@ -29,6 +29,8 @@ class MomoController extends Controller
         $transaction = PaymentTransaction::where('provider', 'momo')->where('request_id', $payload['requestId'] ?? null)->first();
         if (!$order || !$transaction)
             return response()->json(['resultCode' => 1, 'message' => 'Order or transaction not found'], 404);
+        if ($transaction->order_id !== $order->id)
+            return response()->json(['resultCode' => 1, 'message' => 'Transaction mismatch'], 422);
         if ((int) $order->total !== (int) ($payload['amount'] ?? 0))
             return response()->json(['resultCode' => 2, 'message' => 'Invalid amount'], 422);
         $ok = (int) ($payload['resultCode'] ?? -1) === 0;

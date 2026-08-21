@@ -47,6 +47,14 @@ class OnePayController extends Controller
                 ->withErrors(['payment' => 'Chữ ký OnePay không hợp lệ. Pawora chưa ghi nhận thanh toán.']);
         }
 
+        if (! is_numeric($params['vpc_Amount'] ?? null) || (int) $order->total !== intdiv((int) $params['vpc_Amount'], 100)) {
+            $this->record($order, $params, 'invalid_amount');
+            if (! $redirect) return false;
+
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+                ->withErrors(['payment' => 'Số tiền OnePay trả về không khớp với đơn hàng.']);
+        }
+
         $status = $onepay->successful($params) ? 'paid' : 'failed';
         $this->record($order, $params, $status);
 

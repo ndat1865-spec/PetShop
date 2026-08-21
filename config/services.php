@@ -38,7 +38,7 @@ return [
         'key' => env('RESEND_API_KEY'),
         'from' => env('RESEND_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev')),
         'from_name' => env('RESEND_FROM_NAME', env('MAIL_FROM_NAME', 'Pawora')),
-        'ssl_verify' => env('RESEND_SSL_VERIFY', false),
+        'ssl_verify' => env('RESEND_SSL_VERIFY', true),
     ],
 
     'vnpay' => [
@@ -57,7 +57,7 @@ return [
         'create_url' => env('ZALOPAY_CREATE_URL', 'https://sb-openapi.zalopay.vn/v2/create'),
         'callback_url' => env('ZALOPAY_CALLBACK_URL'),
         'redirect_url' => env('ZALOPAY_REDIRECT_URL'),
-        'ssl_verify' => env('ZALOPAY_SSL_VERIFY', false),
+        'ssl_verify' => env('ZALOPAY_SSL_VERIFY', true),
     ],
 
     'momo' => [
@@ -72,7 +72,7 @@ return [
         'redirect_url' => env('MOMO_REDIRECT_URL'),
         'ipn_url' => env('MOMO_IPN_URL'),
         'timeout' => env('MOMO_TIMEOUT', 30),
-        'ssl_verify' => env('MOMO_SSL_VERIFY', false),
+        'ssl_verify' => env('MOMO_SSL_VERIFY', true),
     ],
 
     'sepay' => [

@@ -21,6 +21,13 @@ class VnPayController extends Controller
                 ->withErrors(['payment' => 'Chữ ký VNPay không hợp lệ. Pawora chưa ghi nhận thanh toán.']);
         }
 
+        if (! $this->amountMatches($order, $params['vnp_Amount'] ?? null)) {
+            $this->record($order, $params, 'invalid_amount');
+
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+                ->withErrors(['payment' => 'Số tiền VNPay trả về không khớp với đơn hàng.']);
+        }
+
         if ($vnpay->successful($params)) {
             $order->forceFill([
                 'payment_status' => 'paid',
@@ -53,8 +60,7 @@ class VnPayController extends Controller
             return response()->json(['RspCode' => '01', 'Message' => 'Order not found']);
         }
 
-        $vnpAmount = ((float) ($params['vnp_Amount'] ?? 0)) / 100;
-        if ((float) $order->total !== $vnpAmount) {
+        if (! $this->amountMatches($order, $params['vnp_Amount'] ?? null)) {
             return response()->json(['RspCode' => '04', 'Message' => 'Invalid amount']);
         }
 
@@ -87,5 +93,10 @@ class VnPayController extends Controller
                 'processed_at' => now(),
             ]
         );
+    }
+
+    private function amountMatches(Order $order, mixed $amount): bool
+    {
+        return is_numeric($amount) && (int) $order->total === intdiv((int) $amount, 100);
     }
 }

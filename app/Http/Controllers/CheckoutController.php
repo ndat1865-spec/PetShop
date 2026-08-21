@@ -148,7 +148,7 @@ class CheckoutController extends Controller
                 $payment = app(MomoGateway::class)->createPayment($order, $request);
             } catch (\Throwable $exception) {
                 report($exception);
-                return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])->withErrors(['payment_method' => 'Không kết nối được MoMo. Vui lòng thử lại sau. ', 'error' => $exception->getMessage()]);
+                return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])->withErrors(['payment_method' => 'Không kết nối được MoMo. Vui lòng thử lại sau.']);
             }
             if (($payment['resultCode'] ?? -1) === 0 && filled($payment['payUrl'] ?? null))
                 return redirect()->away($payment['payUrl']);

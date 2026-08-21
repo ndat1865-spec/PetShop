@@ -8,7 +8,7 @@ return [
             'token' => env('GHN_TOKEN'),
             'shop_id' => env('GHN_SHOP_ID'),
             'api_url' => env('GHN_API_URL', 'https://online-gateway.ghn.vn/shiip/public-api/v2'),
-            'ssl_verify' => env('GHN_SSL_VERIFY', false),
+            'ssl_verify' => env('GHN_SSL_VERIFY', true),
             'service_type_id' => env('GHN_SERVICE_TYPE_ID', 2),
             'from_district_id' => env('GHN_FROM_DISTRICT_ID'),
             'default_weight' => env('GHN_DEFAULT_WEIGHT', 500),
