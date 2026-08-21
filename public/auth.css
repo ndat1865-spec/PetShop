@@ -1,0 +1,47 @@
+:root{--auth-primary:#0c1421;--auth-secondary:#313957;--auth-link:#1e4ae9;--auth-input:#f7fbff;--auth-border:#d4d7e3;--auth-button:#162d3a;--auth-social:#f3f9fa}
+@font-face{font-family:"Dalat Sans";src:url("fonts/MTDalatSans.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
+@font-face{font-family:"Dalat Sans Cap";src:url("fonts/MTDalatSansCap.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
+.auth-page{margin:0;background:var(--auth-button);color:var(--auth-primary);font-family:"Dalat Sans","Segoe UI",system-ui,sans-serif;overflow-x:hidden}
+.auth-page main{min-height:100dvh;display:grid;place-items:center;padding:32px}
+.figma-auth{width:min(100%,1180px);min-height:clamp(720px,calc(100dvh - 64px),900px);display:grid;grid-template-columns:minmax(440px,.9fr) minmax(500px,1.1fr);gap:24px;padding:32px;background:#fff;border-radius:30px;overflow:hidden;box-shadow:0 22px 54px rgba(2,13,20,.24)}
+.figma-auth__form-side{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:40px 24px 28px}
+.figma-auth__form{width:min(100%,400px);display:flex;flex-direction:column;gap:36px}
+.figma-auth__intro{display:flex;flex-direction:column;gap:28px}
+.figma-auth__wordmark{color:var(--auth-link);font:400 16px/1 "Dalat Sans Cap","Dalat Sans",sans-serif;letter-spacing:.14em;margin-bottom:-14px}
+.figma-auth__intro h1{margin:0;color:var(--auth-primary);font:400 42px/1.08 "Dalat Sans Cap","Dalat Sans",sans-serif;letter-spacing:.01em}
+.figma-auth__intro p{margin:0;color:var(--auth-secondary);font-size:19px;line-height:1.55;letter-spacing:.01em}
+.figma-auth__fields{display:flex;flex-direction:column;gap:24px}
+.figma-field{display:flex;flex-direction:column;gap:8px;color:var(--auth-primary);font-size:16px;line-height:1.25}
+.figma-field__label{display:flex;align-items:center;gap:7px}
+.figma-field__label svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.figma-field__control{position:relative;display:block}
+.figma-field input{width:100%;height:48px;padding:0 16px;border:1px solid var(--auth-border);border-radius:12px;background:var(--auth-input);color:var(--auth-primary);font-size:16px;outline:none}
+.figma-field__control input{padding-right:50px}
+.figma-field input::placeholder{color:#8897ad}
+.figma-field input:focus{border-color:var(--auth-link);box-shadow:0 0 0 3px rgba(30,74,233,.12)}
+.password-toggle{position:absolute;right:6px;top:4px;width:40px;height:40px;border:0;border-radius:9px;background:transparent;color:#64748b;display:grid;place-items:center;cursor:pointer}
+.password-toggle:hover,.password-toggle:focus-visible{background:#e8f0f8;color:var(--auth-link);outline:2px solid rgba(30,74,233,.28);outline-offset:1px}
+.password-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.figma-auth__forgot{align-self:flex-end;color:var(--auth-link);font-size:16px;line-height:1}
+.figma-auth__submit{height:52px;border:0;border-radius:12px;background:var(--auth-button);color:#fff;font:400 20px/1 "Dalat Sans Cap","Dalat Sans",sans-serif;cursor:pointer;transition:background .18s ease,transform .18s ease,opacity .18s ease}
+.figma-auth__submit:disabled{cursor:wait;opacity:.72}.figma-auth__submit.is-loading::after{content:"";display:inline-block;width:14px;height:14px;margin-left:10px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;vertical-align:-2px;animation:auth-spin .7s linear infinite}@keyframes auth-spin{to{transform:rotate(360deg)}}
+.figma-auth__submit:hover{background:#203e4d}.figma-auth__submit:active{transform:translateY(1px)}
+.figma-auth__divider{display:flex;align-items:center;gap:16px;color:#294957;font-size:16px}
+.figma-auth__divider::before,.figma-auth__divider::after{content:"";height:1px;flex:1;background:#cfd8dc}
+.figma-auth__socials{display:flex;flex-direction:column;gap:16px}
+.figma-auth__socials button,.figma-auth__socials a{height:48px;border:0;border-radius:12px;background:var(--auth-social);color:var(--auth-secondary);display:flex;align-items:center;justify-content:center;gap:16px;font-size:16px;cursor:pointer;text-decoration:none}
+.figma-auth__socials img{width:28px;height:28px;object-fit:contain}
+.figma-auth__switch{margin:0;color:var(--auth-secondary);font-size:18px;line-height:1.6;text-align:center}
+.figma-auth__switch a{color:var(--auth-link)}
+.figma-auth__copyright{position:static;margin:44px 0 0;color:#959cb6;font-size:14px;letter-spacing:.01em;text-align:center}
+.figma-auth__art{min-width:0;min-height:0;overflow:hidden;border-radius:24px;display:flex;align-items:center;justify-content:center;padding:44px}
+.figma-auth__lottie{display:block;width:min(100%,560px);aspect-ratio:11/10}.figma-auth__lottie svg{display:block;width:100%!important;height:100%!important;overflow:visible}
+.figma-auth__form--register{gap:24px}
+.figma-auth__form--register .figma-auth__intro{gap:18px}
+.figma-auth__form--register .figma-auth__fields{gap:16px}
+.figma-auth__password-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.auth-errors{position:fixed;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),600px);padding:14px 18px;border:1px solid #f0b8b2;border-radius:12px;background:#fff1f0;color:#7a1b15;box-shadow:0 12px 30px rgba(0,0,0,.12)}
+.auth-errors ul{margin:6px 0 0;padding-left:20px}
+@media(max-width:980px){.auth-page main{padding:20px}.figma-auth{grid-template-columns:1fr;min-height:0;padding:20px;border-radius:28px}.figma-auth__art{grid-row:1;min-height:340px;border-radius:20px;padding:20px}.figma-auth__lottie{width:min(100%,420px)}.figma-auth__form-side{padding:36px 20px 28px}.figma-auth__copyright{margin-top:36px}.figma-auth__form{gap:32px}.figma-auth__intro{gap:16px}.figma-auth__intro h1{font-size:36px}.figma-auth__intro p{font-size:17px}.figma-auth__password-row{grid-template-columns:1fr}}
+@media(max-width:480px){.auth-page main{padding:16px}.figma-auth{padding:12px;gap:20px;border-radius:24px}.figma-auth__art{min-height:300px;border-radius:18px;padding:12px}.figma-auth__lottie{width:min(100%,350px)}.figma-auth__form-side{padding:20px 8px 24px}.figma-auth__intro h1{font-size:32px}.figma-auth__copyright{font-size:12px;margin-top:28px}.figma-auth__switch{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.figma-auth__submit{transition:none}}

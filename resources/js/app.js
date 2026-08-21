@@ -1,0 +1,210 @@
+import './bootstrap';
+
+const menuButton = document.querySelector('[data-menu-button]');
+const mobilePanel = document.querySelector('[data-mobile-panel]');
+menuButton?.addEventListener('click', () => {
+    const open = menuButton.getAttribute('aria-expanded') === 'true';
+    menuButton.setAttribute('aria-expanded', String(!open));
+    mobilePanel.hidden = open;
+    mobilePanel.toggleAttribute('data-open', !open);
+});
+
+const toast = document.querySelector('[data-toast]');
+if (toast) {
+    const closeToast = () => toast.remove();
+    toast.querySelector('button')?.addEventListener('click', closeToast);
+    window.setTimeout(closeToast, 5000);
+}
+
+const revealItems = document.querySelectorAll('[data-reveal]');
+if (revealItems.length) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
+        revealItems.forEach((item) => item.classList.add('is-visible'));
+    } else {
+        document.documentElement.classList.add('reveal-ready');
+        const revealObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.12, rootMargin: '0px 0px -40px' });
+        revealItems.forEach((item) => revealObserver.observe(item));
+    }
+}
+
+document.querySelectorAll('.category-mosaic, .product-grid').forEach((group) => {
+    group.querySelectorAll(':scope > [data-reveal]').forEach((item, index) => {
+        item.style.setProperty('--reveal-delay', `${(index % 2) * 80}ms`);
+    });
+});
+
+const header = document.querySelector('.site-header');
+const headerSentinel = document.querySelector('[data-header-sentinel]');
+if (header && headerSentinel && 'IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => {
+        header.classList.toggle('is-compact', !entry.isIntersecting);
+    }).observe(headerSentinel);
+}
+
+document.querySelectorAll('[data-cart-form]').forEach((form) => {
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('[data-cart-button]');
+        if (!button || button.disabled) return;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        button.textContent = 'Đang thêm…';
+    });
+});
+
+const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+const autoplayVideos = document.querySelectorAll('[data-autoplay-video]');
+const syncVideoMotion = () => autoplayVideos.forEach((video) => {
+    if (motionPreference.matches) {
+        video.pause();
+        video.removeAttribute('autoplay');
+        video.closest('.home-video')?.classList.add('is-paused');
+        return;
+    }
+    video.closest('.home-video')?.classList.remove('is-paused');
+    video.setAttribute('autoplay', '');
+    video.play().catch(() => {});
+});
+syncVideoMotion();
+motionPreference.addEventListener?.('change', syncVideoMotion);
+
+document.addEventListener('visibilitychange', () => {
+    autoplayVideos.forEach((video) => {
+        if (document.hidden) video.pause();
+        else if (!motionPreference.matches) video.play().catch(() => {});
+    });
+});
+
+document.querySelectorAll('[data-submit-form]').forEach((form) => {
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('[data-submit-button]');
+        if (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.textContent = 'Đang tạo đơn…';
+        }
+    });
+});
+
+const shippingForm = document.querySelector('[data-shipping-form]');
+if (shippingForm) {
+    const province = shippingForm.querySelector('[data-province]');
+    const district = shippingForm.querySelector('[data-district]');
+    const ward = shippingForm.querySelector('[data-ward]');
+    const districtId = shippingForm.querySelector('[data-district-id]');
+    const wardCode = shippingForm.querySelector('[data-ward-code]');
+    const quoteBox = shippingForm.querySelector('[data-shipping-quote]');
+    const feeOutput = shippingForm.querySelector('[data-shipping-fee]');
+    const totalOutput = shippingForm.querySelector('[data-order-total]');
+    const subtotal = Number(shippingForm.dataset.subtotal || 0);
+    const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+
+    const setQuoteEmpty = () => {
+        quoteBox.textContent = 'Chọn đủ tỉnh/thành phố, quận/huyện và phường/xã để xem phí giao hàng.';
+        feeOutput.textContent = 'Chưa tính';
+        totalOutput.textContent = money.format(subtotal);
+    };
+
+    const loadDistricts = async () => {
+        district.disabled = true;
+        district.innerHTML = `<option value="">${province.value ? 'Đang tải quận/huyện…' : 'Chọn tỉnh/thành phố trước'}</option>`;
+        districtId.value = '';
+        wardCode.value = '';
+        ward.disabled = true;
+        ward.innerHTML = '<option value="">Chọn quận/huyện trước</option>';
+        setQuoteEmpty();
+
+        if (!province.value) return;
+
+        try {
+            const url = new URL(shippingForm.dataset.districtsUrl, window.location.origin);
+            url.searchParams.set('province', province.value);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('districts_failed');
+            const data = await response.json();
+            district.innerHTML = '<option value="">Chọn quận/huyện</option>';
+            data.districts.forEach((item) => {
+                const option = new Option(item.name, item.name);
+                option.dataset.id = item.id;
+                district.add(option);
+            });
+            district.disabled = data.districts.length === 0;
+            if (!data.districts.length) district.innerHTML = '<option value="">GHN chưa trả danh sách quận/huyện</option>';
+        } catch {
+            district.innerHTML = '<option value="">Không tải được quận/huyện</option>';
+        }
+    };
+
+    const loadWards = async () => {
+        const selected = ward.dataset.selected || '';
+        ward.disabled = true;
+        ward.innerHTML = `<option value="">${districtId.value ? 'Đang tải phường/xã…' : 'Chọn quận/huyện trước'}</option>`;
+        wardCode.value = '';
+        setQuoteEmpty();
+        if (!districtId.value) return;
+        try {
+            const url = new URL(shippingForm.dataset.wardsUrl, window.location.origin);
+            url.searchParams.set('district_id', districtId.value);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('wards_failed');
+            const data = await response.json();
+            ward.innerHTML = '<option value="">Chọn phường/xã/đặc khu</option>';
+            data.wards.forEach((item) => {
+                const option = new Option(item.name, item.name, false, item.name === selected);
+                option.dataset.code = item.code;
+                ward.add(option);
+            });
+            ward.disabled = data.wards.length === 0;
+            wardCode.value = ward.selectedOptions[0]?.dataset.code || '';
+            if (!wardCode.value && data.wards.length === 1) {
+                ward.selectedIndex = 1;
+                wardCode.value = ward.selectedOptions[0]?.dataset.code || '';
+            }
+            ward.dataset.selected = '';
+            loadShippingQuote();
+        } catch {
+            ward.innerHTML = '<option value="">Không tải được danh sách — vui lòng thử lại</option>';
+        }
+    };
+
+    const loadShippingQuote = async () => {
+        if (!province.value || !districtId.value || !wardCode.value) {
+            setQuoteEmpty();
+            return;
+        }
+        quoteBox.setAttribute('aria-busy', 'true');
+        quoteBox.textContent = 'Đang tính phí giao hàng…';
+        try {
+            const url = new URL(shippingForm.dataset.quoteUrl, window.location.origin);
+            url.searchParams.set('province', province.value);
+            url.searchParams.set('district_id', districtId.value);
+            url.searchParams.set('ward_code', wardCode.value);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('quote_failed');
+            const quote = await response.json();
+            feeOutput.textContent = quote.free_shipping ? 'Miễn phí' : money.format(quote.fee);
+            totalOutput.textContent = money.format(subtotal + Number(quote.fee));
+            quoteBox.innerHTML = `<strong>${quote.free_shipping ? 'Miễn phí giao hàng' : `Phí giao hàng ${money.format(quote.fee)}`}</strong><span>Dự kiến nhận trong ${quote.estimated_days}.</span>`;
+        } catch {
+            quoteBox.textContent = 'Chưa tính được phí giao hàng. Vui lòng chọn lại tỉnh/thành phố.';
+            feeOutput.textContent = 'Chưa tính';
+        } finally {
+            quoteBox.removeAttribute('aria-busy');
+        }
+    };
+    province.addEventListener('change', () => { ward.dataset.selected = ''; loadDistricts(); });
+    district.addEventListener('change', () => {
+        districtId.value = district.selectedOptions[0]?.dataset.id || '';
+        loadWards();
+    });
+    ward.addEventListener('change', () => {
+        wardCode.value = ward.selectedOptions[0]?.dataset.code || '';
+        loadShippingQuote();
+    });
+    if (province.value) loadDistricts();
+}

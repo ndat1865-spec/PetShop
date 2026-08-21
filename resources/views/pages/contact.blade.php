@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','Liên hệ Pawora') @section('content')<section class="page-hero container"><p class="eyebrow">Pawora luôn ở đây</p><h1>Bạn cần chúng mình giúp gì?</h1><p>Email hello@pawora.vn hoặc gọi 0909 000 001, 8:30–17:30 từ thứ Hai đến thứ Bảy.</p><a class="button primary" href="mailto:hello@pawora.vn">Gửi email cho Pawora</a></section>@endsection
