@@ -1,0 +1,21 @@
+@extends('layouts.app')
+@section('title', $order->number.' — Pawora')
+@section('content')
+@php($steps = ['pending'=>'Đã đặt hàng','confirmed'=>'Đã xác nhận','processing'=>'Đang chuẩn bị','packed'=>'Đã đóng gói','shipped'=>'Đang giao hàng','delivered'=>'Đã giao hàng'])
+@php($currentIndex = array_search($order->status, array_keys($steps), true))
+@php($shipment = $order->shipments->sortByDesc('created_at')->first())
+<section class="container order-detail-hero"><a class="text-link" href="{{ route('account.orders.index') }}">← Trở lại đơn hàng</a><div><span><p class="eyebrow">Đặt ngày {{ $order->created_at->format('d.m.Y') }}</p><h1>{{ $order->number }}</h1></span><span class="order-status status-{{ $order->status }}">{{ $order->statusLabel() }}</span></div></section>
+<section class="container account-order-detail">
+    <div class="order-detail-main">
+        @if($order->status === 'cancelled')<div class="cancelled-note"><strong>Đơn hàng đã được huỷ</strong><p>Đơn hàng này không tiếp tục được chuẩn bị hoặc giao đi.</p></div>@else<ol class="order-timeline">@foreach($steps as $value=>$label)@php($stepIndex=$loop->index)<li @class(['is-complete'=>$currentIndex!==false && $stepIndex<$currentIndex,'is-current'=>$currentIndex===$stepIndex])><span aria-hidden="true">@if($currentIndex!==false && $stepIndex<$currentIndex)✓@else{{ $loop->iteration }}@endif</span><strong>{{ $label }}</strong></li>@endforeach</ol>@endif
+        <section class="order-detail-section"><h2>Sản phẩm</h2>@foreach($order->items as $item)<article class="order-detail-item">@if($item->product?->image)<img src="{{ $item->product->image }}" alt="{{ $item->product_name }}" width="84" height="84">@else<span class="order-item-placeholder" aria-hidden="true"></span>@endif<div><strong>{{ $item->product_name }}</strong><small>{{ $item->sku }} · Số lượng {{ $item->quantity }}</small></div><b>{{ number_format($item->line_total, 0, ',', '.') }}đ</b></article>@endforeach</section>
+        <section class="order-detail-section"><h2>Giao đến</h2><p><strong>{{ $order->customer_name }}</strong><br>{{ $order->phone }}<br>{{ $order->shipping_address }}</p></section>
+    </div>
+    <aside class="order-detail-aside">
+        <article><small>Thanh toán</small><strong class="payment-{{ $order->payment_status }}">{{ $order->paymentStatusLabel() }}</strong><p>{{ strtoupper($order->payment_method) }}@if($order->paid_at)<br>Thanh toán lúc {{ $order->paid_at->format('H:i d/m/Y') }}@endif</p></article>
+        <article><small>Vận chuyển</small><strong>{{ $shipment ? ucfirst($shipment->status) : 'Chưa bàn giao' }}</strong><p>@if($shipment?->tracking_code)Mã vận đơn: {{ $shipment->tracking_code }}<br>@endif{{ $order->estimated_delivery ? 'Dự kiến: '.$order->estimated_delivery : 'Pawora sẽ cập nhật khi đơn được giao đi.' }}</p></article>
+        <article class="order-totals"><div><span>Tạm tính</span><strong>{{ number_format($order->subtotal, 0, ',', '.') }}đ</strong></div><div><span>Giảm giá</span><strong>-{{ number_format($order->discount, 0, ',', '.') }}đ</strong></div><div><span>Phí giao hàng</span><strong>{{ number_format($order->shipping_fee, 0, ',', '.') }}đ</strong></div><div><span>Tổng cộng</span><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong></div></article>
+        @if($order->canBeCancelledByCustomer())<details class="cancel-order cancel-order--detail"><summary>Huỷ đơn hàng</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label><button type="submit" class="button danger-button">Xác nhận huỷ đơn</button></form></details>@elseif($order->payment_status === 'paid' && in_array($order->status, ['pending','confirmed'], true))<p class="fine">Đơn đã thanh toán cần được Pawora hỗ trợ huỷ và hoàn tiền. Vui lòng liên hệ hỗ trợ.</p>@endif
+    </aside>
+</section>
+@endsection

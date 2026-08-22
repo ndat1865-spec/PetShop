@@ -30,9 +30,8 @@
             <nav class="desktop-nav" aria-label="Điều hướng chính"><a href="{{ route('home') }}"
                     @if(request()->routeIs('home')) aria-current="page" @endif>Trang chủ</a><a
                     href="{{ route('products.index') }}" @if(request()->routeIs('products.*')) aria-current="page"
-                    @endif>Sản phẩm</a><a href="{{ route('products.index', ['pet_type' => 'dog']) }}">Cho chó</a><a
-                    href="{{ route('products.index', ['pet_type' => 'cat']) }}">Cho mèo</a><a
-                    href="{{ route('about') }}">Về Pawora</a><a href="{{ route('contact') }}">Liên hệ</a></nav>
+                    @endif>Sản phẩm</a><a href="{{ route('about') }}">Về Pawora</a><a
+                    href="{{ route('contact') }}">Liên hệ</a></nav>
             <div class="nav-actions"><a class="icon-button" href="{{ route('products.index') }}"
                     aria-label="Tìm kiếm"><svg aria-hidden="true" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="7" />
@@ -56,10 +55,8 @@
             </div>
         </div>
         <div class="mobile-panel" hidden data-mobile-panel><a href="{{ route('home') }}">Trang chủ</a><a
-                href="{{ route('products.index') }}">Tất cả sản phẩm</a><a
-                href="{{ route('products.index', ['pet_type' => 'dog']) }}">Phụ kiện cho chó</a><a
-                href="{{ route('products.index', ['pet_type' => 'cat']) }}">Phụ kiện cho mèo</a><a
-                href="{{ route('about') }}">Về Pawora</a><a href="{{ route('contact') }}">Liên hệ</a></div>
+                href="{{ route('products.index') }}">Sản phẩm</a><a href="{{ route('about') }}">Về Pawora</a><a
+                href="{{ route('contact') }}">Liên hệ</a></div>
     </header>
     @if(session('success'))
         <div class="toast" role="status" data-toast>{{ session('success') }}<button aria-label="Đóng thông báo">×</button>

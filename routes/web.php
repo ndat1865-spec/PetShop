@@ -1,16 +1,17 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\StoreController;
-use App\Http\Controllers\AccountController;
-use App\Http\Controllers\OnePayController;
 use App\Http\Controllers\MomoController;
+use App\Http\Controllers\OnePayController;
 use App\Http\Controllers\SepayController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\VnPayController;
 use App\Http\Controllers\ZaloPayController;
+use App\Models\Product;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -49,11 +50,15 @@ Route::get('/don-hang/{order}', [CheckoutController::class, 'show'])->name('orde
 Route::get('/dat-hang/{order}/thanh-cong', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function () {
     Route::get('/', [AccountController::class, 'index'])->name('index');
+    Route::get('/ho-so', [AccountController::class, 'profile'])->name('profile');
     Route::patch('/ho-so', [AccountController::class, 'updateProfile'])->name('profile.update');
+    Route::get('/dia-chi', [AccountController::class, 'addresses'])->name('addresses');
     Route::post('/dia-chi', [AccountController::class, 'storeAddress'])->name('addresses.store');
     Route::patch('/dia-chi/{address}', [AccountController::class, 'updateAddress'])->name('addresses.update');
     Route::patch('/dia-chi/{address}/mac-dinh', [AccountController::class, 'makeDefaultAddress'])->name('addresses.default');
     Route::delete('/dia-chi/{address}', [AccountController::class, 'destroyAddress'])->name('addresses.destroy');
+    Route::get('/don-hang', [AccountController::class, 'orders'])->name('orders.index');
+    Route::get('/don-hang/{order}', [AccountController::class, 'showOrder'])->name('orders.show');
     Route::patch('/don-hang/{order}/huy', [AccountController::class, 'cancelOrder'])->name('orders.cancel');
     Route::post('/don-hang/{order}/doi-tra', [AccountController::class, 'requestReturn'])->name('returns.store');
 });
@@ -101,6 +106,7 @@ Route::view('/ve-pawora', 'pages.about')->name('about');
 Route::view('/lien-he', 'pages.contact')->name('contact');
 Route::get('/sitemap.xml', function () {
     $urls = collect([route('home'), route('products.index'), route('about'), route('contact')])
-        ->merge(\App\Models\Product::active()->pluck('slug')->map(fn($slug) => route('products.show', $slug)));
+        ->merge(Product::active()->pluck('slug')->map(fn ($slug) => route('products.show', $slug)));
+
     return response()->view('sitemap', compact('urls'))->header('Content-Type', 'application/xml');
 })->name('sitemap');

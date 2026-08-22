@@ -15,10 +15,10 @@
             <legend>Thông tin người nhận</legend>
             <div class="form-grid">
                 <div class="field"><label for="customer_name">Họ và tên *</label><input id="customer_name"
-                        name="customer_name" value="{{ old('customer_name', auth()->user()?->name) }}"
+                        name="customer_name" value="{{ old('customer_name', $defaultAddress['receiver_name']) }}"
                         autocomplete="name" required></div>
                 <div class="field"><label for="phone">Số điện thoại *</label><input id="phone" name="phone"
-                        value="{{ old('phone', auth()->user()?->phone) }}" inputmode="tel" autocomplete="tel" required>
+                        value="{{ old('phone', $defaultAddress['phone']) }}" inputmode="tel" autocomplete="tel" required>
                 </div>
                 <div class="field full"><label for="email">Email *</label><input id="email" type="email" name="email"
                         value="{{ old('email', auth()->user()?->email) }}" autocomplete="email" required></div>
@@ -26,8 +26,34 @@
         </fieldset>
         <fieldset>
             <legend>Địa chỉ giao hàng</legend>
+            @if($savedAddresses->isNotEmpty())
+                <div class="saved-address-picker" data-saved-address-picker>
+                    <div class="saved-address-picker__head"><strong>Địa chỉ đã lưu</strong><small>Chọn một địa chỉ để tự động điền thông tin giao hàng.</small></div>
+                    <div class="saved-address-grid">
+                        @foreach($savedAddresses as $address)
+                            <label class="saved-address-option">
+                                <input type="radio" name="saved_address_choice" value="{{ $address->id }}"
+                                    @checked($address->id === $savedAddresses->first()->id)
+                                    data-saved-address
+                                    data-receiver-name="{{ $address->receiver_name }}"
+                                    data-phone="{{ $address->phone }}"
+                                    data-province-value="{{ $address->province }}"
+                                    data-district-value="{{ $address->district }}"
+                                    data-ward-value="{{ $address->ward }}"
+                                    data-address-line-value="{{ $address->address_line }}">
+                                <span><strong>{{ $address->label }}</strong>@if($address->is_default)<em>Mặc định</em>@endif<small>{{ $address->receiver_name }} · {{ $address->phone }}</small><small>{{ $address->fullAddress() }}</small></span>
+                            </label>
+                        @endforeach
+                        <label class="saved-address-option saved-address-option--new">
+                            <input type="radio" name="saved_address_choice" value="new" data-new-address>
+                            <span><strong>+ Địa chỉ mới</strong><small>Chọn địa chỉ khác bằng danh mục GHN.</small></span>
+                        </label>
+                    </div>
+                </div>
+            @endif
             <div class="form-grid">
                 @php($selectedProvince = old('province', $defaultAddress['province']))
+                @php($selectedDistrict = old('district', $defaultAddress['district']))
                 @php($selectedWard = old('ward', $defaultAddress['ward']))
                 <div class="field full"><label for="province">Tỉnh/Thành phố *</label><select id="province"
                         name="province" required data-province>
@@ -38,7 +64,7 @@
                 <input type="hidden" name="district_id" data-district-id value="{{ old('district_id') }}">
                 <input type="hidden" name="ward_code" data-ward-code value="{{ old('ward_code') }}">
                 <div class="field full"><label for="district">Quận/Huyện *</label><select id="district" name="district"
-                        required data-district disabled>
+                        required data-district data-selected="{{ $selectedDistrict }}" disabled>
                         <option value="">Chọn tỉnh/thành phố trước</option>
                     </select></div>
                 <div class="field full"><label for="ward">Phường/Xã/Đặc khu *</label><select id="ward" name="ward"

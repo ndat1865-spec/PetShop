@@ -1,14 +1,28 @@
 @extends('layouts.app')
 @section('title', 'Tài khoản — Pawora')
 @section('content')
-<section class="container account-hero"><div><p class="eyebrow">Không gian của bạn</p><h1>Xin chào,<br>{{ auth()->user()->name }}.</h1><p>Quản lý đơn hàng, thông tin cá nhân và những địa chỉ giao hàng thường dùng.</p></div><aside class="account-quick-card"><span>Tài khoản Pawora</span><a href="#profile">Thông tin cá nhân</a><a href="#orders">Lịch sử đơn hàng</a><a href="#addresses">Địa chỉ giao hàng</a></aside></section>
-<main class="container account-page">
-@if(session('success'))<div class="toast" role="status">{{ session('success') }}</div>@endif
-@if($errors->any())<div class="error-summary" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-<nav class="account-tabs" aria-label="Điều hướng tài khoản"><a href="#profile">Hồ sơ</a><a href="#orders">Đơn hàng</a><a href="#addresses">Địa chỉ</a></nav>
-<section class="account-stats"><article><span>Tổng đơn hàng</span><strong>{{ $accountStats['orders'] }}</strong></article><article><span>Đang xử lý</span><strong>{{ $accountStats['pending'] }}</strong></article><article><span>Đã thanh toán</span><strong>{{ $accountStats['paid'] }}</strong></article><article><span>Địa chỉ lưu</span><strong>{{ $accountStats['addresses'] }}</strong></article></section>
-<section id="profile" class="account-dashboard"><div class="account-panel"><div class="account-panel-head"><div><p class="eyebrow">Hồ sơ</p><h2>Thông tin cá nhân</h2></div></div><form method="post" action="{{ route('account.profile.update') }}" class="account-form">@csrf @method('PATCH')<label class="field"><span>Họ và tên</span><input name="name" value="{{ old('name', auth()->user()->name) }}" required></label><label class="field"><span>Email</span><input value="{{ auth()->user()->email }}" disabled></label><label class="field"><span>Số điện thoại</span><input name="phone" value="{{ old('phone', auth()->user()->phone) }}"></label><button class="button primary" type="submit">Lưu thay đổi</button></form></div>
-<div id="addresses" class="account-panel"><div class="account-panel-head"><div><p class="eyebrow">Giao hàng</p><h2>Địa chỉ của bạn</h2></div></div>@forelse($addresses->take(3) as $address)<div class="address-card"><div><strong>{{ $address->label }}</strong><p>{{ $address->receiver_name }} · {{ $address->phone }}<br>{{ $address->address_line }}, {{ $address->ward }}, {{ $address->province }}</p></div>@if($address->is_default)<span class="status">Mặc định</span>@endif</div>@empty<p class="fine">Bạn chưa lưu địa chỉ nào.</p>@endforelse
-<details class="account-add-address"><summary>+ Thêm địa chỉ mới</summary><form method="post" action="{{ route('account.addresses.store') }}" class="account-form">@csrf<div class="form-grid"><label class="field"><span>Nhãn địa chỉ</span><input name="label" placeholder="Nhà riêng, Công ty..." required></label><label class="field"><span>Người nhận</span><input name="receiver_name" value="{{ auth()->user()->name }}" required></label><label class="field"><span>Số điện thoại</span><input name="phone" required></label><label class="field"><span>Tỉnh / Thành phố</span><select name="province" required><option value="">Chọn tỉnh / thành phố</option>@foreach($provinces as $province)<option value="{{ $province }}">{{ $province }}</option>@endforeach</select></label><label class="field"><span>Quận / Huyện</span><input name="district" placeholder="Nhập quận / huyện"></label><label class="field"><span>Phường / Xã</span><input name="ward" required placeholder="Nhập phường / xã"></label><label class="field full"><span>Địa chỉ chi tiết</span><input name="address_line" required placeholder="Số nhà, tên đường..."></label></div><label class="check-row"><input type="checkbox" name="is_default" value="1"> Đặt làm địa chỉ mặc định</label><button class="button primary" type="submit">Lưu địa chỉ</button></form></details></div></section>
-<section id="orders" class="account-orders"><div class="account-section-title"><div><p class="eyebrow">Lịch sử mua sắm</p><h2>Đơn hàng gần đây</h2></div><span class="fine">{{ $accountStats['orders'] }} đơn hàng</span></div>@forelse($orders as $order)<article class="account-order"><div><p class="eyebrow">{{ $order->created_at->format('d.m.Y') }}</p><h3>{{ $order->number }}</h3><p>{{ $order->items->count() }} sản phẩm · {{ ucfirst($order->status) }}</p></div><div><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong><a class="button secondary" href="{{ route('orders.show', ['order'=>$order, 'token'=>$order->public_token]) }}">Xem đơn hàng</a></div></article>@empty<div class="empty-state"><h2>Chưa có đơn hàng</h2><p>Những món đồ đầu tiên cho người bạn nhỏ đang chờ bạn.</p><a class="button primary" href="{{ route('products.index') }}">Khám phá sản phẩm</a></div>@endforelse{{ $orders->links() }}</section></main>
+<section class="container account-minimal-hero">
+    <div class="account-minimal-hero__copy">
+        <p class="eyebrow">Không gian của bạn</p>
+        <h1>Xin chào,<br>{{ auth()->user()->name }}.</h1>
+        <p>Theo dõi đơn hàng và quản lý những thông tin quan trọng tại một nơi.</p>
+    </div>
+    <div class="account-identity" aria-label="Thông tin tài khoản hiện tại">
+        <span aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>
+        <div><small>Tài khoản Pawora</small><strong>{{ auth()->user()->email }}</strong><em>{{ $defaultAddress ? 'Đã thiết lập địa chỉ giao hàng' : 'Chưa thiết lập địa chỉ giao hàng' }}</em></div>
+    </div>
+</section>
+<div class="container">@include('account._nav')</div>
+<section class="container account-overview" aria-label="Tổng quan tài khoản">
+    <div class="account-overview__heading">
+        <div><p class="eyebrow">Tổng quan</p><h2>Tình trạng đơn hàng</h2></div>
+        <a class="text-link" href="{{ route('account.orders.index') }}">Xem tất cả đơn <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="account-overview__stats">
+        <a class="account-stat account-stat--all" href="{{ route('account.orders.index') }}"><span class="account-stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h12v17H6zM9 8h6M9 12h6M9 16h3"/></svg></span><small>Tổng đơn</small><strong>{{ $accountStats['orders'] }}</strong><em>Tất cả đơn đã đặt</em><b aria-hidden="true">↗</b></a>
+        <a class="account-stat account-stat--processing" href="{{ route('account.orders.index', ['status' => 'active']) }}"><span class="account-stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><small>Đang xử lý</small><strong>{{ $accountStats['processing'] }}</strong><em>Đang được Pawora chuẩn bị</em><b aria-hidden="true">↗</b></a>
+        <a class="account-stat account-stat--shipping" href="{{ route('account.orders.index', ['status' => 'shipped']) }}"><span class="account-stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 6h11v11h-11zM14.5 10h3l3 3v4h-6z"/><circle cx="7" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/></svg></span><small>Đang giao</small><strong>{{ $accountStats['shipping'] }}</strong><em>Đang trên đường đến bạn</em><b aria-hidden="true">↗</b></a>
+        <a class="account-stat account-stat--complete" href="{{ route('account.orders.index', ['status' => 'delivered']) }}"><span class="account-stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><small>Hoàn thành</small><strong>{{ $accountStats['completed'] }}</strong><em>Đã giao thành công</em><b aria-hidden="true">↗</b></a>
+    </div>
+</section>
 @endsection

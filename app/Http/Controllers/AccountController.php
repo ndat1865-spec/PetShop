@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\ReturnRequest;
+use App\Models\Product;
 use App\Models\UserAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,16 +12,57 @@ class AccountController extends Controller
 {
     public function index(Request $request)
     {
+        $orders = $request->user()->orders();
+
         return view('account.index', [
-            'orders' => $request->user()->orders()->with('items')->latest()->paginate(10),
-            'addresses' => $request->user()->addresses()->latest('is_default')->latest()->get(),
-            'provinces' => config('pawora.shipping.provinces', []),
+            'recentOrders' => (clone $orders)->with('items')->latest()->take(3)->get(),
+            'defaultAddress' => $request->user()->addresses()->where('is_default', true)->first(),
             'accountStats' => [
-                'orders' => $request->user()->orders()->count(),
-                'pending' => $request->user()->orders()->whereIn('status', ['pending','confirmed','processing'])->count(),
-                'paid' => $request->user()->orders()->where('payment_status', 'paid')->count(),
+                'orders' => (clone $orders)->count(),
+                'processing' => (clone $orders)->whereIn('status', ['pending', 'confirmed', 'processing', 'packed'])->count(),
+                'shipping' => (clone $orders)->where('status', 'shipped')->count(),
+                'completed' => (clone $orders)->where('status', 'delivered')->count(),
                 'addresses' => $request->user()->addresses()->count(),
             ],
+        ]);
+    }
+
+    public function profile()
+    {
+        return view('account.profile');
+    }
+
+    public function addresses(Request $request)
+    {
+        return view('account.addresses', [
+            'addresses' => $request->user()->addresses()->latest('is_default')->latest()->get(),
+            'provinces' => config('pawora.shipping.provinces', []),
+        ]);
+    }
+
+    public function orders(Request $request)
+    {
+        $status = $request->string('status')->toString();
+        $allowedStatuses = array_merge(Order::STATUSES, ['active']);
+        abort_unless($status === '' || in_array($status, $allowedStatuses, true), 404);
+
+        $orders = $request->user()->orders()
+            ->with(['items.product', 'shipments'])
+            ->when($status === 'active', fn ($query) => $query->whereNotIn('status', ['delivered', 'cancelled']))
+            ->when($status !== '' && $status !== 'active', fn ($query) => $query->where('status', $status))
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('account.orders.index', compact('orders', 'status'));
+    }
+
+    public function showOrder(Request $request, Order $order)
+    {
+        abort_unless($order->user_id === $request->user()->id, 403);
+
+        return view('account.orders.show', [
+            'order' => $order->load(['items.product', 'histories', 'shipments', 'payments']),
         ]);
     }
 
@@ -29,11 +70,11 @@ class AccountController extends Controller
     {
         $user = $request->user();
         $data = $request->validate([
-            'name' => ['required','string','max:100'],
-            'phone' => ['nullable','regex:/^[0-9+ ]{9,15}$/'],
-            'province' => ['nullable','string','max:100'],
-            'ward' => ['nullable','string','max:100'],
-            'address_line' => ['nullable','string','max:255'],
+            'name' => ['required', 'string', 'max:100'],
+            'phone' => ['nullable', 'regex:/^[0-9+ ]{9,15}$/'],
+            'province' => ['nullable', 'string', 'max:100'],
+            'ward' => ['nullable', 'string', 'max:100'],
+            'address_line' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user->update($data);
@@ -44,14 +85,14 @@ class AccountController extends Controller
     public function storeAddress(Request $request)
     {
         $data = $request->validate([
-            'label' => ['required','string','max:40'],
-            'receiver_name' => ['required','string','max:100'],
-            'phone' => ['required','regex:/^[0-9+ ]{9,15}$/'],
-            'province' => ['required','string','max:100'],
-            'district' => ['nullable','string','max:100'],
-            'ward' => ['required','string','max:100'],
-            'address_line' => ['required','string','max:255'],
-            'is_default' => ['nullable','boolean'],
+            'label' => ['required', 'string', 'max:40'],
+            'receiver_name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'regex:/^[0-9+ ]{9,15}$/'],
+            'province' => ['required', 'string', 'max:100'],
+            'district' => ['nullable', 'string', 'max:100'],
+            'ward' => ['required', 'string', 'max:100'],
+            'address_line' => ['required', 'string', 'max:255'],
+            'is_default' => ['nullable', 'boolean'],
         ]);
 
         DB::transaction(function () use ($request, $data) {
@@ -80,14 +121,14 @@ class AccountController extends Controller
         abort_unless($address->user_id === $request->user()->id, 403);
 
         $data = $request->validate([
-            'label' => ['required','string','max:40'],
-            'receiver_name' => ['required','string','max:100'],
-            'phone' => ['required','regex:/^[0-9+ ]{9,15}$/'],
-            'province' => ['required','string','max:100'],
-            'district' => ['nullable','string','max:100'],
-            'ward' => ['required','string','max:100'],
-            'address_line' => ['required','string','max:255'],
-            'is_default' => ['nullable','boolean'],
+            'label' => ['required', 'string', 'max:40'],
+            'receiver_name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'regex:/^[0-9+ ]{9,15}$/'],
+            'province' => ['required', 'string', 'max:100'],
+            'district' => ['nullable', 'string', 'max:100'],
+            'ward' => ['required', 'string', 'max:100'],
+            'address_line' => ['required', 'string', 'max:255'],
+            'is_default' => ['nullable', 'boolean'],
         ]);
 
         DB::transaction(function () use ($request, $address, $data) {
@@ -139,17 +180,37 @@ class AccountController extends Controller
 
     public function cancelOrder(Request $request, Order $order)
     {
-        abort_unless($order->user_id === $request->user()->id, 403);
-        abort_unless(in_array($order->status, ['pending','confirmed'], true), 422, 'Đơn hàng đã qua bước chuẩn bị nên không thể hủy trực tuyến.');
-
-        $order->histories()->create([
-            'user_id' => $request->user()->id,
-            'from_status' => $order->status,
-            'to_status' => 'cancelled',
-            'note' => 'Khách hàng hủy đơn từ trang tài khoản.',
+        $data = $request->validate([
+            'reason' => ['required', 'in:ordered_by_mistake,change_address,change_payment,no_longer_needed,other'],
         ]);
 
-        $order->update(['status' => 'cancelled']);
+        $reasonLabels = [
+            'ordered_by_mistake' => 'Đặt nhầm sản phẩm',
+            'change_address' => 'Muốn thay đổi địa chỉ',
+            'change_payment' => 'Muốn đổi phương thức thanh toán',
+            'no_longer_needed' => 'Không còn nhu cầu',
+            'other' => 'Lý do khác',
+        ];
+
+        DB::transaction(function () use ($request, $order, $data, $reasonLabels) {
+            $lockedOrder = Order::query()->with('items')->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->user_id === $request->user()->id, 403);
+            abort_unless($lockedOrder->canBeCancelledByCustomer(), 422, 'Chỉ đơn chưa thanh toán và chưa qua bước chuẩn bị mới có thể hủy trực tuyến.');
+
+            foreach ($lockedOrder->items as $item) {
+                if ($item->product_id) {
+                    Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
+                }
+            }
+
+            $lockedOrder->histories()->create([
+                'user_id' => $request->user()->id,
+                'from_status' => $lockedOrder->status,
+                'to_status' => 'cancelled',
+                'note' => 'Khách hàng hủy đơn: '.$reasonLabels[$data['reason']].'.',
+            ]);
+            $lockedOrder->update(['status' => 'cancelled']);
+        });
 
         return back()->with('success', 'Đơn hàng đã được hủy.');
     }
@@ -158,9 +219,10 @@ class AccountController extends Controller
     {
         abort_unless($order->user_id === $request->user()->id, 403);
         abort_unless($order->status === 'delivered' && $order->updated_at->greaterThanOrEqualTo(now()->subDays(7)), 422, 'Đơn hàng không nằm trong thời hạn đổi trả.');
-        abort_if($order->returnRequests()->whereIn('status', ['requested','approved','received'])->exists(), 422, 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.');
-        $data = $request->validate(['reason'=>'required|in:wrong_item,damaged,not_fit,changed_mind,other','details'=>'required|string|max:1000']);
-        $order->returnRequests()->create([...$data, 'user_id'=>$request->user()->id]);
+        abort_if($order->returnRequests()->whereIn('status', ['requested', 'approved', 'received'])->exists(), 422, 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.');
+        $data = $request->validate(['reason' => 'required|in:wrong_item,damaged,not_fit,changed_mind,other', 'details' => 'required|string|max:1000']);
+        $order->returnRequests()->create([...$data, 'user_id' => $request->user()->id]);
+
         return back()->with('success', 'Pawora đã nhận yêu cầu đổi trả của bạn.');
     }
 }
