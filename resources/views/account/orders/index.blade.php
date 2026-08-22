@@ -15,6 +15,19 @@
             <footer><a class="button secondary" href="{{ route('account.orders.show', $order) }}">Xem chi tiết</a>@if($order->canBeCancelledByCustomer())<details class="cancel-order"><summary>Huỷ đơn</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label><div><button type="button" class="button secondary" onclick="this.closest('details').removeAttribute('open')">Giữ đơn hàng</button><button type="submit" class="button danger-button">Xác nhận huỷ</button></div></form></details>@endif</footer>
         </article>
     @empty<div class="empty-state"><h2>Không có đơn hàng phù hợp</h2><p>Những món đồ cho người bạn nhỏ vẫn đang chờ bạn.</p><a class="button primary" href="{{ route('products.index') }}">Khám phá sản phẩm</a></div>@endforelse</div>
-    {{ $orders->links() }}
+    @if($orders->hasPages())
+        <nav class="account-pagination" aria-label="Phân trang đơn hàng">
+            @if($orders->onFirstPage())
+                <span class="is-disabled">« Previous</span>
+            @else
+                <a href="{{ $orders->previousPageUrl() }}">« Previous</a>
+            @endif
+            @if($orders->hasMorePages())
+                <a href="{{ $orders->nextPageUrl() }}">Next »</a>
+            @else
+                <span class="is-disabled">Next »</span>
+            @endif
+        </nav>
+    @endif
 </section>
 @endsection

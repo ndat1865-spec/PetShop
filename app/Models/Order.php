@@ -24,6 +24,7 @@ class Order extends Model
         'paid' => 'Đã thanh toán',
         'failed' => 'Thanh toán thất bại',
         'refunded' => 'Đã hoàn tiền',
+        'refund_pending' => 'Đang hoàn tiền',
     ];
 
     protected $fillable = ['number', 'public_token', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
@@ -73,6 +74,6 @@ class Order extends Model
     public function canBeCancelledByCustomer(): bool
     {
         return in_array($this->status, ['pending', 'confirmed'], true)
-            && $this->payment_status === 'unpaid';
+            && ! in_array($this->payment_status, ['refunded', 'refund_pending'], true);
     }
 }

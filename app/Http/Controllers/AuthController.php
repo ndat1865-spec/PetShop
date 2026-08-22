@@ -4,6 +4,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
@@ -56,6 +58,12 @@ class AuthController extends Controller
         } else {
             $user->update([$column => $socialUser->getId(), 'email_verified_at' => $user->email_verified_at ?: now()]);
         }
+        if (!$user->avatar_path && $socialUser->getAvatar()) {
+            $avatarPath = $this->importSocialAvatar($socialUser->getAvatar(), $provider, $user->id);
+            if ($avatarPath) {
+                $user->update(['avatar_path' => $avatarPath]);
+            }
+        }
         Auth::login($user, true);
         request()->session()->regenerate();
         return redirect()->intended(route('home'))->with('success', 'Đăng nhập thành công.');
@@ -66,5 +74,39 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('home');
+    }
+
+    private function importSocialAvatar(string $url, string $provider, int $userId): ?string
+    {
+        if (!Str::startsWith($url, 'https://')) {
+            return null;
+        }
+
+        try {
+            $client = Http::timeout(5)->retry(1, 150);
+            if (app()->environment('local')) {
+                $client = $client->withoutVerifying();
+            }
+            $response = $client->get($url);
+            if (!$response->successful() || strlen($response->body()) > 2 * 1024 * 1024) {
+                return null;
+            }
+
+            $mime = strtolower(trim(explode(';', $response->header('Content-Type'))[0]));
+            $extension = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+            ][$mime] ?? null;
+            if (!$extension) {
+                return null;
+            }
+
+            $path = 'avatars/social-'.$provider.'-'.$userId.'-'.Str::uuid().'.'.$extension;
+            return Storage::disk('public')->put($path, $response->body()) ? $path : null;
+        } catch (\Throwable $e) {
+            report($e);
+            return null;
+        }
     }
 }

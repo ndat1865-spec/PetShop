@@ -8,7 +8,7 @@
         <p>Theo dõi đơn hàng và quản lý những thông tin quan trọng tại một nơi.</p>
     </div>
     <div class="account-identity" aria-label="Thông tin tài khoản hiện tại">
-        <span aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>
+        <span aria-hidden="true">@if(auth()->user()->avatarUrl())<img src="{{ auth()->user()->avatarUrl() }}" alt="" width="54" height="54">@else{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}@endif</span>
         <div><small>Tài khoản Pawora</small><strong>{{ auth()->user()->email }}</strong><em>{{ $defaultAddress ? 'Đã thiết lập địa chỉ giao hàng' : 'Chưa thiết lập địa chỉ giao hàng' }}</em></div>
     </div>
 </section>

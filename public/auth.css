@@ -1,14 +1,14 @@
 :root{--auth-primary:#0c1421;--auth-secondary:#313957;--auth-link:#1e4ae9;--auth-input:#f7fbff;--auth-border:#d4d7e3;--auth-button:#162d3a;--auth-social:#f3f9fa}
 @font-face{font-family:"Dalat Sans";src:url("fonts/MTDalatSans.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
 @font-face{font-family:"Dalat Sans Cap";src:url("fonts/MTDalatSansCap.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
-.auth-page{margin:0;background:var(--auth-button);color:var(--auth-primary);font-family:"Dalat Sans","Segoe UI",system-ui,sans-serif;overflow-x:hidden}
+.auth-page{margin:0;background:var(--auth-button);color:var(--auth-primary);font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;overflow-x:hidden}
 .auth-page main{min-height:100dvh;display:grid;place-items:center;padding:32px}
 .figma-auth{width:min(100%,1180px);min-height:clamp(720px,calc(100dvh - 64px),900px);display:grid;grid-template-columns:minmax(440px,.9fr) minmax(500px,1.1fr);gap:24px;padding:32px;background:#fff;border-radius:30px;overflow:hidden;box-shadow:0 22px 54px rgba(2,13,20,.24)}
 .figma-auth__form-side{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:40px 24px 28px}
 .figma-auth__form{width:min(100%,400px);display:flex;flex-direction:column;gap:36px}
 .figma-auth__intro{display:flex;flex-direction:column;gap:28px}
-.figma-auth__wordmark{color:var(--auth-link);font:400 16px/1 "Dalat Sans Cap","Dalat Sans",sans-serif;letter-spacing:.14em;margin-bottom:-14px}
-.figma-auth__intro h1{margin:0;color:var(--auth-primary);font:400 42px/1.08 "Dalat Sans Cap","Dalat Sans",sans-serif;letter-spacing:.01em}
+.figma-auth__wordmark{color:var(--auth-link);font:700 16px/1 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:.12em;margin-bottom:-14px}
+.figma-auth__intro h1{margin:0;color:var(--auth-primary);font:700 42px/1.08 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:-.035em}
 .figma-auth__intro p{margin:0;color:var(--auth-secondary);font-size:19px;line-height:1.55;letter-spacing:.01em}
 .figma-auth__fields{display:flex;flex-direction:column;gap:24px}
 .figma-field{display:flex;flex-direction:column;gap:8px;color:var(--auth-primary);font-size:16px;line-height:1.25}
@@ -23,7 +23,7 @@
 .password-toggle:hover,.password-toggle:focus-visible{background:#e8f0f8;color:var(--auth-link);outline:2px solid rgba(30,74,233,.28);outline-offset:1px}
 .password-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .figma-auth__forgot{align-self:flex-end;color:var(--auth-link);font-size:16px;line-height:1}
-.figma-auth__submit{height:52px;border:0;border-radius:12px;background:var(--auth-button);color:#fff;font:400 20px/1 "Dalat Sans Cap","Dalat Sans",sans-serif;cursor:pointer;transition:background .18s ease,transform .18s ease,opacity .18s ease}
+.figma-auth__submit{height:52px;border:0;border-radius:12px;background:var(--auth-button);color:#fff;font:600 18px/1 "Be Vietnam Pro","Segoe UI",sans-serif;cursor:pointer;transition:background .18s ease,transform .18s ease,opacity .18s ease}
 .figma-auth__submit:disabled{cursor:wait;opacity:.72}.figma-auth__submit.is-loading::after{content:"";display:inline-block;width:14px;height:14px;margin-left:10px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;vertical-align:-2px;animation:auth-spin .7s linear infinite}@keyframes auth-spin{to{transform:rotate(360deg)}}
 .figma-auth__submit:hover{background:#203e4d}.figma-auth__submit:active{transform:translateY(1px)}
 .figma-auth__divider{display:flex;align-items:center;gap:16px;color:#294957;font-size:16px}

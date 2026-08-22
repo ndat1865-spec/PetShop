@@ -5,7 +5,6 @@
     <p class="eyebrow">Pawora Collection</p>
     <div class="catalog-hero__row">
         <h1>Phụ kiện cho từng nhịp sống.</h1>
-        <p>Tìm món đồ vừa vặn với thói quen, cá tính và những ngày vui của bé.</p>
     </div>
 </section>
 
@@ -16,10 +15,6 @@
     @endforeach
 </nav>
 
-<section class="catalog-strip container" aria-label="Lựa chọn từ Pawora">
-    <div><p class="eyebrow">Pawora essentials</p><strong>Món đồ được chọn kỹ cho những ngày bên nhau.</strong></div>
-    <a href="{{ route('products.index', ['sort'=>'featured']) }}">Xem sản phẩm nổi bật <span aria-hidden="true">→</span></a>
-</section>
 
 <section class="catalog catalog--minimal container" aria-labelledby="product-results-title">
     <form class="catalog-toolbar" method="get" action="{{ route('products.index') }}">

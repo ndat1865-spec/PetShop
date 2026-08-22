@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\PaymentTransaction;
 use App\Models\Product;
 use App\Models\UserAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AccountController extends Controller
 {
@@ -75,9 +78,19 @@ class AccountController extends Controller
             'province' => ['nullable', 'string', 'max:100'],
             'ward' => ['nullable', 'string', 'max:100'],
             'address_line' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
+        $oldAvatarPath = $user->avatar_path;
+        if ($request->hasFile('avatar')) {
+            $data['avatar_path'] = $request->file('avatar')->store('avatars', 'public');
+        }
+        unset($data['avatar']);
         $user->update($data);
+
+        if (isset($data['avatar_path']) && $oldAvatarPath && $oldAvatarPath !== $data['avatar_path']) {
+            Storage::disk('public')->delete($oldAvatarPath);
+        }
 
         return back()->with('success', 'Thông tin tài khoản đã được cập nhật.');
     }
@@ -195,12 +208,26 @@ class AccountController extends Controller
         DB::transaction(function () use ($request, $order, $data, $reasonLabels) {
             $lockedOrder = Order::query()->with('items')->lockForUpdate()->findOrFail($order->id);
             abort_unless($lockedOrder->user_id === $request->user()->id, 403);
-            abort_unless($lockedOrder->canBeCancelledByCustomer(), 422, 'Chỉ đơn chưa thanh toán và chưa qua bước chuẩn bị mới có thể hủy trực tuyến.');
+            abort_unless($lockedOrder->canBeCancelledByCustomer(), 422, 'Chỉ đơn chưa qua bước chuẩn bị mới có thể hủy trực tuyến.');
 
+            // Chỉ hoàn tồn kho khi chuyển trạng thái thành công lần đầu, tránh cộng kho lặp lại.
             foreach ($lockedOrder->items as $item) {
-                if ($item->product_id) {
-                    Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
-                }
+                if ($item->product_id) Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
+            }
+
+            $wasPaid = $lockedOrder->payment_status === 'paid';
+            if ($wasPaid) {
+                PaymentTransaction::create([
+                    'order_id' => $lockedOrder->id,
+                    'request_id' => (string) Str::uuid(),
+                    'provider' => $lockedOrder->payment_method,
+                    'type' => 'refund',
+                    'status' => 'succeeded',
+                    'amount' => $lockedOrder->total,
+                    'currency' => $lockedOrder->currency ?: 'VND',
+                    'response_payload' => ['reason' => $data['reason'], 'source' => 'customer_cancellation'],
+                    'processed_at' => now(),
+                ]);
             }
 
             $lockedOrder->histories()->create([
@@ -209,10 +236,16 @@ class AccountController extends Controller
                 'to_status' => 'cancelled',
                 'note' => 'Khách hàng hủy đơn: '.$reasonLabels[$data['reason']].'.',
             ]);
-            $lockedOrder->update(['status' => 'cancelled']);
+            $lockedOrder->update([
+                'status' => 'cancelled',
+                'payment_status' => $wasPaid ? 'refunded' : $lockedOrder->payment_status,
+                'refunded_amount' => $wasPaid ? $lockedOrder->total : $lockedOrder->refunded_amount,
+            ]);
         });
 
-        return back()->with('success', 'Đơn hàng đã được hủy.');
+        return back()->with('success', $order->payment_status === 'paid'
+            ? 'Đơn hàng đã được hủy và ghi nhận hoàn tiền.'
+            : 'Đơn hàng đã được hủy.');
     }
 
     public function requestReturn(Request $request, Order $order)

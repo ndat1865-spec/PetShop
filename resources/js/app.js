@@ -372,3 +372,20 @@ if (petCatalog) {
     }));
     applyPetFilter('all');
 }
+
+const avatarInput = document.querySelector('[data-avatar-input]');
+const avatarPreview = document.querySelector('[data-avatar-preview]');
+if (avatarInput && avatarPreview) {
+    let previewUrl;
+    avatarInput.addEventListener('change', () => {
+        const [file] = avatarInput.files;
+        if (!file || !file.type.startsWith('image/')) return;
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = URL.createObjectURL(file);
+        avatarPreview.innerHTML = '';
+        const image = new Image();
+        image.src = previewUrl;
+        image.alt = 'Xem trước ảnh đại diện mới';
+        avatarPreview.append(image);
+    });
+}

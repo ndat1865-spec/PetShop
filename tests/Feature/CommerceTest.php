@@ -7,7 +7,12 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Laravel\Socialite\Contracts\User as SocialUserContract;
+use Laravel\Socialite\Facades\Socialite;
 use Tests\TestCase;
 
 class CommerceTest extends TestCase
@@ -98,6 +103,55 @@ class CommerceTest extends TestCase
             ->assertSee('Chờ xác nhận');
     }
 
+    public function test_customer_can_upload_and_replace_their_avatar(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/old-avatar.jpg', 'old-avatar');
+        $customer = User::factory()->create(['avatar_path' => 'avatars/old-avatar.jpg']);
+
+        $this->actingAs($customer)->patch(route('account.profile.update'), [
+            'name' => $customer->name,
+            'phone' => '0909000000',
+            'avatar' => UploadedFile::fake()->createWithContent(
+                'avatar.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+            ),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $customer->refresh();
+        $this->assertNotNull($customer->avatar_path);
+        $this->assertNotSame('avatars/old-avatar.jpg', $customer->avatar_path);
+        Storage::disk('public')->assertExists($customer->avatar_path);
+        Storage::disk('public')->assertMissing('avatars/old-avatar.jpg');
+    }
+
+    public function test_google_login_imports_the_social_avatar_for_a_new_customer(): void
+    {
+        Storage::fake('public');
+        $avatarUrl = 'https://images.example.test/google-avatar.png';
+        $avatarBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        Http::fake([$avatarUrl => Http::response($avatarBytes, 200, ['Content-Type' => 'image/png'])]);
+
+        $socialUser = \Mockery::mock(SocialUserContract::class);
+        $socialUser->shouldReceive('getId')->andReturn('google-user-123');
+        $socialUser->shouldReceive('getEmail')->andReturn('social-avatar@example.com');
+        $socialUser->shouldReceive('getName')->andReturn('Social Avatar');
+        $socialUser->shouldReceive('getNickname')->andReturn(null);
+        $socialUser->shouldReceive('getAvatar')->andReturn($avatarUrl);
+        $provider = \Mockery::mock();
+        $provider->shouldReceive('stateless')->once()->andReturnSelf();
+        $provider->shouldReceive('user')->once()->andReturn($socialUser);
+        Socialite::shouldReceive('driver')->once()->with('google')->andReturn($provider);
+
+        $this->get(route('social.callback', ['provider' => 'google']))
+            ->assertRedirect(route('home'));
+
+        $customer = User::where('email', 'social-avatar@example.com')->firstOrFail();
+        $this->assertNotNull($customer->avatar_path);
+        Storage::disk('public')->assertExists($customer->avatar_path);
+        $this->assertAuthenticatedAs($customer);
+    }
+
     public function test_saved_default_address_is_available_during_checkout(): void
     {
         $customer = User::factory()->create(['name' => 'Đạt Nguyễn', 'phone' => '0869372600']);
@@ -141,16 +195,19 @@ class CommerceTest extends TestCase
         $this->assertDatabaseHas('order_status_histories', ['order_id' => $order->id, 'from_status' => 'pending', 'to_status' => 'cancelled']);
     }
 
-    public function test_customer_cannot_cancel_a_paid_order(): void
+    public function test_customer_can_cancel_a_paid_order_and_receive_refund(): void
     {
         $customer = User::factory()->create();
         $product = $this->product(3);
         $order = Order::create(['number' => 'PAW-PAID-1', 'public_token' => (string) Str::uuid(), 'user_id' => $customer->id, 'customer_name' => 'Customer', 'email' => $customer->email, 'phone' => '0909000000', 'shipping_address' => 'Hà Nội', 'subtotal' => 200000, 'total' => 200000, 'payment_method' => 'vnpay', 'payment_status' => 'paid', 'status' => 'pending']);
         $order->items()->create(['product_id' => $product->id, 'product_name' => $product->name, 'sku' => $product->sku, 'unit_price' => 200000, 'quantity' => 1, 'line_total' => 200000]);
 
-        $this->actingAs($customer)->patch(route('account.orders.cancel', $order), ['reason' => 'other'])->assertStatus(422);
+        $this->actingAs($customer)->patch(route('account.orders.cancel', $order), ['reason' => 'other'])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Đơn hàng đã được hủy và ghi nhận hoàn tiền.');
 
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 3]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'refunded', 'refunded_amount' => 200000]);
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 4]);
+        $this->assertDatabaseHas('payment_transactions', ['order_id' => $order->id, 'type' => 'refund', 'status' => 'succeeded', 'amount' => 200000]);
     }
 }

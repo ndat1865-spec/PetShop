@@ -11,13 +11,15 @@
     <meta property="og:title" content="@yield('title', 'Pawora')">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="vi_VN">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:wght@500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('auth.css') }}">
 </head>
 
-<body>
+<body class="storefront-body">
     <a class="skip-link" href="#main">Đi đến nội dung chính</a>
-    <div class="announcement">Miễn phí giao hàng cho đơn từ 700.000đ</div>
     <div class="header-sentinel" aria-hidden="true" data-header-sentinel></div>
     <header class="site-header">
         <div class="container nav-wrap">
@@ -25,8 +27,9 @@
                 data-menu-button><svg aria-hidden="true" viewBox="0 0 24 24">
                     <path d="M4 7h16M4 12h16M4 17h16" />
                 </svg></button>
-            <a class="brand" href="{{ route('home') }}" aria-label="Pawora, trang chủ"><img class="brand-logo"
-                    src="{{ asset('media/pawora-p-logo.png') }}" alt="" width="34" height="34"><span>Pawora</span></a>
+            <a class="brand" href="{{ route('home') }}" aria-label="Pawora – Trang chủ"><span class="brand-mark"
+                    aria-hidden="true"><img class="brand-logo" src="{{ asset('media/pawora-p-logo.png') }}" alt=""
+                        width="34" height="34"></span><span class="brand-name">Pawora</span></a>
             <nav class="desktop-nav" aria-label="Điều hướng chính"><a href="{{ route('home') }}"
                     @if(request()->routeIs('home')) aria-current="page" @endif>Trang chủ</a><a
                     href="{{ route('products.index') }}" @if(request()->routeIs('products.*')) aria-current="page"
@@ -37,8 +40,9 @@
                         <circle cx="11" cy="11" r="7" />
                         <path d="m20 20-4-4" />
                     </svg></a>
-                @auth @if(auth()->user()->isAdmin())<a class="nav-text" href="{{ route('admin.dashboard') }}">Quản
-                    trị</a>@else<a class="nav-text" href="{{ route('account.index') }}">Tài khoản</a>@endif<form
+                @auth<a class="header-avatar" href="{{ auth()->user()->isAdmin() ? route('admin.dashboard') : route('account.index') }}"
+                    aria-label="{{ auth()->user()->isAdmin() ? 'Mở trang quản trị' : 'Mở tài khoản của '.auth()->user()->name }}"
+                    title="{{ auth()->user()->name }}">@if(auth()->user()->avatarUrl())<img src="{{ auth()->user()->avatarUrl() }}" alt="" width="32" height="32">@else<span role="img" aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>@endif</a><form
                         action="{{ route('logout') }}" method="post">@csrf<button class="icon-button"
                             aria-label="Đăng xuất"><svg aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M10 17l5-5-5-5M15 12H3M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" />

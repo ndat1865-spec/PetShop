@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -17,7 +18,7 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $fillable = ['name', 'email', 'phone', 'password', 'role', 'province', 'ward', 'address_line', 'google_id', 'facebook_id'];
+    protected $fillable = ['name', 'email', 'phone', 'password', 'role', 'province', 'ward', 'address_line', 'google_id', 'facebook_id', 'avatar_path'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -41,4 +42,5 @@ class User extends Authenticatable
     public function orders() { return $this->hasMany(Order::class); }
     public function addresses() { return $this->hasMany(UserAddress::class); }
     public function isAdmin(): bool { return in_array($this->role, ['admin', 'staff'], true); }
+    public function avatarUrl(): ?string { return $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null; }
 }
