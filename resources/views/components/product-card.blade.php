@@ -11,8 +11,12 @@
         <div class="price">
             <strong>{{ number_format($product->price, 0, ',', '.') }}đ</strong>@if($product->compare_price)<del>{{ number_format($product->compare_price, 0, ',', '.') }}đ</del>@endif
         </div>
-        <form action="{{ route('cart.store', $product) }}" method="post" data-cart-form>@csrf<button
-                class="button secondary" @disabled($product->stock < 1)
-                data-cart-button>{{ $product->stock ? 'Thêm vào giỏ' : 'Hết hàng' }}</button></form>
+        @if($product->variants->isNotEmpty())
+            <a class="button secondary" href="{{ route('products.show', $product->slug) }}">Chọn tùy chọn</a>
+        @else
+            <form action="{{ route('cart.store', $product) }}" method="post" data-cart-form data-cart-image="{{ $product->image }}">@csrf<button
+                    class="button secondary" @disabled($product->stock < 1)
+                    data-cart-button>{{ $product->stock ? 'Thêm vào giỏ' : 'Hết hàng' }}</button></form>
+        @endif
     </div>
 </article>

@@ -11,7 +11,7 @@ class SepayController extends Controller
 {
     public function payment(Request $request, Order $order, SepayGateway $sepay)
     {
-        abort_unless($request->user()?->isAdmin() || $request->session()->get('last_order') === $order->id || $request->query('token') === $order->public_token, 403);
+        abort_unless($request->user()?->canAccessAdmin() || $request->session()->get('last_order') === $order->id || $request->query('token') === $order->public_token, 403);
         abort_unless($order->payment_method === 'bank_transfer' && $sepay->enabled(), 404);
         return view('store.sepay-payment', ['order' => $order, 'qrUrl' => $sepay->qrUrl($order)]);
     }

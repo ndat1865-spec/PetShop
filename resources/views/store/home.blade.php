@@ -35,10 +35,15 @@
     </div>
 </section>
 
-<section class="home-section home-best-sellers" id="san-pham-noi-bat" aria-labelledby="best-seller-title" data-pet-catalog>
+<section class="home-section home-best-sellers home-best-sellers--refined" id="san-pham-noi-bat" aria-labelledby="best-seller-title" data-pet-catalog>
     <div class="container">
-        <div class="home-heading home-heading--catalog" data-reveal><div><p class="home-kicker">Được chọn nhiều tại Pawora</p><h2 id="best-seller-title">Bắt đầu từ những món bé sẽ dùng mỗi ngày.</h2></div><p>Những lựa chọn cân bằng giữa độ bền, sự thoải mái và vẻ đẹp trong không gian sống của bạn.</p></div>
-        <div class="home-catalog-toolbar" data-reveal><span>Chọn nhanh theo người bạn</span><div class="pet-filter" role="group" aria-label="Lọc sản phẩm theo thú cưng"><button type="button" class="is-active" data-pet-filter="all" aria-pressed="true">Tất cả</button><button type="button" data-pet-filter="dog" aria-pressed="false">Cho chó</button><button type="button" data-pet-filter="cat" aria-pressed="false">Cho mèo</button></div></div>
+        <div class="home-heading home-heading--catalog" data-reveal>
+            <div><p class="home-kicker">Được chọn nhiều tại Pawora</p><h2 id="best-seller-title">Những món bé dùng mỗi ngày.</h2></div>
+            <div class="home-catalog-aside">
+                <p>Được chọn dựa trên độ bền, sự thoải mái và khả năng dùng lâu dài trong đời sống thật.</p>
+                <div class="home-catalog-controls"><span>Chọn theo người bạn</span><div class="pet-filter" role="group" aria-label="Lọc sản phẩm theo thú cưng"><button type="button" class="is-active" data-pet-filter="all" aria-pressed="true">Tất cả</button><button type="button" data-pet-filter="dog" aria-pressed="false">Cho chó</button><button type="button" data-pet-filter="cat" aria-pressed="false">Cho mèo</button></div></div>
+            </div>
+        </div>
         @if($bestSellers->count())
             <p class="pet-filter-status sr-only" data-pet-filter-status aria-live="polite"></p>
             <div class="product-grid home-product-grid home-product-grid--filtered">@foreach($bestSellers as $product)<div class="pet-product-slot" data-pet-product="{{ $product->pet_type }}" @if($loop->index >= 4) hidden @endif><x-product-card :product="$product" /></div>@endforeach</div>

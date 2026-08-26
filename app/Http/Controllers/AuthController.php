@@ -1,12 +1,15 @@
 <?php
 namespace App\Http\Controllers;
 use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
@@ -34,6 +37,58 @@ class AuthController extends Controller
         $request->session()->regenerate();
         return redirect()->route('home')->with('success', 'Tài khoản Pawora của bạn đã sẵn sàng.');
     }
+    public function forgotPasswordForm()
+    {
+        return view('auth.forgot-password');
+    }
+    public function sendResetLinkEmail(Request $request)
+    {
+        $request->validate(['email' => ['required', 'email']]);
+
+        try {
+            $status = Password::sendResetLink($request->only('email'));
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors(['email' => 'Dịch vụ email đang tạm thời gián đoạn. Vui lòng thử lại sau ít phút.'])->onlyInput('email');
+        }
+        if ($status === Password::RESET_THROTTLED) {
+            return back()->withErrors(['email' => 'Bạn vừa yêu cầu email đặt lại mật khẩu. Vui lòng chờ một phút trước khi gửi lại.'])->onlyInput('email');
+        }
+
+        return back()->with('status', 'Nếu email này có tài khoản Pawora, chúng tôi đã gửi đường dẫn đặt lại mật khẩu. Vui lòng kiểm tra cả thư rác.');
+    }
+    public function resetPasswordForm(Request $request, string $token)
+    {
+        return view('auth.reset-password', ['token' => $token, 'email' => $request->string('email')]);
+    }
+    public function resetPassword(Request $request)
+    {
+        $credentials = $request->validate([
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', PasswordRule::min(8)],
+        ]);
+
+        $status = Password::reset($credentials, function (User $user, string $password) {
+            $user->forceFill([
+                'password' => Hash::make($password),
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            event(new PasswordReset($user));
+        });
+
+        if ($status !== Password::PASSWORD_RESET) {
+            $message = $status === Password::INVALID_TOKEN
+                ? 'Đường dẫn đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.'
+                : 'Không thể đặt lại mật khẩu với email này.';
+
+            return back()->withErrors(['email' => $message])->withInput($request->only('email'));
+        }
+
+        return redirect()->route('login')->with('status', 'Mật khẩu đã được thay đổi. Bạn có thể đăng nhập bằng mật khẩu mới.');
+    }
     public function redirectToProvider(string $provider)
     {
         abort_unless(in_array($provider, ['google', 'facebook'], true), 404);
@@ -46,7 +101,7 @@ class AuthController extends Controller
             $socialUser = Socialite::driver($provider)->stateless()->user();
         } catch (\Throwable $e) {
             report($e);
-            return redirect()->route('login')->withErrors(['social' => 'Không thể đăng nhập bằng tài khoản mạng xã hội.', 'error' => $e->getMessage()]);
+            return redirect()->route('login')->withErrors(['social' => 'Không thể đăng nhập bằng tài khoản mạng xã hội. Vui lòng thử lại hoặc dùng email và mật khẩu.']);
         }
         $email = $socialUser->getEmail();
         if (!$email)

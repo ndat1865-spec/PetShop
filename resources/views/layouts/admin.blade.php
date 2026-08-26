@@ -15,6 +15,9 @@
         ['admin.coupons','Mã giảm giá','%'], ['admin.shipments','Vận chuyển','↗'], ['admin.payments','Thanh toán','₫'],
         ['admin.returns','Đổi trả','↺'], ['admin.settings','Cài đặt','⚙'],
     ];
+    if (auth()->user()->isAdmin()) {
+        array_splice($nav, 6, 0, [["admin.users", "Tài khoản & quyền", "♙"]]);
+    }
 @endphp
 <a class="skip-link" href="#admin-main">Đi đến nội dung quản trị</a>
 @if(session('success'))<div class="toast" role="status" data-toast>{{ session('success') }}<button aria-label="Đóng thông báo">×</button></div>@endif
@@ -32,7 +35,7 @@
     <main class="admin-workspace" id="admin-main" tabindex="-1">
         <header class="admin-topbar">
             <div><p class="eyebrow">Operations Dashboard</p><h1>@yield('admin-title','Pawora Admin')</h1></div>
-            <div class="admin-user"><span>{{ auth()->user()->name }}</span><strong>{{ strtoupper(substr(auth()->user()->name,0,1)) }}</strong></div>
+            <div class="admin-user"><span><b>{{ auth()->user()->name }}</b><small>{{ auth()->user()->roleLabel() }}</small></span><strong>{{ mb_strtoupper(mb_substr(auth()->user()->name,0,1)) }}</strong></div>
         </header>
         @yield('admin-content')
     </main>

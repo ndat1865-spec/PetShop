@@ -11,7 +11,7 @@ class StoreController extends Controller
     public function home()
     {
         $bestSellers = Product::active()
-            ->with('category')
+            ->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])
             ->withSum('orderItems as sold_count', 'quantity')
             ->orderByDesc('sold_count')
             ->orderByDesc('is_featured')
@@ -22,14 +22,14 @@ class StoreController extends Controller
         return view('store.home', [
             'categories' => Category::where('is_active', true)->take(8)->get(),
             'bestSellers' => $bestSellers,
-            'newProducts' => Product::active()->with('category')->latest()->take(4)->get(),
+            'newProducts' => Product::active()->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])->latest()->take(4)->get(),
             'productCount' => Product::active()->count(),
         ]);
     }
 
     public function index(Request $request)
     {
-        $query = Product::active()->with('category');
+        $query = Product::active()->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)]);
         if ($request->filled('q')) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->string('q').'%')->orWhere('short_description', 'like', '%'.$request->string('q').'%'));
         }
@@ -56,8 +56,13 @@ class StoreController extends Controller
 
     public function show(string $slug)
     {
-        $product = Product::active()->with('category')->where('slug', $slug)->firstOrFail();
-        $related = Product::active()->where('category_id', $product->category_id)->whereKeyNot($product->id)->take(4)->get();
+        $product = Product::active()->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)->orderBy('id')])->where('slug', $slug)->firstOrFail();
+        $related = Product::active()
+            ->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])
+            ->where('category_id', $product->category_id)
+            ->whereKeyNot($product->id)
+            ->take(4)
+            ->get();
 
         return view('store.product', compact('product','related'));
     }

@@ -1,47 +1,65 @@
-:root{--auth-primary:#0c1421;--auth-secondary:#313957;--auth-link:#1e4ae9;--auth-input:#f7fbff;--auth-border:#d4d7e3;--auth-button:#162d3a;--auth-social:#f3f9fa}
+:root{--auth-primary:#1d1d1f;--auth-secondary:#333;--auth-link:#0066cc;--auth-link-hover:#0071e3;--auth-input:#fafafc;--auth-border:#e0e0e0;--auth-button:#0066cc;--auth-social:#f5f5f7;--auth-error:#b42318;--auth-error-surface:#fff4f2}
 @font-face{font-family:"Dalat Sans";src:url("fonts/MTDalatSans.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
 @font-face{font-family:"Dalat Sans Cap";src:url("fonts/MTDalatSansCap.otf") format("opentype");font-display:swap;font-style:normal;font-weight:400}
-.auth-page{margin:0;background:var(--auth-button);color:var(--auth-primary);font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;overflow-x:hidden}
+.auth-page{margin:0;background:#f5f5f7;color:var(--auth-primary);font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;overflow-x:hidden}
 .auth-page main{min-height:100dvh;display:grid;place-items:center;padding:32px}
-.figma-auth{width:min(100%,1180px);min-height:clamp(720px,calc(100dvh - 64px),900px);display:grid;grid-template-columns:minmax(440px,.9fr) minmax(500px,1.1fr);gap:24px;padding:32px;background:#fff;border-radius:30px;overflow:hidden;box-shadow:0 22px 54px rgba(2,13,20,.24)}
+.figma-auth{width:min(100%,1180px);min-height:clamp(720px,calc(100dvh - 64px),900px);display:grid;grid-template-columns:minmax(440px,.9fr) minmax(500px,1.1fr);gap:24px;padding:32px;background:#fff;border:1px solid var(--auth-border);border-radius:18px;overflow:hidden}
 .figma-auth__form-side{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:40px 24px 28px}
-.figma-auth__form{width:min(100%,400px);display:flex;flex-direction:column;gap:36px}
+.figma-auth__form{width:min(100%,400px);display:flex;flex-direction:column;gap:32px}
 .figma-auth__intro{display:flex;flex-direction:column;gap:28px}
 .figma-auth__wordmark{color:var(--auth-link);font:700 16px/1 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:.12em;margin-bottom:-14px}
-.figma-auth__intro h1{margin:0;color:var(--auth-primary);font:700 42px/1.08 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:-.035em}
+.figma-auth__intro h1{margin:0;color:var(--auth-primary);font:700 42px/1.08 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:-.035em;text-wrap:balance}
 .figma-auth__intro p{margin:0;color:var(--auth-secondary);font-size:19px;line-height:1.55;letter-spacing:.01em}
-.figma-auth__fields{display:flex;flex-direction:column;gap:24px}
+.figma-auth__fields{display:flex;flex-direction:column;gap:20px}
 .figma-field{display:flex;flex-direction:column;gap:8px;color:var(--auth-primary);font-size:16px;line-height:1.25}
 .figma-field__label{display:flex;align-items:center;gap:7px}
 .figma-field__label svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .figma-field__control{position:relative;display:block}
-.figma-field input{width:100%;height:48px;padding:0 16px;border:1px solid var(--auth-border);border-radius:12px;background:var(--auth-input);color:var(--auth-primary);font-size:16px;outline:none}
+.figma-field input{width:100%;height:48px;padding:0 16px;border:1px solid var(--auth-border);border-radius:11px;background:var(--auth-input);color:var(--auth-primary);font-size:16px;outline:none}
 .figma-field__control input{padding-right:50px}
-.figma-field input::placeholder{color:#8897ad}
-.figma-field input:focus{border-color:var(--auth-link);box-shadow:0 0 0 3px rgba(30,74,233,.12)}
-.password-toggle{position:absolute;right:6px;top:4px;width:40px;height:40px;border:0;border-radius:9px;background:transparent;color:#64748b;display:grid;place-items:center;cursor:pointer}
-.password-toggle:hover,.password-toggle:focus-visible{background:#e8f0f8;color:var(--auth-link);outline:2px solid rgba(30,74,233,.28);outline-offset:1px}
+.figma-field input::placeholder{color:#6b6b72}
+.figma-field input:focus{border-color:var(--auth-link-hover);box-shadow:0 0 0 3px rgba(0,113,227,.18)}
+.figma-field input[aria-invalid="true"]{border-color:var(--auth-error);background:var(--auth-error-surface)}
+.figma-field__error{display:flex;align-items:flex-start;gap:8px;margin:0;color:var(--auth-error);font-size:14px;line-height:1.45}
+.figma-field__error::before{content:"";flex:0 0 7px;width:7px;height:7px;margin-top:6px;border-radius:50%;background:currentColor}
+.password-toggle{position:absolute;right:2px;top:2px;width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#5f6368;display:grid;place-items:center;cursor:pointer}
+.password-toggle:hover,.password-toggle:focus-visible{background:#edf5ff;color:var(--auth-link);outline:2px solid rgba(0,113,227,.28);outline-offset:1px}
 .password-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.figma-auth__forgot{align-self:flex-end;color:var(--auth-link);font-size:16px;line-height:1}
-.figma-auth__submit{height:52px;border:0;border-radius:12px;background:var(--auth-button);color:#fff;font:600 18px/1 "Be Vietnam Pro","Segoe UI",sans-serif;cursor:pointer;transition:background .18s ease,transform .18s ease,opacity .18s ease}
+.figma-auth__options{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:-4px}
+.figma-auth__remember,.figma-auth__forgot{min-height:44px;display:inline-flex;align-items:center}
+.figma-auth__remember{gap:10px;color:var(--auth-secondary);font-size:15px;cursor:pointer}
+.figma-auth__remember input{width:18px;height:18px;margin:0;accent-color:var(--auth-link)}
+.figma-auth__forgot{color:var(--auth-link);font-size:15px;line-height:1.3}
+.figma-auth__forgot:hover{text-decoration:underline;text-underline-offset:3px}
+.figma-auth__submit{height:52px;border:0;border-radius:9999px;background:var(--auth-button);color:#fff;font:600 18px/1 "Be Vietnam Pro","Segoe UI",sans-serif;cursor:pointer;transition:background .18s ease,transform .18s ease,opacity .18s ease}
 .figma-auth__submit:disabled{cursor:wait;opacity:.72}.figma-auth__submit.is-loading::after{content:"";display:inline-block;width:14px;height:14px;margin-left:10px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;vertical-align:-2px;animation:auth-spin .7s linear infinite}@keyframes auth-spin{to{transform:rotate(360deg)}}
-.figma-auth__submit:hover{background:#203e4d}.figma-auth__submit:active{transform:translateY(1px)}
+.figma-auth__submit:hover{background:var(--auth-link-hover)}.figma-auth__submit:active{transform:translateY(1px)}
 .figma-auth__divider{display:flex;align-items:center;gap:16px;color:#294957;font-size:16px}
 .figma-auth__divider::before,.figma-auth__divider::after{content:"";height:1px;flex:1;background:#cfd8dc}
 .figma-auth__socials{display:flex;flex-direction:column;gap:16px}
-.figma-auth__socials button,.figma-auth__socials a{height:48px;border:0;border-radius:12px;background:var(--auth-social);color:var(--auth-secondary);display:flex;align-items:center;justify-content:center;gap:16px;font-size:16px;cursor:pointer;text-decoration:none}
+.figma-auth__socials button,.figma-auth__socials a{height:48px;border:1px solid transparent;border-radius:11px;background:var(--auth-social);color:var(--auth-secondary);display:flex;align-items:center;justify-content:center;gap:16px;font-size:16px;cursor:pointer;text-decoration:none;transition:border-color .18s ease,background .18s ease}
+.figma-auth__socials button:hover,.figma-auth__socials a:hover{border-color:var(--auth-border);background:#fff}
 .figma-auth__socials img{width:28px;height:28px;object-fit:contain}
 .figma-auth__switch{margin:0;color:var(--auth-secondary);font-size:18px;line-height:1.6;text-align:center}
-.figma-auth__switch a{color:var(--auth-link)}
+.figma-auth__switch a{min-height:44px;display:inline-flex;align-items:center;color:var(--auth-link)}
 .figma-auth__copyright{position:static;margin:44px 0 0;color:#959cb6;font-size:14px;letter-spacing:.01em;text-align:center}
-.figma-auth__art{min-width:0;min-height:0;overflow:hidden;border-radius:24px;display:flex;align-items:center;justify-content:center;padding:44px}
+.figma-auth__art{min-width:0;min-height:0;overflow:hidden;border-radius:18px;display:flex;align-items:center;justify-content:center;padding:44px;background:#fafafc}
 .figma-auth__lottie{display:block;width:min(100%,560px);aspect-ratio:11/10}.figma-auth__lottie svg{display:block;width:100%!important;height:100%!important;overflow:visible}
 .figma-auth__form--register{gap:24px}
 .figma-auth__form--register .figma-auth__intro{gap:18px}
 .figma-auth__form--register .figma-auth__fields{gap:16px}
 .figma-auth__password-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.auth-errors{position:fixed;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),600px);padding:14px 18px;border:1px solid #f0b8b2;border-radius:12px;background:#fff1f0;color:#7a1b15;box-shadow:0 12px 30px rgba(0,0,0,.12)}
+.auth-errors{position:fixed;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),600px);padding:14px 18px;border:1px solid #f0b8b2;border-radius:11px;background:var(--auth-error-surface);color:var(--auth-error);box-shadow:0 12px 30px rgba(29,29,31,.12)}
 .auth-errors ul{margin:6px 0 0;padding-left:20px}
-@media(max-width:980px){.auth-page main{padding:20px}.figma-auth{grid-template-columns:1fr;min-height:0;padding:20px;border-radius:28px}.figma-auth__art{grid-row:1;min-height:340px;border-radius:20px;padding:20px}.figma-auth__lottie{width:min(100%,420px)}.figma-auth__form-side{padding:36px 20px 28px}.figma-auth__copyright{margin-top:36px}.figma-auth__form{gap:32px}.figma-auth__intro{gap:16px}.figma-auth__intro h1{font-size:36px}.figma-auth__intro p{font-size:17px}.figma-auth__password-row{grid-template-columns:1fr}}
-@media(max-width:480px){.auth-page main{padding:16px}.figma-auth{padding:12px;gap:20px;border-radius:24px}.figma-auth__art{min-height:300px;border-radius:18px;padding:12px}.figma-auth__lottie{width:min(100%,350px)}.figma-auth__form-side{padding:20px 8px 24px}.figma-auth__intro h1{font-size:32px}.figma-auth__copyright{font-size:12px;margin-top:28px}.figma-auth__switch{font-size:16px}}
+.auth-errors--inline{position:static;transform:none;width:100%;padding:14px 16px;box-shadow:none}
+.auth-errors--inline a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:980px){.auth-page main{place-items:start center;padding:20px}.figma-auth{grid-template-columns:1fr;min-height:0;padding:20px;border-radius:18px}.figma-auth__form-side{grid-row:1;padding:28px 20px 32px}.figma-auth__art{grid-row:2;min-height:220px;border-radius:18px;padding:20px}.figma-auth__lottie{width:min(100%,340px)}.figma-auth__copyright{margin-top:36px}.figma-auth__form{gap:28px}.figma-auth__intro{gap:16px}.figma-auth__intro h1{font-size:36px}.figma-auth__intro p{font-size:17px}.figma-auth__password-row{grid-template-columns:1fr}}
+@media(max-width:480px){.auth-page main{padding:12px}.figma-auth{padding:12px;gap:12px;border-radius:18px}.figma-auth__art{display:none}.figma-auth__form-side{padding:20px 8px 24px}.figma-auth__intro h1{font-size:32px}.figma-auth__copyright{font-size:12px;margin-top:28px}.figma-auth__switch{font-size:16px}}
+@media(max-width:360px){.figma-auth__options{align-items:stretch;flex-direction:column;gap:0}.figma-auth__forgot{align-self:flex-end}}
+@media(max-width:980px) and (max-height:700px){.auth-page main{place-items:start center}.figma-auth__art{display:none}.figma-auth__form-side{padding-block:20px}.figma-auth__form{gap:24px}}
 @media(prefers-reduced-motion:reduce){.figma-auth__submit{transition:none}}
+
+/* Password recovery */
+.auth-status{position:fixed;z-index:11;top:16px;left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),640px);padding:15px 18px;border:1px solid #a9d8bb;border-radius:12px;background:#effbf3;color:#14532d;box-shadow:0 12px 30px rgba(2,13,20,.12);font-size:14px;line-height:1.55}.figma-auth--recovery{grid-template-columns:minmax(440px,.95fr) minmax(420px,1.05fr);min-height:min(760px,calc(100dvh - 64px));background:#f7fafc}.figma-auth--recovery .figma-auth__form-side{background:#fff;border-radius:22px}.figma-auth--recovery .figma-auth__form{gap:30px}.figma-auth--recovery .figma-auth__intro{gap:16px}.figma-auth--recovery .figma-auth__intro h1{font-size:clamp(38px,4vw,54px);text-wrap:balance}.figma-auth--recovery .figma-auth__intro>p:last-child{font-size:16px;line-height:1.65}.auth-step{width:max-content;margin:0!important;padding:6px 9px;border-left:2px solid var(--auth-link);color:var(--auth-link)!important;font-size:11px!important;font-weight:700;letter-spacing:.1em!important;text-transform:uppercase}.auth-recovery-note{display:flex;justify-content:flex-end;flex-direction:column;min-width:0;padding:clamp(36px,6vw,76px);border-radius:22px;background:#0c1c28;color:#fff;overflow:hidden}.auth-recovery-note>span{width:48px;height:48px;display:grid;place-items:center;margin-bottom:auto;border:1px solid rgba(255,255,255,.22);border-radius:14px;color:#8bbdff;font-weight:700;font-variant-numeric:tabular-nums}.auth-recovery-note h2{max-width:520px;margin:0 0 22px;font:700 clamp(38px,4.7vw,64px)/1.02 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;letter-spacing:-.05em;text-wrap:balance}.auth-recovery-note p,.auth-recovery-note ul{max-width:480px;margin:0;color:#c9d5df;font-size:15px;line-height:1.7}.auth-recovery-note ul{display:grid;gap:10px;padding:0;list-style:none}.auth-recovery-note li{display:flex;align-items:center;gap:10px}.auth-recovery-note li:before{content:"";flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:#5fa8ff}.figma-auth--recovery .figma-auth__switch{text-align:left;font-size:15px}.figma-auth--recovery .figma-auth__wordmark{text-decoration:none}
+@media(max-width:980px){.figma-auth--recovery{grid-template-columns:1fr}.figma-auth--recovery .auth-recovery-note{grid-row:1;min-height:300px}.auth-recovery-note>span{margin-bottom:56px}.auth-recovery-note h2{font-size:42px}}
+@media(max-width:480px){.auth-status{top:8px}.figma-auth--recovery .auth-recovery-note{min-height:260px;padding:28px}.auth-recovery-note>span{margin-bottom:38px}.auth-recovery-note h2{font-size:34px}.figma-auth--recovery .figma-auth__form-side{border-radius:18px}}

@@ -213,6 +213,7 @@ class AccountController extends Controller
             // Chỉ hoàn tồn kho khi chuyển trạng thái thành công lần đầu, tránh cộng kho lặp lại.
             foreach ($lockedOrder->items as $item) {
                 if ($item->product_id) Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
+                if ($item->product_variant_id) \App\Models\ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
             }
 
             $wasPaid = $lockedOrder->payment_status === 'paid';

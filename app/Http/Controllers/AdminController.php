@@ -157,6 +157,44 @@ class AdminController extends Controller
         return view('admin.customers', compact('customers'));
     }
 
+    public function users(Request $request)
+    {
+        $users = User::withCount('orders')
+            ->withSum('orders as total_spent', 'total')
+            ->when($request->filled('q'), fn ($query) => $query->where(function ($nested) use ($request) {
+                $term = '%'.$request->string('q').'%';
+                $nested->where('name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('phone', 'like', $term);
+            }))
+            ->when($request->filled('role'), fn ($query) => $query->where('role', $request->string('role')))
+            ->orderByRaw("case role when 'admin' then 1 when 'staff' then 2 else 3 end")
+            ->latest('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.users', [
+            'users' => $users,
+            'roleCounts' => User::query()->selectRaw('role, count(*) as total')->groupBy('role')->pluck('total', 'role'),
+        ]);
+    }
+
+    public function updateUserRole(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'role' => ['required', Rule::in(array_keys(User::ROLE_LABELS))],
+        ]);
+
+        if ($request->user()->is($user)) {
+            return back()->withErrors(['role' => 'Bạn không thể tự thay đổi quyền của chính mình.']);
+        }
+
+        $previousRole = $user->role;
+        $user->update(['role' => $data['role']]);
+
+        return back()->with('success', "Đã đổi quyền của {$user->name} từ ".(User::ROLE_LABELS[$previousRole] ?? $previousRole).' thành '.$user->roleLabel().'.');
+    }
+
     public function orders(Request $request)
     {
         $orders = Order::with('items','payments','shipments')

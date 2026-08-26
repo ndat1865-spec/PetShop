@@ -7,6 +7,12 @@
       "skillPath": "skills/brandkit/SKILL.md",
       "computedHash": "735007879f5110aeae1e981a53fe74a12afde70347f9773dacd50e4697a091bf"
     },
+    "checklist-design": {
+      "source": "checklist-design/skills",
+      "sourceType": "github",
+      "skillPath": "skills/checklist-design/SKILL.md",
+      "computedHash": "ed6dc5c42c6cb13b95b12fa08826d1e77674af51a7844498ae306baf62f4d276"
+    },
     "design-taste-frontend": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",

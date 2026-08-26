@@ -5,10 +5,15 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\User as SocialUserContract;
@@ -34,6 +39,169 @@ class CommerceTest extends TestCase
         $this->get(route('cart.index'))->assertOk()->assertSee('400.000đ');
     }
 
+    public function test_customer_can_request_and_complete_password_reset(): void
+    {
+        Notification::fake();
+        $customer = User::factory()->create(['email' => 'reset@pawora.vn', 'role' => 'customer']);
+
+        $this->post(route('password.email'), ['email' => $customer->email])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        Notification::assertSentTo($customer, ResetPasswordNotification::class);
+
+        $token = Password::broker()->createToken($customer);
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $customer->email,
+            'password' => 'MatKhauMoi@2026',
+            'password_confirmation' => 'MatKhauMoi@2026',
+        ])->assertRedirect(route('login'))->assertSessionHas('status');
+
+        $this->assertTrue(Hash::check('MatKhauMoi@2026', $customer->fresh()->password));
+    }
+
+    public function test_password_reset_email_uses_resend_when_it_is_configured(): void
+    {
+        config()->set('services.resend.key', 'test-resend-key');
+        config()->set('services.resend.from', 'onboarding@resend.dev');
+        Http::fake(['api.resend.com/emails' => Http::response(['id' => 'email_123'], 200)]);
+        $customer = User::factory()->create(['email' => 'mail-reset@pawora.vn']);
+
+        $customer->sendPasswordResetNotification('secure-reset-token');
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.resend.com/emails'
+            && $request['to'] === [$customer->email]
+            && str_contains($request['html'], 'secure-reset-token')
+            && $request->hasHeader('Authorization', 'Bearer test-resend-key'));
+    }
+
+    public function test_admin_can_assign_roles_but_staff_cannot_manage_accounts(): void
+    {
+        $admin = User::factory()->create(['name' => 'Pawora Admin', 'role' => 'admin']);
+        $staff = User::factory()->create(['name' => 'Nhân viên Pawora', 'role' => 'staff']);
+        $customer = User::factory()->create(['name' => 'Khách mua hàng', 'role' => 'customer']);
+
+        $this->actingAs($staff)->get(route('admin.dashboard'))->assertOk();
+        $this->actingAs($staff)->get(route('admin.users'))->assertForbidden();
+
+        $this->actingAs($admin)->get(route('admin.users'))
+            ->assertOk()
+            ->assertSee('Tài khoản &amp; phân quyền', false)
+            ->assertSee('Nhân viên Pawora');
+
+        $this->actingAs($admin)->patch(route('admin.users.role.update', $customer), ['role' => 'staff'])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('users', ['id' => $customer->id, 'role' => 'staff']);
+    }
+
+    public function test_admin_cannot_change_their_own_role(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->from(route('admin.users'))
+            ->patch(route('admin.users.role.update', $admin), ['role' => 'customer'])
+            ->assertRedirect(route('admin.users'))
+            ->assertSessionHasErrors('role');
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'role' => 'admin']);
+    }
+
+    public function test_header_search_opens_a_real_search_form_and_filters_products(): void
+    {
+        $product = $this->product();
+        Product::create([
+            'category_id' => $product->category_id,
+            'name' => 'Giường mèo êm',
+            'slug' => 'giuong-meo-em',
+            'sku' => 'PAW-B01',
+            'pet_type' => 'cat',
+            'short_description' => 'Chỗ ngủ mềm cho mèo.',
+            'price' => 350000,
+            'stock' => 4,
+            'status' => 'active',
+        ]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee('data-search-toggle', false)
+            ->assertSee('id="header-search-input"', false)
+            ->assertSee('role="search"', false);
+
+        $this->get(route('products.index', ['q' => 'Bóng']))
+            ->assertOk()
+            ->assertSee('Bóng Pawora')
+            ->assertDontSee('Giường mèo êm');
+    }
+
+    public function test_customer_can_select_a_product_variant_and_cart_uses_variant_price(): void
+    {
+        $product = $this->product(8);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Cam · Lớn',
+            'sku' => 'PAW-T01-ORANGE-L',
+            'color' => 'Cam',
+            'size' => 'Lớn',
+            'price' => 230000,
+            'stock' => 4,
+            'is_active' => true,
+        ]);
+
+        $this->get(route('products.show', $product->slug))
+            ->assertOk()
+            ->assertSee('Màu sắc')
+            ->assertSee('Kích thước')
+            ->assertSee('Cam');
+
+        $this->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('Chọn tùy chọn');
+
+        $this->postJson(route('cart.store', $product), ['variant_id' => $variant->id, 'quantity' => 2])
+            ->assertOk()
+            ->assertJson(['cart_count' => 2]);
+
+        $this->get(route('cart.index'))
+            ->assertOk()
+            ->assertSee('Cam · Lớn')
+            ->assertSee('460.000đ')
+            ->assertSee('data-cart-count', false)
+            ->assertSee('Sẵn sàng về nhà với bé.');
+
+        $this->patchJson(route('cart.update', $product), ['quantity' => 3])
+            ->assertOk()
+            ->assertJson([
+                'quantity' => 3,
+                'line_total' => 690000,
+                'subtotal' => 690000,
+                'cart_count' => 3,
+                'free_shipping_remaining' => 10000,
+            ]);
+
+        $this->post(route('checkout.store'), [
+            'customer_name' => 'Nguyễn An',
+            'email' => 'variant@example.com',
+            'phone' => '0909000000',
+            'province' => 'Thành phố Hồ Chí Minh',
+            'ward' => 'Phường Sài Gòn',
+            'address_line' => '01 Nguyễn Huệ',
+            'payment_method' => 'cod',
+            'terms' => '1',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('order_items', [
+            'product_variant_id' => $variant->id,
+            'sku' => $variant->sku,
+            'unit_price' => 230000,
+            'quantity' => 3,
+        ]);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock' => 1]);
+    }
+
     public function test_homepage_exposes_pet_filters_bestsellers_and_category_bento(): void
     {
         $this->product();
@@ -41,7 +209,7 @@ class CommerceTest extends TestCase
         $this->get(route('home'))
             ->assertOk()
             ->assertSee('Đồ tốt cho những ngày bên nhau.')
-            ->assertSee('Bắt đầu từ những món bé sẽ dùng mỗi ngày.')
+            ->assertSee('Những món bé dùng mỗi ngày.')
             ->assertSee('data-pet-filter="dog"', false)
             ->assertSee('data-pet-filter="cat"', false)
             ->assertSee('home-bento', false);

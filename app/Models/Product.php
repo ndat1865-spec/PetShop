@@ -15,6 +15,11 @@ class Product extends Model
     public function variants() { return $this->hasMany(ProductVariant::class); }
     public function orderItems() { return $this->hasMany(OrderItem::class); }
     public function scopeActive(Builder $query): Builder { return $query->where('status', 'active'); }
+    public function getImageAttribute($value): ?string
+    {
+        if (!$value || str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) return $value;
+        return asset(ltrim($value, '/'));
+    }
     public function getDiscountPercentAttribute(): int
     {
         if (!$this->compare_price || $this->compare_price <= $this->price) return 0;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Services\AddressDirectory;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
@@ -119,13 +120,19 @@ class CheckoutController extends Controller
             $subtotal = 0;
             $lines = [];
             foreach ($products as $product) {
-                $qty = (int) $raw[$product->id];
-                if ($product->status !== 'active' || $product->stock < $qty) {
+                $entry = $raw[$product->id];
+                $qty = is_array($entry) ? (int) ($entry['quantity'] ?? 0) : (int) $entry;
+                $variant = is_array($entry) && ! empty($entry['variant_id'])
+                    ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->lockForUpdate()->find($entry['variant_id'])
+                    : null;
+                $available = $variant?->stock ?? $product->stock;
+                if ($product->status !== 'active' || $available < $qty) {
                     abort(422, "{$product->name} không còn đủ số lượng.");
                 }
-                $line = (float) $product->price * $qty;
+                $unitPrice = (float) ($variant?->price ?? $product->price);
+                $line = $unitPrice * $qty;
                 $subtotal += $line;
-                $lines[] = [$product, $qty, $line];
+                $lines[] = [$product, $variant, $qty, $unitPrice, $line];
             }
             $coupon = null;
             $discount = 0;
@@ -139,8 +146,9 @@ class CheckoutController extends Controller
             $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
             $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
             $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'user_id' => $request->user()?->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
-            foreach ($lines as [$product, $qty, $line]) {
-                $order->items()->create(['product_id' => $product->id, 'product_name' => $product->name, 'sku' => $product->sku, 'unit_price' => $product->price, 'quantity' => $qty, 'line_total' => $line]);
+            foreach ($lines as [$product, $variant, $qty, $unitPrice, $line]) {
+                $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
+                if ($variant) $variant->decrement('stock', $qty);
                 $product->decrement('stock', $qty);
             }
             $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
@@ -198,7 +206,7 @@ return $order;
 
     public function confirmation(Request $request, Order $order)
     {
-        abort_unless($request->user()?->isAdmin() || $request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->id || hash_equals((string) $order->public_token, (string) $request->query('token')), 403);
+        abort_unless($request->user()?->canAccessAdmin() || $request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->id || hash_equals((string) $order->public_token, (string) $request->query('token')), 403);
 
         return view('store.confirmation', ['order' => $order->load('items')]);
     }
@@ -207,7 +215,7 @@ return $order;
     {
         $guestToken = (string) $request->query('token');
         $guestOwnsOrder = ! $order->user_id && $order->public_token && hash_equals($order->public_token, $guestToken);
-        abort_unless($request->user()?->isAdmin() || $request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->id || $guestOwnsOrder, 403);
+        abort_unless($request->user()?->canAccessAdmin() || $request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->id || $guestOwnsOrder, 403);
         $request->session()->put('last_order', $order->id);
 
         return view('store.order', ['order' => $order->load('items', 'histories')]);

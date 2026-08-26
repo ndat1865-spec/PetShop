@@ -67,6 +67,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/dang-nhap', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::get('/dang-ky', [AuthController::class, 'registerForm'])->name('register');
     Route::post('/dang-ky', [AuthController::class, 'register']);
+    Route::get('/quen-mat-khau', [AuthController::class, 'forgotPasswordForm'])->name('password.request');
+    Route::post('/quen-mat-khau', [AuthController::class, 'sendResetLinkEmail'])->middleware('throttle:5,1')->name('password.email');
+    Route::get('/dat-lai-mat-khau/{token}', [AuthController::class, 'resetPasswordForm'])->name('password.reset');
+    Route::post('/dat-lai-mat-khau', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
 });
 Route::get('/auth/{provider}', [AuthController::class, 'redirectToProvider'])->where('provider', 'google|facebook')->name('social.redirect');
 Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderCallback'])->where('provider', 'google|facebook')->name('social.callback');
@@ -90,6 +94,10 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->name('admin.')->group(fun
     Route::post('/ma-giam-gia', [AdminController::class, 'storeCoupon'])->name('coupons.store');
     Route::patch('/ma-giam-gia/{coupon}', [AdminController::class, 'updateCoupon'])->name('coupons.update');
     Route::get('/khach-hang', [AdminController::class, 'customers'])->name('customers');
+    Route::middleware('administrator')->group(function () {
+        Route::get('/tai-khoan', [AdminController::class, 'users'])->name('users');
+        Route::patch('/tai-khoan/{user}/vai-tro', [AdminController::class, 'updateUserRole'])->name('users.role.update');
+    });
     Route::get('/don-hang', [AdminController::class, 'orders'])->name('orders');
     Route::get('/don-hang/{order}', [AdminController::class, 'showOrder'])->name('orders.show');
     Route::get('/don-hang/{order}/in', [AdminController::class, 'printOrder'])->name('orders.print');

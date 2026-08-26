@@ -117,7 +117,7 @@
     <aside class="summary">
         <h2>Đơn hàng của bạn</h2>
         @foreach($cart['items'] as $item)
-            <div class="checkout-item"><span>{{ $item['product']->name }} ×
+            <div class="checkout-item"><span>{{ $item['product']->name }}@if($item['variant']) · {{ $item['variant']->name }}@endif ×
         {{ $item['qty'] }}</span><strong>{{ number_format($item['line'], 0, ',', '.') }}đ</strong></div>@endforeach
         <div class="field"><label for="coupon_code">Mã ưu đãi</label><input id="coupon_code" name="coupon_code"
                 value="{{ old('coupon_code') }}" placeholder="Ví dụ: PAWORA10"></div>

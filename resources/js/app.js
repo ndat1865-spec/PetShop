@@ -9,6 +9,54 @@ menuButton?.addEventListener('click', () => {
     mobilePanel.toggleAttribute('data-open', !open);
 });
 
+const searchToggle = document.querySelector('[data-search-toggle]');
+const searchPanel = document.querySelector('[data-search-panel]');
+const searchInput = document.querySelector('[data-search-input]');
+const searchClose = document.querySelector('[data-search-close]');
+let searchCloseTimer;
+
+const isSearchOpen = () => searchToggle?.getAttribute('aria-expanded') === 'true';
+
+const openHeaderSearch = () => {
+    if (!searchToggle || !searchPanel) return;
+    window.clearTimeout(searchCloseTimer);
+    searchPanel.hidden = false;
+    searchToggle.setAttribute('aria-expanded', 'true');
+    searchToggle.classList.add('is-active');
+    if (mobilePanel && menuButton) {
+        mobilePanel.hidden = true;
+        mobilePanel.removeAttribute('data-open');
+        menuButton.setAttribute('aria-expanded', 'false');
+    }
+    requestAnimationFrame(() => {
+        searchPanel.classList.add('is-open');
+        searchInput?.focus();
+    });
+};
+
+const closeHeaderSearch = ({ restoreFocus = true } = {}) => {
+    if (!searchToggle || !searchPanel || !isSearchOpen()) return;
+    searchPanel.classList.remove('is-open');
+    searchToggle.classList.remove('is-active');
+    searchToggle.setAttribute('aria-expanded', 'false');
+    searchCloseTimer = window.setTimeout(() => { searchPanel.hidden = true; }, 180);
+    if (restoreFocus) searchToggle.focus();
+};
+
+searchToggle?.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (isSearchOpen()) closeHeaderSearch();
+    else openHeaderSearch();
+});
+searchClose?.addEventListener('click', () => closeHeaderSearch());
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isSearchOpen()) closeHeaderSearch();
+});
+document.addEventListener('pointerdown', (event) => {
+    if (!isSearchOpen() || searchPanel?.contains(event.target) || searchToggle?.contains(event.target)) return;
+    closeHeaderSearch({ restoreFocus: false });
+});
+
 const toast = document.querySelector('[data-toast]');
 if (toast) {
     const closeToast = () => toast.remove();
@@ -47,14 +95,212 @@ if (header && headerSentinel && 'IntersectionObserver' in window) {
     }).observe(headerSentinel);
 }
 
+const cartLink = document.querySelector('[data-cart-link]');
+const cartCount = document.querySelector('[data-cart-count]');
+const cartStatus = document.querySelector('[data-cart-status]');
+const cartToast = document.querySelector('[data-cart-toast]');
+let cartToastTimer;
+
+const showCartToast = (message, isError = false) => {
+    if (!cartToast) return;
+    window.clearTimeout(cartToastTimer);
+    cartToast.querySelector('span').textContent = message;
+    cartToast.classList.toggle('is-error', isError);
+    cartToast.hidden = false;
+    requestAnimationFrame(() => cartToast.classList.add('is-visible'));
+    cartToastTimer = window.setTimeout(() => {
+        cartToast.classList.remove('is-visible');
+        window.setTimeout(() => { cartToast.hidden = true; }, 180);
+    }, 3600);
+};
+cartToast?.querySelector('button')?.addEventListener('click', () => {
+    window.clearTimeout(cartToastTimer);
+    cartToast.classList.remove('is-visible');
+    cartToast.hidden = true;
+});
+
+const flyProductToCart = (form) => {
+    if (!cartLink || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+    const source = form.closest('.product-card')?.querySelector('.product-image img')
+        || form.closest('[data-product-options]')?.querySelector('.detail-image img');
+    if (!source) return Promise.resolve();
+
+    const sourceRect = source.getBoundingClientRect();
+    const targetRect = cartLink.getBoundingClientRect();
+    const flyer = source.cloneNode();
+    Object.assign(flyer.style, {
+        position: 'fixed', zIndex: '120', pointerEvents: 'none', objectFit: 'cover',
+        left: `${sourceRect.left}px`, top: `${sourceRect.top}px`, width: `${sourceRect.width}px`,
+        height: `${sourceRect.height}px`, borderRadius: '18px', transformOrigin: 'center',
+    });
+    flyer.setAttribute('aria-hidden', 'true');
+    flyer.className = 'cart-flyer';
+    document.body.appendChild(flyer);
+
+    const deltaX = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
+    const deltaY = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+    const animation = flyer.animate([
+        { transform: 'translate3d(0, 0, 0) scale(1)', opacity: 0.95 },
+        { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(.12)`, opacity: 0.2 },
+    ], { duration: 680, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'forwards' });
+    return animation.finished.catch(() => {}).finally(() => flyer.remove());
+};
+
+const updateCartBadge = (count, message = '') => {
+    if (!cartCount || !cartLink) return;
+    cartCount.textContent = String(count);
+    cartCount.hidden = count < 1;
+    cartLink.setAttribute('aria-label', `Giỏ hàng, ${count} sản phẩm`);
+    cartLink.classList.remove('is-receiving');
+    cartCount.classList.remove('is-updating');
+    void cartCount.offsetWidth;
+    cartLink.classList.add('is-receiving');
+    cartCount.classList.add('is-updating');
+    window.setTimeout(() => {
+        cartLink.classList.remove('is-receiving');
+        cartCount.classList.remove('is-updating');
+    }, 620);
+    if (cartStatus) cartStatus.textContent = `${message} Giỏ hàng hiện có ${count} sản phẩm.`.trim();
+};
+
 document.querySelectorAll('[data-cart-form]').forEach((form) => {
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', async (event) => {
         const button = form.querySelector('[data-cart-button]');
-        if (!button || button.disabled) return;
+        if (!button || button.disabled || button.getAttribute('aria-busy') === 'true') return;
+        event.preventDefault();
+        const originalContent = button.innerHTML;
         button.disabled = true;
         button.setAttribute('aria-busy', 'true');
-        button.textContent = 'Đang thêm…';
+        button.innerHTML = '<span>Đang thêm…</span>';
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST', body: new FormData(form),
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || 'Không thể thêm sản phẩm vào giỏ.');
+
+            button.classList.add('is-success');
+            button.innerHTML = '<span>Đã thêm vào giỏ</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+            showCartToast(data.message);
+            await flyProductToCart(form);
+            updateCartBadge(Number(data.cart_count || 0), data.message);
+        } catch (error) {
+            showCartToast(error.message || 'Không thể thêm sản phẩm vào giỏ.', true);
+        } finally {
+            window.setTimeout(() => {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+                button.classList.remove('is-success');
+                button.innerHTML = originalContent;
+            }, 900);
+        }
     });
+});
+
+const formatCartMoney = (value) => `${Number(value).toLocaleString('vi-VN')}đ`;
+const pulseCartValue = (element) => {
+    if (!element) return;
+    element.classList.remove('is-price-updated');
+    void element.offsetWidth;
+    element.classList.add('is-price-updated');
+    window.setTimeout(() => element.classList.remove('is-price-updated'), 420);
+};
+const applyCartQuantityResponse = (form, data) => {
+    const item = form.closest('[data-cart-item]');
+    const lineTotal = item?.querySelector('[data-cart-line-total]');
+    if (lineTotal) {
+        lineTotal.textContent = formatCartMoney(data.line_total);
+        pulseCartValue(lineTotal);
+    }
+    document.querySelectorAll('[data-cart-subtotal]').forEach((element) => {
+        element.textContent = formatCartMoney(data.subtotal);
+        pulseCartValue(element);
+    });
+    document.querySelectorAll('[data-cart-hero-count], [data-cart-items-count]').forEach((element) => {
+        element.textContent = String(data.cart_count);
+    });
+    const progress = document.querySelector('[data-shipping-progress]');
+    progress?.style.setProperty('--shipping-progress', `${data.free_shipping_progress}%`);
+    const shippingMessage = document.querySelector('[data-shipping-message]');
+    if (shippingMessage) {
+        shippingMessage.innerHTML = Number(data.free_shipping_remaining) > 0
+            ? `Mua thêm <strong>${formatCartMoney(data.free_shipping_remaining)}</strong> để được miễn phí giao hàng.`
+            : '<strong>Bạn đã được miễn phí giao hàng.</strong>';
+    }
+    updateCartBadge(Number(data.cart_count || 0), data.message);
+};
+
+document.querySelectorAll('[data-cart-quantity-form]').forEach((form) => {
+    const input = form.querySelector('input[name="quantity"]');
+    const minus = form.querySelector('[data-cart-qty-minus]');
+    const plus = form.querySelector('[data-cart-qty-plus]');
+    let committedValue = Number(input.value);
+    let requestController;
+    let saveTimer;
+    let requestVersion = 0;
+    const clamp = (value) => Math.min(Number(input.max || 20), Math.max(Number(input.min || 1), value));
+    const syncButtonStates = () => {
+        const value = Number(input.value);
+        minus.disabled = value <= Number(input.min || 1);
+        plus.disabled = value >= Number(input.max || 20);
+    };
+    const save = async () => {
+        const version = ++requestVersion;
+        requestController = new AbortController();
+        const currentController = requestController;
+        form.classList.add('is-updating');
+        form.setAttribute('aria-busy', 'true');
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST', body: new FormData(form), signal: currentController.signal,
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || 'Không thể cập nhật số lượng. Vui lòng thử lại.');
+            if (version !== requestVersion) return;
+            input.value = String(data.quantity);
+            committedValue = Number(data.quantity);
+            syncButtonStates();
+            applyCartQuantityResponse(form, data);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            input.value = String(committedValue);
+            syncButtonStates();
+            showCartToast(error.message || 'Không thể cập nhật số lượng. Vui lòng thử lại.', true);
+        } finally {
+            if (currentController === requestController) {
+                form.classList.remove('is-updating');
+                form.removeAttribute('aria-busy');
+            }
+        }
+    };
+    const queueSave = (delay = 90) => {
+        window.clearTimeout(saveTimer);
+        requestController?.abort();
+        saveTimer = window.setTimeout(save, delay);
+    };
+    const changeBy = (amount) => {
+        const nextValue = clamp(Number(input.value) + amount);
+        if (nextValue === Number(input.value)) return;
+        input.value = String(nextValue);
+        syncButtonStates();
+        queueSave();
+    };
+
+    minus?.addEventListener('click', () => changeBy(-1));
+    plus?.addEventListener('click', () => changeBy(1));
+    input?.addEventListener('change', () => {
+        input.value = String(clamp(Number(input.value) || 1));
+        syncButtonStates();
+        queueSave(120);
+    });
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        queueSave(0);
+    });
+    syncButtonStates();
 });
 
 const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -373,8 +619,63 @@ if (petCatalog) {
     applyPetFilter('all');
 }
 
+const productOptions = document.querySelector('[data-product-options]');
+if (productOptions) {
+    const variantsNode = productOptions.querySelector('[data-product-variants]');
+    if (variantsNode) {
+        const variants = JSON.parse(variantsNode.textContent);
+        const colorInputs = [...productOptions.querySelectorAll('[data-option-color]')];
+        const sizeInputs = [...productOptions.querySelectorAll('[data-option-size]')];
+        const variantId = productOptions.querySelector('[data-variant-id]');
+        const price = productOptions.querySelector('[data-current-price]');
+        const stock = productOptions.querySelector('[data-variant-stock]');
+        const selectedColor = productOptions.querySelector('[data-selected-color]');
+        const selectedSize = productOptions.querySelector('[data-selected-size]');
+        const summary = productOptions.querySelector('[data-variant-summary] strong');
+        const quantity = productOptions.querySelector('[data-quantity]');
+        const purchaseButton = productOptions.querySelector('[data-purchase-button]');
+        const minus = productOptions.querySelector('[data-quantity-minus]');
+        const plus = productOptions.querySelector('[data-quantity-plus]');
+        const money = new Intl.NumberFormat('vi-VN');
+
+        const update = () => {
+            const color = colorInputs.find((input) => input.checked)?.value;
+            const size = sizeInputs.find((input) => input.checked)?.value;
+            sizeInputs.forEach((input) => {
+                input.disabled = !variants.some((variant) => variant.color === color && variant.size === input.value && variant.stock > 0);
+            });
+            const variant = variants.find((item) => item.color === color && item.size === size);
+            const available = variant?.stock ?? 0;
+
+            selectedColor.textContent = color || '';
+            selectedSize.textContent = size || '';
+            variantId.value = variant?.id ?? '';
+            price.textContent = variant ? `${money.format(variant.price)}đ` : 'Chưa có lựa chọn';
+            stock.textContent = available > 0 ? `Còn ${available} sản phẩm` : 'Lựa chọn này tạm hết hàng';
+            stock.classList.toggle('low', available > 0 && available < 5);
+            quantity.max = String(Math.min(20, available || 1));
+            quantity.value = String(Math.min(Math.max(Number(quantity.value) || 1, 1), Number(quantity.max)));
+            purchaseButton.disabled = available < 1;
+            summary.textContent = variant?.name ?? 'Chưa có lựa chọn phù hợp';
+        };
+
+        [...colorInputs, ...sizeInputs].forEach((input) => input.addEventListener('change', update));
+        minus?.addEventListener('click', () => {
+            quantity.value = String(Math.max(1, (Number(quantity.value) || 1) - 1));
+        });
+        plus?.addEventListener('click', () => {
+            quantity.value = String(Math.min(Number(quantity.max), (Number(quantity.value) || 1) + 1));
+        });
+        quantity?.addEventListener('change', () => {
+            quantity.value = String(Math.min(Number(quantity.max), Math.max(1, Number(quantity.value) || 1)));
+        });
+        update();
+    }
+}
+
 const avatarInput = document.querySelector('[data-avatar-input]');
 const avatarPreview = document.querySelector('[data-avatar-preview]');
+const avatarFilename = document.querySelector('[data-avatar-filename]');
 if (avatarInput && avatarPreview) {
     let previewUrl;
     avatarInput.addEventListener('change', () => {
@@ -387,5 +688,15 @@ if (avatarInput && avatarPreview) {
         image.src = previewUrl;
         image.alt = 'Xem trước ảnh đại diện mới';
         avatarPreview.append(image);
+        if (avatarFilename) avatarFilename.textContent = file.name;
     });
 }
+
+const profileForm = document.querySelector('[data-profile-form]');
+profileForm?.addEventListener('submit', () => {
+    const button = profileForm.querySelector('[data-profile-submit]');
+    if (!button) return;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = 'Đang lưu…';
+});

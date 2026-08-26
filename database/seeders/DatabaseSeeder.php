@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -30,17 +31,39 @@ class DatabaseSeeder extends Seeder
             'Phụ kiện du lịch' => ['all', ['Túi vận chuyển Go Together','Đệm xe Road Trip','Túi đựng snack Walkie','Bình nước Pocket Sip']],
         ];
         $images = [
-            'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=900&q=82',
-            'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=900&q=82',
-            'https://images.unsplash.com/photo-1529778873920-4da4926a72c2?auto=format&fit=crop&w=900&q=82',
-            'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?auto=format&fit=crop&w=900&q=82',
+            '/media/products/paw-0001.jpg', '/media/products/paw-0002.jpg',
+            '/media/products/paw-0003.jpg', '/media/products/paw-0004.jpg',
+            '/media/products/paw-0005.jpg', '/media/products/paw-0006.jpg',
+            '/media/products/paw-0007.jpg', '/media/products/paw-0008.jpg',
+            '/media/products/paw-0009.jpg', '/media/products/paw-0010.jpg',
+            '/media/products/paw-0011.jpg', '/media/products/paw-0012.jpg',
+            '/media/products/paw-0013.jpg', '/media/products/paw-0014.jpg',
+            '/media/products/paw-0015.jpg', '/media/products/paw-0016.jpg',
+            '/media/products/paw-0017.webp', '/media/products/paw-0018.webp',
+            '/media/products/paw-0019.jpg', '/media/products/paw-0020.png',
+            '/media/products/paw-0021.jpg', '/media/products/paw-0022.jpg',
+            '/media/products/paw-0023.jpg', '/media/products/paw-0024.jpg',
+            '/media/products/paw-0025.jpg', '/media/products/paw-0026.jpg',
+            '/media/products/paw-0027.jpg', '/media/products/paw-0028.jpg',
+            '/media/products/paw-0029.jpg', '/media/products/paw-0030.jpg',
+            '/media/products/paw-0031.png', '/media/products/paw-0032.jpg',
+        ];
+        $optionSets = [
+            'Đồ chơi cho chó' => [['Xanh lá', 'Vàng', 'Cam'], ['Nhỏ', 'Lớn']],
+            'Đồ chơi cho mèo' => [['Hồng', 'Xanh dương', 'Tím'], ['Nhỏ', 'Lớn']],
+            'Vòng cổ & dây dắt' => [['Be', 'Đen', 'Xanh navy'], ['S', 'M']],
+            'Giường & chăn' => [['Kem', 'Xám', 'Hồng'], ['S', 'M']],
+            'Bát ăn & bình nước' => [['Trắng', 'Xanh mint', 'Hồng'], ['350 ml', '550 ml']],
+            'Grooming' => [['Trắng', 'Xanh dương', 'Hồng'], ['Tiêu chuẩn', 'Lớn']],
+            'Quần áo thú cưng' => [['Kem', 'Xanh navy', 'Đỏ'], ['S', 'M']],
+            'Phụ kiện du lịch' => [['Be', 'Đen', 'Xanh rêu'], ['Tiêu chuẩn', 'Lớn']],
         ];
         $i = 0;
         foreach ($catalog as $categoryName => [$petType, $names]) {
             $category = Category::updateOrCreate(['slug'=>Str::slug($categoryName)], ['name'=>$categoryName,'description'=>'Phụ kiện được Pawora tuyển chọn cho những khoảnh khắc gần gũi mỗi ngày.','is_active'=>true]);
             foreach ($names as $name) {
                 $price = 129000 + ($i * 27000);
-                Product::updateOrCreate(['sku'=>'PAW-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT)], [
+                $product = Product::updateOrCreate(['sku'=>'PAW-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT)], [
                     'category_id'=>$category->id,'name'=>$name,'slug'=>Str::slug($name),'pet_type'=>$petType,
                     'short_description'=>'Thiết kế tinh gọn, chất liệu an toàn và thoải mái cho bé trong nhịp sống hằng ngày.',
                     'description'=>'Pawora chọn từng chi tiết với ưu tiên an toàn, độ bền và trải nghiệm sử dụng. Sản phẩm dễ vệ sinh, phù hợp dùng hằng ngày và có hướng dẫn bảo quản rõ ràng.',
@@ -48,6 +71,24 @@ class DatabaseSeeder extends Seeder
                     'image'=>$images[$i % count($images)],'rating'=>4.5 + (($i % 5) / 10),'review_count'=>12 + $i,
                     'is_featured'=>$i < 8,'status'=>'active',
                 ]);
+                [$colors, $sizes] = $optionSets[$categoryName];
+                foreach ($colors as $colorIndex => $color) {
+                    foreach ($sizes as $sizeIndex => $size) {
+                        ProductVariant::updateOrCreate(
+                            ['sku' => $product->sku.'-'.($colorIndex + 1).'-'.($sizeIndex + 1)],
+                            [
+                                'product_id' => $product->id,
+                                'name' => $color.' · '.$size,
+                                'color' => $color,
+                                'size' => $size,
+                                'price' => $price + ($sizeIndex * 30000),
+                                'stock' => 3 + (($i + $colorIndex + $sizeIndex) % 5),
+                                'is_active' => true,
+                            ]
+                        );
+                    }
+                }
+                $product->update(['stock' => $product->variants()->where('is_active', true)->sum('stock')]);
                 $i++;
             }
         }
