@@ -33,6 +33,7 @@ class OnePayController extends Controller
 
         if (! $order) {
             abort_if($redirect, 404);
+
             return false;
         }
 
@@ -49,7 +50,9 @@ class OnePayController extends Controller
 
         if (! is_numeric($params['vpc_Amount'] ?? null) || (int) $order->total !== intdiv((int) $params['vpc_Amount'], 100)) {
             $this->record($order, $params, 'invalid_amount');
-            if (! $redirect) return false;
+            if (! $redirect) {
+                return false;
+            }
 
             return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
                 ->withErrors(['payment' => 'Số tiền OnePay trả về không khớp với đơn hàng.']);
@@ -64,6 +67,8 @@ class OnePayController extends Controller
                 'status' => $order->status === 'pending' ? 'confirmed' : $order->status,
                 'paid_at' => now(),
             ])->save();
+        } elseif ($order->payment_status !== 'paid') {
+            $order->forceFill(['payment_status' => 'failed'])->save();
         }
 
         if (! $redirect) {
@@ -71,7 +76,7 @@ class OnePayController extends Controller
         }
 
         return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
-            ->with($status === 'paid' ? 'success' : 'error', $status === 'paid' ? 'Thanh toán OnePay thành công.' : 'Thanh toán OnePay chưa thành công.' );
+            ->with($status === 'paid' ? 'success' : 'error', $status === 'paid' ? 'Thanh toán OnePay thành công.' : 'Thanh toán OnePay chưa thành công.');
     }
 
     private function record(Order $order, array $params, string $status): void

@@ -10,8 +10,8 @@ use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
@@ -365,6 +365,7 @@ class CommerceTest extends TestCase
 
     public function test_customer_can_cancel_a_paid_order_and_receive_refund(): void
     {
+        config()->set('services.vnpay.enabled', false);
         $customer = User::factory()->create();
         $product = $this->product(3);
         $order = Order::create(['number' => 'PAW-PAID-1', 'public_token' => (string) Str::uuid(), 'user_id' => $customer->id, 'customer_name' => 'Customer', 'email' => $customer->email, 'phone' => '0909000000', 'shipping_address' => 'Hà Nội', 'subtotal' => 200000, 'total' => 200000, 'payment_method' => 'vnpay', 'payment_status' => 'paid', 'status' => 'pending']);
@@ -372,10 +373,10 @@ class CommerceTest extends TestCase
 
         $this->actingAs($customer)->patch(route('account.orders.cancel', $order), ['reason' => 'other'])
             ->assertRedirect()
-            ->assertSessionHas('success', 'Đơn hàng đã được hủy và ghi nhận hoàn tiền.');
+            ->assertSessionHas('success', 'Đơn hàng đã được hủy. Yêu cầu hoàn tiền đang được cổng thanh toán xử lý.');
 
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'refunded', 'refunded_amount' => 200000]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'refund_pending', 'refunded_amount' => 0]);
         $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 4]);
-        $this->assertDatabaseHas('payment_transactions', ['order_id' => $order->id, 'type' => 'refund', 'status' => 'succeeded', 'amount' => 200000]);
+        $this->assertDatabaseHas('payment_transactions', ['order_id' => $order->id, 'type' => 'refund', 'status' => 'pending', 'amount' => 200000]);
     }
 }

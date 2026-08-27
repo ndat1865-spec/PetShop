@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'refunds' => [
+        'demo_mode' => env('REFUND_DEMO_MODE', true),
+    ],
+    'returns' => [
+        'window_days' => env('RETURN_WINDOW_DAYS', 7),
+    ],
     'shipping' => [
         'free_threshold' => 700000,
         'ghn' => [
@@ -15,13 +21,13 @@ return [
         ],
         'zones' => [
             'local' => ['fee' => 25000, 'provinces' => ['Thành phố Hồ Chí Minh']],
-            'nearby' => ['fee' => 30000, 'provinces' => ['Đồng Nai','Tây Ninh','Thành phố Hà Nội','Thành phố Hải Phòng','Thành phố Đà Nẵng','Thành phố Cần Thơ']],
-            'remote' => ['fee' => 45000, 'provinces' => ['Cao Bằng','Lai Châu','Điện Biên','Sơn La','Lạng Sơn','Tuyên Quang','Lào Cai','Đắk Lắk','Gia Lai','Lâm Đồng']],
+            'nearby' => ['fee' => 30000, 'provinces' => ['Đồng Nai', 'Tây Ninh', 'Thành phố Hà Nội', 'Thành phố Hải Phòng', 'Thành phố Đà Nẵng', 'Thành phố Cần Thơ']],
+            'remote' => ['fee' => 45000, 'provinces' => ['Cao Bằng', 'Lai Châu', 'Điện Biên', 'Sơn La', 'Lạng Sơn', 'Tuyên Quang', 'Lào Cai', 'Đắk Lắk', 'Gia Lai', 'Lâm Đồng']],
             'standard' => ['fee' => 40000, 'provinces' => []],
         ],
         'provinces' => [
-            'Thành phố Hà Nội','Thành phố Hải Phòng','Thành phố Huế','Thành phố Đà Nẵng','Thành phố Cần Thơ','Thành phố Hồ Chí Minh',
-            'Lai Châu','Điện Biên','Sơn La','Lạng Sơn','Cao Bằng','Tuyên Quang','Lào Cai','Thái Nguyên','Phú Thọ','Bắc Ninh','Hưng Yên','Ninh Bình','Quảng Ninh','Thanh Hóa','Nghệ An','Hà Tĩnh','Quảng Trị','Quảng Ngãi','Gia Lai','Khánh Hòa','Lâm Đồng','Đắk Lắk','Đồng Nai','Tây Ninh','Vĩnh Long','Đồng Tháp','Cà Mau','An Giang',
+            'Thành phố Hà Nội', 'Thành phố Hải Phòng', 'Thành phố Huế', 'Thành phố Đà Nẵng', 'Thành phố Cần Thơ', 'Thành phố Hồ Chí Minh',
+            'Lai Châu', 'Điện Biên', 'Sơn La', 'Lạng Sơn', 'Cao Bằng', 'Tuyên Quang', 'Lào Cai', 'Thái Nguyên', 'Phú Thọ', 'Bắc Ninh', 'Hưng Yên', 'Ninh Bình', 'Quảng Ninh', 'Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Quảng Trị', 'Quảng Ngãi', 'Gia Lai', 'Khánh Hòa', 'Lâm Đồng', 'Đắk Lắk', 'Đồng Nai', 'Tây Ninh', 'Vĩnh Long', 'Đồng Tháp', 'Cà Mau', 'An Giang',
         ],
     ],
 ];

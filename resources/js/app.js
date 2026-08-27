@@ -700,3 +700,44 @@ profileForm?.addEventListener('submit', () => {
     button.setAttribute('aria-busy', 'true');
     button.textContent = 'Đang lưu…';
 });
+
+document.querySelectorAll('[data-shipment-form]').forEach((form) => {
+    const status = form.querySelector('[data-shipment-status]');
+    const tracking = form.querySelector('[data-tracking-input]');
+    const requiredMark = form.querySelector('[data-tracking-required]');
+    const helper = form.querySelector('[data-tracking-help]');
+    const impact = form.querySelector('[data-shipment-impact]');
+    const submit = form.querySelector('[data-shipment-submit]');
+    const awaitingCustomerReceipt = form.dataset.awaitingCustomerReceipt === 'true';
+    if (!status || !tracking) return;
+
+    const messages = {
+        ready: 'Khởi tạo hồ sơ giao nhận. Trạng thái đơn vẫn là “Đang chuẩn bị” và khách chưa thấy đơn đang được giao.',
+        packed: 'Xác nhận kiện đã đóng gói. Trạng thái đơn phía khách sẽ đổi thành “Đã đóng gói”.',
+        shipped: 'Bắt đầu giao hàng. Mã vận đơn là bắt buộc và khách sẽ thấy đơn ở trạng thái “Đang giao hàng”.',
+        delivered: 'Xác nhận giao thành công. Hệ thống lưu thời điểm giao và bắt đầu tính hạn đổi trả.',
+    };
+
+    const updateShipmentGuidance = () => {
+        const trackingRequired = ['shipped', 'delivered'].includes(status.value);
+        tracking.required = trackingRequired;
+        if (requiredMark) requiredMark.hidden = !trackingRequired;
+        if (helper) {
+            helper.textContent = trackingRequired
+                ? 'Bắt buộc ở bước này. Nhập đúng mã do đơn vị vận chuyển cung cấp; với bài demo có thể dùng mã DEMO-PAW-…'
+                : 'Chưa bắt buộc khi mới chuẩn bị. Khi chuyển sang “Đang giao hàng”, phải có mã để tra cứu.';
+        }
+        if (impact) impact.textContent = awaitingCustomerReceipt
+            ? 'Khách chưa xác nhận nhận hàng. Lần lưu này chỉ cập nhật thông tin vận chuyển và không thể hoàn tất đơn.'
+            : (messages[status.value] || 'Hệ thống sẽ lưu thông tin vận chuyển và đồng bộ trạng thái đơn hàng.');
+    };
+
+    status.addEventListener('change', updateShipmentGuidance);
+    form.addEventListener('submit', () => {
+        if (!submit || !form.checkValidity()) return;
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        submit.textContent = 'Đang lưu và đồng bộ…';
+    });
+    updateShipmentGuidance();
+});

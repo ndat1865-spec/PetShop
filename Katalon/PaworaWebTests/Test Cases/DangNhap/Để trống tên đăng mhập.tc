@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TestCaseEntity>
+   <description></description>
+   <name>Để trống tên đăng mhập</name>
+   <tag></tag>
+   <comment></comment>
+   <recordOption>OTHER</recordOption>
+   <testCaseGuid>096de617-183c-4bf1-af02-d6dbb498b02a</testCaseGuid>
+</TestCaseEntity>

@@ -14,5 +14,7 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'thanh-toan/zalopay/callback',
         'thanh-toan/onepay/callback',
+        'thanh-toan/momo/ipn',
+        'thanh-toan/hoan-tien/*/callback',
     ];
 }

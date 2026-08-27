@@ -7,6 +7,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\MomoController;
 use App\Http\Controllers\OnePayController;
+use App\Http\Controllers\RefundWebhookController;
 use App\Http\Controllers\SepayController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\VnPayController;
@@ -45,6 +46,7 @@ Route::get('/thanh-toan/onepay/return', [OnePayController::class, 'return'])->na
 Route::match(['get', 'post'], '/thanh-toan/onepay/callback', [OnePayController::class, 'callback'])->name('payments.onepay.callback');
 Route::get('/thanh-toan/momo/return/{order}', [MomoController::class, 'return'])->name('payments.momo.return');
 Route::post('/thanh-toan/momo/ipn', [MomoController::class, 'ipn'])->name('payments.momo.ipn');
+Route::post('/thanh-toan/hoan-tien/{provider}/callback', RefundWebhookController::class)->name('payments.refunds.callback');
 Route::get('/thanh-toan/sepay/{order}', [SepayController::class, 'payment'])->name('payments.sepay.payment');
 Route::get('/don-hang/{order}', [CheckoutController::class, 'show'])->name('orders.show');
 Route::get('/dat-hang/{order}/thanh-cong', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
@@ -60,6 +62,7 @@ Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function
     Route::get('/don-hang', [AccountController::class, 'orders'])->name('orders.index');
     Route::get('/don-hang/{order}', [AccountController::class, 'showOrder'])->name('orders.show');
     Route::patch('/don-hang/{order}/huy', [AccountController::class, 'cancelOrder'])->name('orders.cancel');
+    Route::patch('/don-hang/{order}/da-nhan-hang', [AccountController::class, 'confirmOrderReceived'])->name('orders.received');
     Route::post('/don-hang/{order}/doi-tra', [AccountController::class, 'requestReturn'])->name('returns.store');
 });
 Route::middleware('guest')->group(function () {
@@ -106,6 +109,7 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->name('admin.')->group(fun
     Route::get('/van-chuyen', [AdminController::class, 'shipments'])->name('shipments');
     Route::patch('/van-chuyen/{order}', [AdminController::class, 'updateShipment'])->name('shipments.update');
     Route::get('/thanh-toan', [AdminController::class, 'payments'])->name('payments');
+    Route::patch('/thanh-toan/{transaction}/xac-nhan-hoan-demo', [AdminController::class, 'confirmDemoRefund'])->name('payments.refunds.confirm-demo');
     Route::get('/doi-tra', [AdminController::class, 'returns'])->name('returns');
     Route::patch('/doi-tra/{return}', [AdminController::class, 'updateReturn'])->name('returns.update');
     Route::get('/cai-dat', [AdminController::class, 'settings'])->name('settings');

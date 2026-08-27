@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\PaymentTransaction;
 use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\User;
 use App\Models\UserAddress;
+use App\Services\RefundService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class AccountController extends Controller
 {
@@ -65,7 +66,7 @@ class AccountController extends Controller
         abort_unless($order->user_id === $request->user()->id, 403);
 
         return view('account.orders.show', [
-            'order' => $order->load(['items.product', 'histories', 'shipments', 'payments']),
+            'order' => $order->load(['items.product', 'histories', 'shipments', 'payments', 'returnRequests']),
         ]);
     }
 
@@ -109,20 +110,16 @@ class AccountController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $data) {
-            $isDefault = $request->boolean('is_default') || ! $request->user()->addresses()->exists();
+            $user = $request->user()->newQuery()->lockForUpdate()->findOrFail($request->user()->id);
+            $isDefault = $request->boolean('is_default') || ! $user->addresses()->exists();
             if ($isDefault) {
-                $request->user()->addresses()->update(['is_default' => false]);
+                $user->addresses()->update(['is_default' => false]);
             }
 
-            $request->user()->addresses()->create([...$data, 'is_default' => $isDefault]);
+            $user->addresses()->create([...$data, 'is_default' => $isDefault]);
 
             if ($isDefault) {
-                $request->user()->update([
-                    'phone' => $data['phone'],
-                    'province' => $data['province'],
-                    'ward' => $data['ward'],
-                    'address_line' => $data['address_line'],
-                ]);
+                $this->syncFallbackAddress($user, $data);
             }
         });
 
@@ -133,7 +130,7 @@ class AccountController extends Controller
     {
         abort_unless($address->user_id === $request->user()->id, 403);
 
-        $data = $request->validate([
+        $data = $request->validateWithBag('updateAddress'.$address->id, [
             'label' => ['required', 'string', 'max:40'],
             'receiver_name' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'regex:/^[0-9+ ]{9,15}$/'],
@@ -145,20 +142,17 @@ class AccountController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $address, $data) {
-            $isDefault = $request->boolean('is_default') || $address->is_default;
+            $user = $request->user()->newQuery()->lockForUpdate()->findOrFail($request->user()->id);
+            $lockedAddress = $user->addresses()->lockForUpdate()->findOrFail($address->id);
+            $isDefault = $request->boolean('is_default') || $lockedAddress->is_default;
             if ($isDefault) {
-                $request->user()->addresses()->whereKeyNot($address->id)->update(['is_default' => false]);
+                $user->addresses()->whereKeyNot($lockedAddress->id)->update(['is_default' => false]);
             }
 
-            $address->update([...$data, 'is_default' => $isDefault]);
+            $lockedAddress->update([...$data, 'is_default' => $isDefault]);
 
             if ($isDefault) {
-                $request->user()->update([
-                    'phone' => $data['phone'],
-                    'province' => $data['province'],
-                    'ward' => $data['ward'],
-                    'address_line' => $data['address_line'],
-                ]);
+                $this->syncFallbackAddress($user, $data);
             }
         });
 
@@ -170,14 +164,11 @@ class AccountController extends Controller
         abort_unless($address->user_id === $request->user()->id, 403);
 
         DB::transaction(function () use ($request, $address) {
-            $request->user()->addresses()->update(['is_default' => false]);
-            $address->update(['is_default' => true]);
-            $request->user()->update([
-                'phone' => $address->phone,
-                'province' => $address->province,
-                'ward' => $address->ward,
-                'address_line' => $address->address_line,
-            ]);
+            $user = $request->user()->newQuery()->lockForUpdate()->findOrFail($request->user()->id);
+            $lockedAddress = $user->addresses()->lockForUpdate()->findOrFail($address->id);
+            $user->addresses()->update(['is_default' => false]);
+            $lockedAddress->update(['is_default' => true]);
+            $this->syncFallbackAddress($user, $lockedAddress->toArray());
         });
 
         return back()->with('success', 'Đã đặt địa chỉ mặc định.');
@@ -186,12 +177,28 @@ class AccountController extends Controller
     public function destroyAddress(Request $request, UserAddress $address)
     {
         abort_unless($address->user_id === $request->user()->id, 403);
-        $address->delete();
+        DB::transaction(function () use ($request, $address) {
+            $user = $request->user()->newQuery()->lockForUpdate()->findOrFail($request->user()->id);
+            $lockedAddress = $user->addresses()->lockForUpdate()->findOrFail($address->id);
+            $wasDefault = $lockedAddress->is_default;
+            $lockedAddress->delete();
+
+            if ($wasDefault) {
+                $replacement = $user->addresses()->lockForUpdate()->latest('updated_at')->first();
+                if ($replacement) {
+                    $user->addresses()->update(['is_default' => false]);
+                    $replacement->update(['is_default' => true]);
+                    $this->syncFallbackAddress($user, $replacement->toArray());
+                } else {
+                    $this->syncFallbackAddress($user, null);
+                }
+            }
+        });
 
         return back()->with('success', 'Đã xóa địa chỉ.');
     }
 
-    public function cancelOrder(Request $request, Order $order)
+    public function cancelOrder(Request $request, Order $order, RefundService $refunds)
     {
         $data = $request->validate([
             'reason' => ['required', 'in:ordered_by_mistake,change_address,change_payment,no_longer_needed,other'],
@@ -212,23 +219,12 @@ class AccountController extends Controller
 
             // Chỉ hoàn tồn kho khi chuyển trạng thái thành công lần đầu, tránh cộng kho lặp lại.
             foreach ($lockedOrder->items as $item) {
-                if ($item->product_id) Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
-                if ($item->product_variant_id) \App\Models\ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
-            }
-
-            $wasPaid = $lockedOrder->payment_status === 'paid';
-            if ($wasPaid) {
-                PaymentTransaction::create([
-                    'order_id' => $lockedOrder->id,
-                    'request_id' => (string) Str::uuid(),
-                    'provider' => $lockedOrder->payment_method,
-                    'type' => 'refund',
-                    'status' => 'succeeded',
-                    'amount' => $lockedOrder->total,
-                    'currency' => $lockedOrder->currency ?: 'VND',
-                    'response_payload' => ['reason' => $data['reason'], 'source' => 'customer_cancellation'],
-                    'processed_at' => now(),
-                ]);
+                if ($item->product_id) {
+                    Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
+                }
+                if ($item->product_variant_id) {
+                    ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
+                }
             }
 
             $lockedOrder->histories()->create([
@@ -239,24 +235,83 @@ class AccountController extends Controller
             ]);
             $lockedOrder->update([
                 'status' => 'cancelled',
-                'payment_status' => $wasPaid ? 'refunded' : $lockedOrder->payment_status,
-                'refunded_amount' => $wasPaid ? $lockedOrder->total : $lockedOrder->refunded_amount,
             ]);
         });
 
-        return back()->with('success', $order->payment_status === 'paid'
-            ? 'Đơn hàng đã được hủy và ghi nhận hoàn tiền.'
+        $order->refresh();
+        $wasPaid = $order->payment_status === 'paid';
+        if ($wasPaid) {
+            try {
+                $refunds->request($order, (int) $order->total, [
+                    'reason' => $data['reason'],
+                    'source' => 'customer_cancellation',
+                ]);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return back()->with('success', 'Đơn hàng đã được hủy nhưng cổng thanh toán chưa nhận yêu cầu hoàn tiền. Pawora sẽ kiểm tra lại.');
+            }
+        }
+
+        return back()->with('success', $wasPaid
+            ? 'Đơn hàng đã được hủy. Yêu cầu hoàn tiền đang được cổng thanh toán xử lý.'
             : 'Đơn hàng đã được hủy.');
+    }
+
+    public function confirmOrderReceived(Request $request, Order $order)
+    {
+        DB::transaction(function () use ($request, $order) {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->user_id === $request->user()->id, 403);
+
+            $shipment = $lockedOrder->shipments()->lockForUpdate()->firstOrFail();
+
+            // Retry từ trình duyệt hoặc gửi lại sau khi admin hoàn tất vẫn là cùng một xác nhận.
+            if ($shipment->customer_received_at) {
+                return;
+            }
+
+            abort_unless(
+                $lockedOrder->status === 'shipped' && $shipment->status === 'shipped',
+                422,
+                'Chỉ xác nhận khi đơn hàng đang được giao.'
+            );
+
+            $shipment->update(['customer_received_at' => now()]);
+            $lockedOrder->histories()->create([
+                'user_id' => $request->user()->id,
+                'from_status' => 'shipped',
+                'to_status' => 'shipped',
+                'note' => 'Khách hàng xác nhận đã nhận được kiện hàng.',
+            ]);
+        });
+
+        return back()->with('success', 'Đã ghi nhận bạn đã nhận hàng. Pawora sẽ đối chiếu và hoàn tất đơn hàng.');
     }
 
     public function requestReturn(Request $request, Order $order)
     {
         abort_unless($order->user_id === $request->user()->id, 403);
-        abort_unless($order->status === 'delivered' && $order->updated_at->greaterThanOrEqualTo(now()->subDays(7)), 422, 'Đơn hàng không nằm trong thời hạn đổi trả.');
-        abort_if($order->returnRequests()->whereIn('status', ['requested', 'approved', 'received'])->exists(), 422, 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.');
-        $data = $request->validate(['reason' => 'required|in:wrong_item,damaged,not_fit,changed_mind,other', 'details' => 'required|string|max:1000']);
-        $order->returnRequests()->create([...$data, 'user_id' => $request->user()->id]);
+        $order->loadMissing(['shipments', 'returnRequests']);
+        abort_unless($order->canRequestReturn(), 422, 'Đơn hàng không nằm trong thời hạn đổi trả tính từ lúc giao thành công.');
+        $data = $request->validate(['reason' => 'required|in:wrong_item,damaged,not_fit,changed_mind,other', 'details' => 'required|string|min:10|max:1000']);
+        DB::transaction(function () use ($request, $order, $data) {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->user_id === $request->user()->id, 403);
+            abort_if($lockedOrder->returnRequests()->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->exists(), 422, 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.');
+            $lockedOrder->returnRequests()->create([...$data, 'user_id' => $request->user()->id]);
+        });
 
         return back()->with('success', 'Pawora đã nhận yêu cầu đổi trả của bạn.');
+    }
+
+    private function syncFallbackAddress(User $user, ?array $address): void
+    {
+        $user->update([
+            'phone' => $address['phone'] ?? null,
+            'province' => $address['province'] ?? null,
+            'ward' => $address['ward'] ?? null,
+            'address_line' => $address['address_line'] ?? null,
+        ]);
     }
 }

@@ -47,6 +47,8 @@ return [
         'hash_secret' => env('VNPAY_HASH_SECRET'),
         'payment_url' => env('VNPAY_PAYMENT_URL', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
         'return_url' => env('VNPAY_RETURN_URL'),
+        'refund_url' => env('VNPAY_REFUND_URL', 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction'),
+        'refund_webhook_secret' => env('VNPAY_REFUND_WEBHOOK_SECRET'),
     ],
 
     'zalopay' => [
@@ -58,6 +60,8 @@ return [
         'callback_url' => env('ZALOPAY_CALLBACK_URL'),
         'redirect_url' => env('ZALOPAY_REDIRECT_URL'),
         'ssl_verify' => env('ZALOPAY_SSL_VERIFY', true),
+        'refund_url' => env('ZALOPAY_REFUND_URL', 'https://sb-openapi.zalopay.vn/v2/refund'),
+        'refund_webhook_secret' => env('ZALOPAY_REFUND_WEBHOOK_SECRET'),
     ],
 
     'momo' => [
@@ -73,6 +77,8 @@ return [
         'ipn_url' => env('MOMO_IPN_URL'),
         'timeout' => env('MOMO_TIMEOUT', 30),
         'ssl_verify' => env('MOMO_SSL_VERIFY', true),
+        'refund_url' => env('MOMO_REFUND_URL', 'https://test-payment.momo.vn/v2/gateway/api/refund'),
+        'refund_webhook_secret' => env('MOMO_REFUND_WEBHOOK_SECRET'),
     ],
 
     'sepay' => [
@@ -80,6 +86,8 @@ return [
         'account_number' => env('SEPAY_ACCOUNT_NUMBER'),
         'account_name' => env('SEPAY_ACCOUNT_NAME'),
         'webhook_api_key' => env('SEPAY_WEBHOOK_API_KEY'),
+        'refund_url' => env('SEPAY_REFUND_URL'),
+        'refund_webhook_secret' => env('SEPAY_REFUND_WEBHOOK_SECRET'),
     ],
 
     'onepay' => [
@@ -90,6 +98,8 @@ return [
         'payment_url' => env('ONEPAY_PAYMENT_URL', 'https://mtf.onepay.vn/vpcpay/vpcpay.op'),
         'return_url' => env('ONEPAY_RETURN_URL'),
         'callback_url' => env('ONEPAY_CALLBACK_URL'),
+        'refund_url' => env('ONEPAY_REFUND_URL'),
+        'refund_webhook_secret' => env('ONEPAY_REFUND_WEBHOOK_SECRET'),
     ],
 
 ];

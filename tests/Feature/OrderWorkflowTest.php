@@ -1,0 +1,370 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Order;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+class OrderWorkflowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function order(User $customer, array $overrides = []): Order
+    {
+        return Order::create(array_merge([
+            'number' => 'PAW-'.Str::upper(Str::random(10)),
+            'public_token' => (string) Str::uuid(),
+            'user_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'email' => $customer->email,
+            'phone' => '0909000000',
+            'shipping_address' => '01 Nguyễn Huệ, TP.HCM',
+            'subtotal' => 200000,
+            'total' => 200000,
+            'payment_method' => 'vnpay',
+            'payment_status' => 'refund_pending',
+            'status' => 'cancelled',
+        ], $overrides));
+    }
+
+    public function test_cancelled_refund_pending_order_has_no_invalid_admin_actions(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order(User::factory()->create());
+
+        $response = $this->actingAs($admin)->get(route('admin.orders.show', $order));
+
+        $response->assertOk()
+            ->assertSee('Đã huỷ')
+            ->assertSee('Đang hoàn tiền')
+            ->assertDontSee('Xác nhận đã thanh toán')
+            ->assertDontSee('action="'.route('admin.orders.update', $order).'"', false)
+            ->assertDontSee('action="'.route('admin.shipments.update', $order).'"', false);
+    }
+
+    public function test_backend_rejects_actions_that_would_revive_a_cancelled_order(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order(User::factory()->create());
+
+        $this->actingAs($admin)->patch(route('admin.orders.paid', $order))->assertStatus(422);
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), [
+            'status' => 'pending',
+        ])->assertStatus(422);
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
+            'provider' => 'GHN',
+            'status' => 'ready',
+            'fee' => 30000,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'cancelled',
+            'payment_status' => 'refund_pending',
+        ]);
+        $this->assertDatabaseCount('shipments', 0);
+    }
+
+    public function test_admin_cancelling_a_paid_order_starts_the_same_pending_refund_flow(): void
+    {
+        config()->set('pawora.refunds.demo_mode', true);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order(User::factory()->create(), [
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), [
+            'status' => 'cancelled',
+            'note' => 'Khách gọi điện yêu cầu huỷ.',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'cancelled',
+            'payment_status' => 'refund_pending',
+        ]);
+        $this->assertDatabaseHas('payment_transactions', [
+            'order_id' => $order->id,
+            'type' => 'refund',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_admin_order_and_shipment_flow_stay_in_sync_without_skipping_steps(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, [
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'processing'])
+            ->assertStatus(422);
+        $this->assertSame('pending', $order->fresh()->status);
+
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'confirmed'])
+            ->assertRedirect();
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'processing'])
+            ->assertRedirect();
+
+        $shipmentData = ['provider' => 'GHN', 'tracking_code' => 'GHN-DEMO-01', 'fee' => 30000];
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'ready'])
+            ->assertRedirect();
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'shipped'])
+            ->assertStatus(422);
+        $this->assertSame('processing', $order->fresh()->status);
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'packed'])
+            ->assertRedirect();
+        $this->assertSame('packed', $order->fresh()->status);
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'shipped'])
+            ->assertRedirect();
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertNotNull($order->shipments()->firstOrFail()->shipped_at);
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'delivered'])
+            ->assertStatus(422);
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertNull($order->shipments()->firstOrFail()->delivered_at);
+
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Tôi đã nhận được hàng');
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Chờ khách xác nhận đã nhận hàng')
+            ->assertDontSee('value="delivered"', false);
+
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertNotNull($order->shipments()->firstOrFail()->customer_received_at);
+
+        // Gửi lại cùng xác nhận không được tạo thêm lịch sử hoặc thay đổi trạng thái đơn.
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertRedirect();
+        $this->assertSame(1, $order->histories()->where('note', 'Khách hàng xác nhận đã nhận được kiện hàng.')->count());
+
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Hoàn tất giao hàng')
+            ->assertSee('value="delivered"', false);
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'delivered'])
+            ->assertRedirect();
+        $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertNotNull($order->shipments()->firstOrFail()->delivered_at);
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id' => $order->id,
+            'from_status' => 'shipped',
+            'to_status' => 'delivered',
+        ]);
+
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Đã giao hàng');
+    }
+
+    public function test_only_the_order_owner_can_confirm_receipt_and_only_while_shipping(): void
+    {
+        $customer = User::factory()->create();
+        $otherCustomer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid']);
+        $shipment = $order->shipments()->create([
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-OWNER-01',
+            'status' => 'shipped',
+            'fee' => 30000,
+            'shipped_at' => now(),
+        ]);
+
+        $this->actingAs($otherCustomer)->patch(route('account.orders.received', $order))->assertForbidden();
+        $this->assertNull($shipment->fresh()->customer_received_at);
+
+        $order->update(['status' => 'packed']);
+        $shipment->update(['status' => 'packed']);
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertStatus(422);
+        $this->assertNull($shipment->fresh()->customer_received_at);
+    }
+
+    public function test_cod_is_marked_paid_only_when_admin_completes_after_customer_confirmation(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, [
+            'status' => 'shipped',
+            'payment_method' => 'cod',
+            'payment_status' => 'unpaid',
+            'paid_at' => null,
+        ]);
+        $order->shipments()->create([
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-COD-01',
+            'status' => 'shipped',
+            'fee' => 30000,
+            'shipped_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.orders.paid', $order))->assertStatus(422);
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('COD được ghi nhận ở bước hoàn tất giao hàng')
+            ->assertDontSee('Xác nhận đã nhận thanh toán');
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertRedirect();
+        $this->assertSame('unpaid', $order->fresh()->payment_status);
+        $this->assertSame('shipped', $order->fresh()->status);
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-COD-01',
+            'status' => 'delivered',
+            'fee' => 30000,
+        ])->assertRedirect();
+
+        $order->refresh();
+        $this->assertSame('delivered', $order->status);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertNotNull($order->paid_at);
+        $this->assertNotNull($order->shipments()->firstOrFail()->delivered_at);
+    }
+
+    public function test_return_request_cannot_skip_the_review_and_receiving_steps(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'delivered', 'payment_status' => 'paid']);
+        $return = $order->returnRequests()->create([
+            'user_id' => $customer->id,
+            'status' => 'requested',
+            'reason' => 'damaged',
+            'details' => 'Sản phẩm bị lỗi.',
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.returns.update', $return), [
+            'status' => 'refund_pending',
+            'refund_amount' => 100000,
+        ])->assertStatus(422);
+
+        $this->assertSame('requested', $return->fresh()->status);
+        $this->assertDatabaseCount('payment_transactions', 0);
+    }
+
+    public function test_admin_workflow_pages_render_only_localized_valid_next_steps(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'processing', 'payment_status' => 'paid']);
+        $order->shipments()->create(['provider' => 'GHN', 'status' => 'ready', 'fee' => 30000]);
+        $order->returnRequests()->create([
+            'user_id' => $customer->id,
+            'status' => 'requested',
+            'reason' => 'damaged',
+            'details' => 'Sản phẩm bị lỗi.',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.orders'))
+            ->assertOk()
+            ->assertSee('Đang chuẩn bị')
+            ->assertSee('Xác nhận đóng gói');
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Hướng đi của đơn hàng')
+            ->assertSee('Sẵn sàng bàn giao')
+            ->assertSee('Đã đóng gói');
+        $this->actingAs($admin)->get(route('admin.shipments'))
+            ->assertOk()
+            ->assertSee('Sẵn sàng bàn giao')
+            ->assertSee('Đã đóng gói');
+        $this->actingAs($admin)->get(route('admin.returns'))
+            ->assertOk()
+            ->assertSee('Đã duyệt')
+            ->assertSee('Từ chối')
+            ->assertDontSee('Đang hoàn tiền');
+    }
+
+    public function test_online_order_must_be_paid_before_admin_can_confirm_it(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order(User::factory()->create(), [
+            'status' => 'pending',
+            'payment_status' => 'pending',
+            'payment_method' => 'vnpay',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Xác nhận đã nhận thanh toán')
+            ->assertDontSee('value="confirmed"', false);
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'confirmed'])
+            ->assertStatus(422);
+
+        $this->actingAs($admin)->patch(route('admin.orders.paid', $order))->assertRedirect();
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'confirmed'])
+            ->assertRedirect();
+        $this->assertSame('confirmed', $order->fresh()->status);
+    }
+
+    public function test_tracking_code_is_required_when_shipment_starts_delivery(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'packed', 'payment_status' => 'paid']);
+        $order->shipments()->create(['provider' => 'GHN', 'status' => 'packed', 'fee' => 30000]);
+
+        $this->actingAs($admin)->from(route('admin.orders.show', $order))
+            ->patch(route('admin.shipments.update', $order), [
+                'provider' => 'GHN',
+                'status' => 'shipped',
+                'fee' => 30000,
+            ])->assertRedirect(route('admin.orders.show', $order))
+            ->assertSessionHasErrors('tracking_code');
+        $this->assertSame('packed', $order->fresh()->status);
+
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-PAW-DEMO-01',
+            'status' => 'shipped',
+            'fee' => 30000,
+        ])->assertRedirect();
+
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()
+            ->assertSee('GHN-PAW-DEMO-01')
+            ->assertSee('Đang giao hàng');
+    }
+
+    public function test_duplicate_tracking_code_returns_a_field_error_instead_of_a_database_exception(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $existingOrder = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid']);
+        $existingOrder->shipments()->create([
+            'provider' => 'GHN',
+            'tracking_code' => '1222',
+            'status' => 'shipped',
+            'fee' => 30000,
+        ]);
+        $newOrder = $this->order($customer, ['status' => 'processing', 'payment_status' => 'paid']);
+
+        $this->actingAs($admin)->from(route('admin.orders.show', $newOrder))
+            ->patch(route('admin.shipments.update', $newOrder), [
+                'form_order_id' => $newOrder->id,
+                'provider' => 'GHN',
+                'tracking_code' => '1222',
+                'status' => 'ready',
+                'fee' => 30000,
+            ])->assertRedirect(route('admin.orders.show', $newOrder))
+            ->assertSessionHasErrors(['tracking_code' => 'Mã vận đơn này đã được dùng cho đơn hàng khác.']);
+
+        $this->assertDatabaseMissing('shipments', ['order_id' => $newOrder->id]);
+    }
+}

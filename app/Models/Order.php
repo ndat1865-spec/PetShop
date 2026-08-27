@@ -3,10 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Order extends Model
 {
     public const STATUSES = ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'delivered', 'cancelled'];
+
+    /**
+     * Các bước mà admin được phép điều khiển trực tiếp. Từ lúc đóng gói trở đi,
+     * trạng thái đơn được đồng bộ bởi quy trình vận chuyển để tránh hai nơi
+     * cùng điều khiển một đơn hàng.
+     */
+    public const ADMIN_TRANSITIONS = [
+        'pending' => ['confirmed', 'cancelled'],
+        'confirmed' => ['processing', 'cancelled'],
+        'processing' => ['cancelled'],
+        'packed' => ['cancelled'],
+        'shipped' => [],
+        'delivered' => [],
+        'cancelled' => [],
+    ];
 
     public const STATUS_LABELS = [
         'pending' => 'Chờ xác nhận',
@@ -53,7 +69,7 @@ class Order extends Model
 
     public function shipments()
     {
-        return $this->hasMany(Shipment::class);
+        return $this->hasMany(Shipment::class)->latest();
     }
 
     public function returnRequests()
@@ -71,9 +87,75 @@ class Order extends Model
         return self::PAYMENT_STATUS_LABELS[$this->payment_status] ?? ucfirst($this->payment_status);
     }
 
+    public function allowedAdminTransitions(): array
+    {
+        $transitions = self::ADMIN_TRANSITIONS[$this->status] ?? [];
+
+        // COD được xác nhận trước và thu tiền khi giao. Các phương thức còn lại
+        // phải hoàn tất thanh toán trước khi admin nhận xử lý đơn.
+        if ($this->status === 'pending' && $this->payment_method !== 'cod' && $this->payment_status !== 'paid') {
+            return array_values(array_intersect($transitions, ['cancelled']));
+        }
+
+        return $transitions;
+    }
+
+    public function canAdminTransitionTo(string $status): bool
+    {
+        return in_array($status, $this->allowedAdminTransitions(), true);
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, ['delivered', 'cancelled'], true);
+    }
+
+    public function canBeMarkedPaid(): bool
+    {
+        return $this->status !== 'cancelled'
+            && $this->payment_method !== 'cod'
+            && in_array($this->payment_status, ['unpaid', 'pending', 'failed'], true);
+    }
+
+    public function canManageShipment(): bool
+    {
+        return in_array($this->status, ['processing', 'packed', 'shipped'], true)
+            && ! in_array($this->payment_status, ['refund_pending', 'refunded'], true);
+    }
+
+    public function initialShipmentStatuses(): array
+    {
+        return match ($this->status) {
+            'processing' => ['ready'],
+            'packed' => ['packed'],
+            'shipped' => ['shipped'],
+            default => [],
+        };
+    }
+
     public function canBeCancelledByCustomer(): bool
     {
         return in_array($this->status, ['pending', 'confirmed'], true)
             && ! in_array($this->payment_status, ['refunded', 'refund_pending'], true);
+    }
+
+    public function deliveredAt(): ?Carbon
+    {
+        return $this->shipments->whereNotNull('delivered_at')->max('delivered_at');
+    }
+
+    public function returnDeadline(): ?Carbon
+    {
+        return $this->deliveredAt()?->copy()->addDays((int) config('pawora.returns.window_days', 7));
+    }
+
+    public function canRequestReturn(): bool
+    {
+        $deadline = $this->returnDeadline();
+
+        return $this->status === 'delivered'
+            && $deadline !== null
+            && now()->lessThanOrEqualTo($deadline)
+            && ! $this->returnRequests->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->isNotEmpty();
     }
 }
