@@ -11,6 +11,13 @@
                 <h1>Chào mừng trở lại</h1>
             </header>
 
+            @if(str_contains((string) session('url.intended'), '/thanh-toan'))
+                <div class="checkout-login-notice" role="status">
+                    <strong>Đăng nhập để tiếp tục thanh toán</strong>
+                    <span>Giỏ hàng của bạn vẫn được giữ nguyên.</span>
+                </div>
+            @endif
+
             @if($errors->any())
                 <div id="login-error-summary" class="auth-errors auth-errors--inline" role="alert" tabindex="-1" aria-labelledby="login-error-title" data-auth-focus>
                     <strong id="login-error-title">Vui lòng kiểm tra lại thông tin đăng nhập:</strong>

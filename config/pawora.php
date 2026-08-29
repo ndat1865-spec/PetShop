@@ -1,6 +1,35 @@
 <?php
 
 return [
+    'admin' => [
+        'require_two_factor' => env('ADMIN_REQUIRE_TWO_FACTOR', false),
+        'role_permissions' => [
+            'admin' => ['*'],
+            'staff' => [
+                'dashboard.view',
+                'reports.export',
+                'orders.view',
+                'orders.manage',
+                'catalog.view',
+                'catalog.manage',
+                'inventory.view',
+                'inventory.adjust',
+                'customers.view',
+                'reviews.view',
+                'contacts.view',
+                'chats.view',
+                'chats.reply',
+                'chats.assign',
+                'promotions.manage',
+                'shipments.view',
+                'shipments.manage',
+                'payments.view',
+                'returns.view',
+                'returns.manage',
+            ],
+            'customer' => [],
+        ],
+    ],
     'refunds' => [
         'demo_mode' => env('REFUND_DEMO_MODE', true),
     ],
@@ -9,6 +38,8 @@ return [
     ],
     'shipping' => [
         'free_threshold' => 700000,
+        'default_provider' => env('SHIPPING_DEFAULT_PROVIDER', 'Pawora nội bộ'),
+        'tracking_prefix' => env('SHIPPING_TRACKING_PREFIX', 'PAW-SHP'),
         'ghn' => [
             'enabled' => env('GHN_ENABLED', false),
             'token' => env('GHN_TOKEN'),

@@ -25,7 +25,7 @@
     <div class="permission-note"><strong>Quy tắc phân quyền</strong><span>Admin quản lý toàn bộ và chỉnh quyền. Staff vận hành cửa hàng nhưng không thể chỉnh tài khoản. Customer chỉ sử dụng khu mua hàng.</span></div>
     <div class="table-wrap">
         <table class="account-table">
-            <thead><tr><th>Tài khoản</th><th>Liên hệ</th><th>Hoạt động</th><th>Vai trò hiện tại</th><th>Cập nhật quyền</th></tr></thead>
+            <thead><tr><th>Tài khoản</th><th>Liên hệ</th><th>Hoạt động</th><th>Vai trò hiện tại</th><th>Trạng thái</th><th>Cập nhật quyền</th><th>Kiểm soát truy cập</th></tr></thead>
             <tbody>
                 @forelse($users as $user)
                     <tr>
@@ -33,11 +33,12 @@
                         <td><strong>{{ $user->email }}</strong><small>{{ $user->phone ?: 'Chưa có số điện thoại' }}</small></td>
                         <td><strong>{{ $user->orders_count }} đơn</strong><small>{{ number_format($user->total_spent ?: 0,0,',','.') }}đ đã mua</small></td>
                         <td><span class="role-badge role-badge--{{ $user->role }}">{{ $user->roleLabel() }}</span></td>
+                        <td><span @class(['account-status-badge','is-active'=>$user->is_active,'is-locked'=>!$user->is_active])>{{ $user->is_active ? 'Đang hoạt động' : 'Đã khóa' }}</span>@if($user->deactivated_at)<small>{{ $user->deactivated_at->format('d/m/Y H:i') }}</small>@endif</td>
                         <td>
                             @if(auth()->user()->is($user))
                                 <span class="self-role-note">Tài khoản hiện tại</span>
                             @else
-                                <form class="role-form" method="post" action="{{ route('admin.users.role.update', $user) }}">
+                                <form class="role-form" method="post" action="{{ route('admin.users.role.update', $user) }}" data-confirm-title="Xác nhận thay đổi quyền" data-confirm-message="Quyền mới có hiệu lực ngay sau khi lưu và sẽ được ghi vào nhật ký quản trị.">
                                     @csrf @method('patch')
                                     <label class="sr-only" for="role-{{ $user->id }}">Vai trò của {{ $user->name }}</label>
                                     <select id="role-{{ $user->id }}" name="role">
@@ -47,9 +48,10 @@
                                 </form>
                             @endif
                         </td>
+                        <td>@if(auth()->user()->is($user))<span class="self-role-note">Không thể tự khóa</span>@else<details class="account-status-control"><summary>{{ $user->is_active ? 'Khóa tài khoản' : 'Mở lại tài khoản' }}</summary><form method="post" action="{{ route('admin.users.status.update', $user) }}" data-confirm-title="{{ $user->is_active ? 'Khóa tài khoản này?' : 'Mở lại tài khoản này?' }}" data-confirm-message="Thay đổi có hiệu lực ngay và được ghi vào nhật ký quản trị.">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $user->is_active ? 0 : 1 }}"><label class="sr-only" for="status-reason-{{ $user->id }}">Lý do</label><input id="status-reason-{{ $user->id }}" name="reason" minlength="5" maxlength="255" placeholder="Lý do thay đổi" required><button @class(['button','small','danger-button'=>$user->is_active,'secondary'=>!$user->is_active]) type="submit">{{ $user->is_active ? 'Xác nhận khóa' : 'Mở tài khoản' }}</button></form></details>@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5"><div class="admin-empty"><strong>Không tìm thấy tài khoản.</strong><span>Hãy thử từ khóa khác hoặc xóa bộ lọc.</span></div></td></tr>
+                    <tr><td colspan="7"><div class="admin-empty"><strong>Không tìm thấy tài khoản.</strong><span>Hãy thử từ khóa khác hoặc xóa bộ lọc.</span></div></td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -3,37 +3,43 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Models\ReturnRequest;
 use App\Models\User;
 use App\Models\UserAddress;
+use App\Services\InventoryService;
 use App\Services\RefundService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\Password;
 
 class AccountController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $orders = $request->user()->orders();
-
-        return view('account.index', [
-            'recentOrders' => (clone $orders)->with('items')->latest()->take(3)->get(),
-            'defaultAddress' => $request->user()->addresses()->where('is_default', true)->first(),
-            'accountStats' => [
-                'orders' => (clone $orders)->count(),
-                'processing' => (clone $orders)->whereIn('status', ['pending', 'confirmed', 'processing', 'packed'])->count(),
-                'shipping' => (clone $orders)->where('status', 'shipped')->count(),
-                'completed' => (clone $orders)->where('status', 'delivered')->count(),
-                'addresses' => $request->user()->addresses()->count(),
-            ],
-        ]);
+        return redirect()->route('account.profile');
     }
 
-    public function profile()
+    public function profile(Request $request)
     {
-        return view('account.profile');
+        $user = $request->user();
+        $orders = $user->orders();
+
+        return view('account.profile', [
+            'recentOrders' => (clone $orders)
+                ->with(['items.product', 'shipments'])
+                ->latest()
+                ->take(3)
+                ->get(),
+            'defaultAddress' => $user->addresses()->where('is_default', true)->first(),
+            'accountStats' => [
+                'orders' => (clone $orders)->count(),
+                'active' => (clone $orders)->whereNotIn('status', ['delivered', 'cancelled'])->count(),
+                'addresses' => $user->addresses()->count(),
+                'returns' => (clone $orders)->whereHas('returnRequests')->count(),
+            ],
+        ]);
     }
 
     public function addresses(Request $request)
@@ -42,6 +48,38 @@ class AccountController extends Controller
             'addresses' => $request->user()->addresses()->latest('is_default')->latest()->get(),
             'provinces' => config('pawora.shipping.provinces', []),
         ]);
+    }
+
+    public function returns(Request $request)
+    {
+        $user = $request->user();
+        $returnRequests = ReturnRequest::query()
+            ->where('user_id', $user->id)
+            ->with(['order.items.product'])
+            ->latest()
+            ->paginate(10);
+        $eligibleOrders = $user->orders()
+            ->where('status', 'delivered')
+            ->with(['items.product', 'shipments', 'returnRequests'])
+            ->latest()
+            ->get()
+            ->filter(fn (Order $order) => $order->canRequestReturn())
+            ->values();
+
+        return view('account.returns', [
+            'returnRequests' => $returnRequests,
+            'eligibleOrders' => $eligibleOrders,
+            'returnStats' => [
+                'total' => ReturnRequest::where('user_id', $user->id)->count(),
+                'processing' => ReturnRequest::where('user_id', $user->id)->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->count(),
+                'refunded' => ReturnRequest::where('user_id', $user->id)->where('status', 'refunded')->count(),
+            ],
+        ]);
+    }
+
+    public function security(Request $request)
+    {
+        return view('account.security', ['accountUser' => $request->user()]);
     }
 
     public function orders(Request $request)
@@ -94,6 +132,18 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Thông tin tài khoản đã được cập nhật.');
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $data = $request->validateWithBag('passwordUpdate', [
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $request->user()->update(['password' => Hash::make($data['password'])]);
+
+        return redirect()->route('account.security')->with('success', 'Mật khẩu tài khoản đã được cập nhật.');
     }
 
     public function storeAddress(Request $request)
@@ -219,12 +269,7 @@ class AccountController extends Controller
 
             // Chỉ hoàn tồn kho khi chuyển trạng thái thành công lần đầu, tránh cộng kho lặp lại.
             foreach ($lockedOrder->items as $item) {
-                if ($item->product_id) {
-                    Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
-                }
-                if ($item->product_variant_id) {
-                    ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
-                }
+                app(InventoryService::class)->restoreOrderItem($item, $request->user(), $lockedOrder);
             }
 
             $lockedOrder->histories()->create([

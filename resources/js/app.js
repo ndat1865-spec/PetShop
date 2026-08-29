@@ -1,4 +1,6 @@
 import './bootstrap';
+import './chat-widget';
+import './admin-chat';
 
 const menuButton = document.querySelector('[data-menu-button]');
 const mobilePanel = document.querySelector('[data-mobile-panel]');
@@ -7,6 +9,38 @@ menuButton?.addEventListener('click', () => {
     menuButton.setAttribute('aria-expanded', String(!open));
     mobilePanel.hidden = open;
     mobilePanel.toggleAttribute('data-open', !open);
+});
+
+const adminSidebar = document.getElementById('admin-sidebar');
+const adminSidebarTrigger = document.querySelector('[data-admin-sidebar-open]');
+const adminSidebarCloseButtons = document.querySelectorAll('[data-admin-sidebar-close]');
+const adminSidebarMedia = window.matchMedia('(max-width: 1100px)');
+
+const setAdminSidebarOpen = (open, { restoreFocus = true } = {}) => {
+    if (!adminSidebar || !adminSidebarTrigger || !adminSidebarMedia.matches) return;
+    document.body.classList.toggle('admin-sidebar-open', open);
+    adminSidebarTrigger.setAttribute('aria-expanded', String(open));
+    if (open) {
+        requestAnimationFrame(() => adminSidebar.querySelector('.admin-sidebar-close')?.focus());
+    } else if (restoreFocus) {
+        adminSidebarTrigger.focus();
+    }
+};
+
+adminSidebarTrigger?.addEventListener('click', () => setAdminSidebarOpen(true, { restoreFocus: false }));
+adminSidebarCloseButtons.forEach((button) => button.addEventListener('click', () => setAdminSidebarOpen(false)));
+adminSidebar?.querySelectorAll('nav a').forEach((link) => link.addEventListener('click', () => {
+    if (adminSidebarMedia.matches) setAdminSidebarOpen(false, { restoreFocus: false });
+}));
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.classList.contains('admin-sidebar-open')) {
+        setAdminSidebarOpen(false);
+    }
+});
+adminSidebarMedia.addEventListener?.('change', (event) => {
+    if (event.matches) return;
+    document.body.classList.remove('admin-sidebar-open');
+    adminSidebarTrigger?.setAttribute('aria-expanded', 'false');
 });
 
 const searchToggle = document.querySelector('[data-search-toggle]');
@@ -347,7 +381,33 @@ if (shippingForm) {
     const quoteBox = shippingForm.querySelector('[data-shipping-quote]');
     const feeOutput = shippingForm.querySelector('[data-shipping-fee]');
     const totalOutput = shippingForm.querySelector('[data-order-total]');
+    const couponInput = shippingForm.querySelector('[data-coupon-code]');
+    const couponStatus = shippingForm.querySelector('[data-coupon-status]');
+    const discountRow = shippingForm.querySelector('[data-discount-row]');
+    const discountOutput = shippingForm.querySelector('[data-discount-amount]');
+    const couponRemove = shippingForm.querySelector('[data-coupon-remove]');
+    const couponDialog = shippingForm.querySelector('[data-coupon-dialog]');
+    const couponTrigger = shippingForm.querySelector('[data-coupon-open]');
+    const couponOpeners = shippingForm.querySelectorAll('[data-coupon-open], [data-coupon-change]');
+    const couponClose = shippingForm.querySelector('[data-coupon-close]');
+    const couponConfirm = shippingForm.querySelector('[data-coupon-confirm]');
+    const couponApplied = shippingForm.querySelector('[data-coupon-applied]');
+    const couponAppliedCode = shippingForm.querySelector('[data-coupon-applied-code]');
+    const couponAppliedDiscount = shippingForm.querySelector('[data-coupon-applied-discount]');
+    const couponTriggerCopy = shippingForm.querySelector('[data-coupon-trigger-copy]');
+    const couponTriggerAction = shippingForm.querySelector('[data-coupon-trigger-action]');
+    const pendingLabel = shippingForm.querySelector('[data-coupon-pending-label]');
+    const pendingDiscountOutput = shippingForm.querySelector('[data-coupon-pending-discount]');
+    const manualCoupon = shippingForm.querySelector('[data-manual-coupon]');
+    const manualCouponCheck = shippingForm.querySelector('[data-manual-coupon-check]');
+    const manualCouponStatus = shippingForm.querySelector('[data-manual-coupon-status]');
     const subtotal = Number(shippingForm.dataset.subtotal || 0);
+    let selectedDiscount = 0;
+    let currentShippingFee = null;
+    let pendingCouponCode = '';
+    let pendingCouponDiscount = 0;
+    let couponDialogOpener = null;
+    const couponStorageKey = 'pawora_checkout_coupon';
     const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
     const normalizeLocation = (value) => String(value || '')
         .normalize('NFD')
@@ -359,7 +419,8 @@ if (shippingForm) {
     const setQuoteEmpty = () => {
         quoteBox.textContent = 'Chọn đủ tỉnh/thành phố, quận/huyện và phường/xã để xem phí giao hàng.';
         feeOutput.textContent = 'Chưa tính';
-        totalOutput.textContent = money.format(subtotal);
+        currentShippingFee = null;
+        totalOutput.textContent = money.format(subtotal - selectedDiscount);
     };
 
     const loadDistricts = async () => {
@@ -425,7 +486,7 @@ if (shippingForm) {
             ward.dataset.selected = '';
             loadShippingQuote();
         } catch {
-            ward.innerHTML = '<option value="">Không tải được danh sách — vui lòng thử lại</option>';
+            ward.innerHTML = '<option value="">Không tải được danh sách. Vui lòng thử lại</option>';
         }
     };
 
@@ -441,11 +502,14 @@ if (shippingForm) {
             url.searchParams.set('province', province.value);
             url.searchParams.set('district_id', districtId.value);
             url.searchParams.set('ward_code', wardCode.value);
+            if (couponInput?.value) url.searchParams.set('coupon_code', couponInput.value);
             const response = await fetch(url, { headers: { Accept: 'application/json' } });
             if (!response.ok) throw new Error('quote_failed');
             const quote = await response.json();
+            currentShippingFee = Number(quote.fee);
+            selectedDiscount = Number(quote.discount || selectedDiscount);
             feeOutput.textContent = quote.free_shipping ? 'Miễn phí' : money.format(quote.fee);
-            totalOutput.textContent = money.format(subtotal + Number(quote.fee));
+            totalOutput.textContent = money.format(Number(quote.total));
             quoteBox.innerHTML = `<strong>${quote.free_shipping ? 'Miễn phí giao hàng' : `Phí giao hàng ${money.format(quote.fee)}`}</strong><span>Dự kiến nhận trong ${quote.estimated_days}.</span>`;
         } catch {
             quoteBox.textContent = 'Chưa tính được phí giao hàng. Vui lòng chọn lại tỉnh/thành phố.';
@@ -467,6 +531,169 @@ if (shippingForm) {
         wardCode.value = ward.selectedOptions[0]?.dataset.code || '';
         loadShippingQuote();
     });
+
+    const selectPendingCoupon = (code = '', discount = 0) => {
+        pendingCouponCode = String(code || '').trim().toUpperCase();
+        pendingCouponDiscount = Number(discount || 0);
+        pendingLabel.textContent = pendingCouponCode ? `Đã chọn ${pendingCouponCode}` : 'Chưa chọn mã';
+        pendingDiscountOutput.textContent = pendingCouponCode
+            ? `Dự kiến giảm ${money.format(pendingCouponDiscount)}`
+            : 'Chọn một ưu đãi để tiếp tục';
+        couponConfirm.disabled = !pendingCouponCode;
+        shippingForm.querySelectorAll('[data-voucher]').forEach((voucher) => {
+            const selected = voucher.dataset.voucher === pendingCouponCode;
+            voucher.classList.toggle('is-selected', selected);
+            voucher.setAttribute('aria-pressed', String(selected));
+        });
+    };
+
+    const renderCoupon = (code = '', discount = 0) => {
+        const normalizedCode = String(code || '').trim().toUpperCase();
+        selectedDiscount = Number(discount || 0);
+        couponInput.value = normalizedCode;
+        if (normalizedCode) sessionStorage.setItem(couponStorageKey, normalizedCode);
+        else sessionStorage.removeItem(couponStorageKey);
+        discountRow.hidden = !normalizedCode || selectedDiscount <= 0;
+        discountOutput.textContent = `-${money.format(selectedDiscount)}`;
+        couponTrigger.hidden = Boolean(normalizedCode);
+        couponApplied.hidden = !normalizedCode;
+        couponAppliedCode.textContent = normalizedCode;
+        couponAppliedDiscount.textContent = normalizedCode ? `Giảm ${money.format(selectedDiscount)}` : '';
+        couponTriggerCopy.textContent = normalizedCode ? `Đang dùng ${normalizedCode}` : 'Chọn hoặc nhập mã';
+        couponTriggerAction.textContent = normalizedCode ? 'Đổi mã' : 'Chọn mã';
+        selectPendingCoupon(normalizedCode, selectedDiscount);
+        totalOutput.textContent = money.format(subtotal - selectedDiscount + (currentShippingFee || 0));
+    };
+
+    const previewCoupon = async (code) => {
+        const normalizedCode = String(code || '').trim().toUpperCase();
+        if (!normalizedCode) throw new Error('Vui lòng nhập hoặc chọn một mã giảm giá.');
+        const url = new URL(shippingForm.dataset.couponPreviewUrl, window.location.origin);
+        url.searchParams.set('coupon_code', normalizedCode);
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
+        return data;
+    };
+
+    const openCouponDialog = (opener) => {
+        if (!couponDialog?.showModal) return;
+        couponDialogOpener = opener;
+        selectPendingCoupon(couponInput.value, selectedDiscount);
+        manualCoupon.value = '';
+        manualCouponStatus.textContent = 'Mã sẽ được kiểm tra trực tiếp với hệ thống.';
+        manualCouponStatus.classList.remove('is-error', 'is-success');
+        couponDialog.showModal();
+        document.body.classList.add('coupon-dialog-open');
+        requestAnimationFrame(() => {
+            const selectedVoucher = couponDialog.querySelector('[data-voucher].is-selected');
+            (selectedVoucher || manualCoupon || couponClose)?.focus();
+        });
+    };
+
+    const closeCouponDialog = () => {
+        if (couponDialog?.open) couponDialog.close();
+    };
+
+    const setCouponBusy = (busy) => {
+        couponConfirm.disabled = busy || !pendingCouponCode;
+        couponConfirm.setAttribute('aria-busy', String(busy));
+        couponConfirm.textContent = busy ? 'Đang áp dụng...' : 'Áp dụng';
+    };
+
+    couponOpeners.forEach((opener) => opener.addEventListener('click', () => openCouponDialog(opener)));
+    couponClose?.addEventListener('click', closeCouponDialog);
+    couponDialog?.addEventListener('click', (event) => {
+        if (event.target === couponDialog) closeCouponDialog();
+    });
+    couponDialog?.addEventListener('close', () => {
+        document.body.classList.remove('coupon-dialog-open');
+        couponDialogOpener?.focus();
+        couponDialogOpener = null;
+    });
+
+    shippingForm.querySelectorAll('[data-voucher]').forEach((voucher) => {
+        voucher.addEventListener('click', () => {
+            if (voucher.disabled || voucher.dataset.eligible !== 'true') return;
+            selectPendingCoupon(voucher.dataset.voucher, voucher.dataset.discount);
+            manualCoupon.value = '';
+            manualCouponStatus.textContent = `Đã chọn ${voucher.dataset.voucher}. Nhấn Áp dụng để xác nhận.`;
+            manualCouponStatus.classList.remove('is-error');
+            manualCouponStatus.classList.add('is-success');
+        });
+    });
+
+    const checkManualCoupon = async () => {
+        const code = manualCoupon.value.trim().toUpperCase();
+        manualCoupon.value = code;
+        manualCouponStatus.textContent = 'Đang kiểm tra mã giảm giá...';
+        manualCouponStatus.classList.remove('is-error', 'is-success');
+        manualCouponStatus.setAttribute('aria-busy', 'true');
+        manualCouponCheck.disabled = true;
+        try {
+            const data = await previewCoupon(code);
+            selectPendingCoupon(data.code, data.discount);
+            manualCouponStatus.textContent = `${data.code} hợp lệ. Dự kiến giảm ${money.format(data.discount)}.`;
+            manualCouponStatus.classList.add('is-success');
+        } catch (error) {
+            selectPendingCoupon('', 0);
+            manualCouponStatus.textContent = error.message || 'Không thể kiểm tra mã giảm giá. Vui lòng thử lại.';
+            manualCouponStatus.classList.add('is-error');
+        } finally {
+            manualCouponStatus.removeAttribute('aria-busy');
+            manualCouponCheck.disabled = false;
+        }
+    };
+
+    manualCoupon?.addEventListener('input', () => {
+        manualCoupon.value = manualCoupon.value.toUpperCase();
+        manualCouponStatus.textContent = 'Nhấn Kiểm tra để xác nhận điều kiện của mã.';
+        manualCouponStatus.classList.remove('is-error', 'is-success');
+    });
+    manualCouponCheck?.addEventListener('click', checkManualCoupon);
+    manualCoupon?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        checkManualCoupon();
+    });
+
+    couponConfirm?.addEventListener('click', async () => {
+        if (!pendingCouponCode) return;
+        setCouponBusy(true);
+        manualCouponStatus.textContent = 'Đang xác nhận ưu đãi với hệ thống...';
+        manualCouponStatus.classList.remove('is-error', 'is-success');
+        try {
+            const data = await previewCoupon(pendingCouponCode);
+            renderCoupon(data.code, data.discount);
+            couponStatus.textContent = `Đã áp dụng ${data.code}. Bạn được giảm ${money.format(data.discount)}.`;
+            if (province.value && districtId.value && wardCode.value) await loadShippingQuote();
+            closeCouponDialog();
+        } catch (error) {
+            manualCouponStatus.textContent = error.message || 'Không thể áp dụng mã giảm giá. Vui lòng thử lại.';
+            manualCouponStatus.classList.add('is-error');
+        } finally {
+            setCouponBusy(false);
+        }
+    });
+
+    couponRemove?.addEventListener('click', async () => {
+        renderCoupon('', 0);
+        couponStatus.textContent = 'Đã bỏ mã giảm giá.';
+        if (province.value && districtId.value && wardCode.value) await loadShippingQuote();
+    });
+
+    const restorableCoupon = couponInput?.value || sessionStorage.getItem(couponStorageKey) || '';
+    if (restorableCoupon) {
+        previewCoupon(restorableCoupon)
+            .then((data) => {
+                renderCoupon(data.code, data.discount);
+                couponStatus.textContent = `Đã khôi phục mã ${data.code}.`;
+            })
+            .catch(() => {
+                renderCoupon('', 0);
+                couponStatus.textContent = 'Mã giảm giá trước đó không còn hợp lệ.';
+            });
+    }
 
     shippingForm.querySelectorAll('[data-saved-address]').forEach((choice) => {
         choice.addEventListener('change', () => {
@@ -703,36 +930,61 @@ profileForm?.addEventListener('submit', () => {
 
 document.querySelectorAll('[data-shipment-form]').forEach((form) => {
     const status = form.querySelector('[data-shipment-status]');
+    const provider = form.querySelector('[data-shipment-provider]');
     const tracking = form.querySelector('[data-tracking-input]');
-    const requiredMark = form.querySelector('[data-tracking-required]');
+    const copyTracking = tracking?.parentElement?.querySelector('[data-copy-value]');
     const helper = form.querySelector('[data-tracking-help]');
     const impact = form.querySelector('[data-shipment-impact]');
     const submit = form.querySelector('[data-shipment-submit]');
     const awaitingCustomerReceipt = form.dataset.awaitingCustomerReceipt === 'true';
-    if (!status || !tracking) return;
+    if (!status || !provider || !tracking) return;
+
+    const originalTrackingCode = tracking.value;
+    const originalProvider = provider.dataset.originalProvider || '';
+    const regenerateOnProviderChange = tracking.dataset.regenerateOnProviderChange === 'true';
+    const trackingPrefix = (providerName) => {
+        const normalized = providerName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        if (normalized.includes('ghn')) return 'GHN';
+        if (normalized.includes('ghtk')) return 'GHTK';
+        if (normalized.includes('viettel')) return 'VTP';
+        if (normalized.includes('j&t') || normalized.includes('jnt')) return 'JNT';
+        if (normalized.includes('buu dien') || normalized.includes('vnpost')) return 'VNPOST';
+        if (normalized.includes('demo')) return 'DEMO';
+        return 'PAW-SHP';
+    };
+
+    const updateTrackingPreview = () => {
+        const providerChanged = originalProvider !== '' && provider.value !== originalProvider;
+        const willRegenerate = !originalTrackingCode || (providerChanged && regenerateOnProviderChange);
+        if (willRegenerate) {
+            tracking.value = '';
+            tracking.placeholder = `${trackingPrefix(provider.value)}-YYMMDD-XXXXXX — tự tạo khi lưu`;
+            if (copyTracking) copyTracking.disabled = true;
+            if (helper) helper.textContent = `Bạn không cần nhập. Hệ thống sẽ cấp mã ${trackingPrefix(provider.value)} duy nhất ngay sau khi lưu.`;
+            return;
+        }
+
+        tracking.value = originalTrackingCode;
+        if (copyTracking) copyTracking.disabled = false;
+        if (helper) helper.textContent = 'Mã do hệ thống cấp và được giữ nguyên sau khi kiện đã bắt đầu giao.';
+    };
 
     const messages = {
         ready: 'Khởi tạo hồ sơ giao nhận. Trạng thái đơn vẫn là “Đang chuẩn bị” và khách chưa thấy đơn đang được giao.',
         packed: 'Xác nhận kiện đã đóng gói. Trạng thái đơn phía khách sẽ đổi thành “Đã đóng gói”.',
-        shipped: 'Bắt đầu giao hàng. Mã vận đơn là bắt buộc và khách sẽ thấy đơn ở trạng thái “Đang giao hàng”.',
+        shipped: 'Bắt đầu giao hàng. Hệ thống tự cấp mã vận đơn và khách sẽ thấy đơn ở trạng thái “Đang giao hàng”.',
         delivered: 'Xác nhận giao thành công. Hệ thống lưu thời điểm giao và bắt đầu tính hạn đổi trả.',
     };
 
     const updateShipmentGuidance = () => {
-        const trackingRequired = ['shipped', 'delivered'].includes(status.value);
-        tracking.required = trackingRequired;
-        if (requiredMark) requiredMark.hidden = !trackingRequired;
-        if (helper) {
-            helper.textContent = trackingRequired
-                ? 'Bắt buộc ở bước này. Nhập đúng mã do đơn vị vận chuyển cung cấp; với bài demo có thể dùng mã DEMO-PAW-…'
-                : 'Chưa bắt buộc khi mới chuẩn bị. Khi chuyển sang “Đang giao hàng”, phải có mã để tra cứu.';
-        }
+        updateTrackingPreview();
         if (impact) impact.textContent = awaitingCustomerReceipt
             ? 'Khách chưa xác nhận nhận hàng. Lần lưu này chỉ cập nhật thông tin vận chuyển và không thể hoàn tất đơn.'
             : (messages[status.value] || 'Hệ thống sẽ lưu thông tin vận chuyển và đồng bộ trạng thái đơn hàng.');
     };
 
     status.addEventListener('change', updateShipmentGuidance);
+    provider.addEventListener('change', updateShipmentGuidance);
     form.addEventListener('submit', () => {
         if (!submit || !form.checkValidity()) return;
         submit.disabled = true;
@@ -740,4 +992,74 @@ document.querySelectorAll('[data-shipment-form]').forEach((form) => {
         submit.textContent = 'Đang lưu và đồng bộ…';
     });
     updateShipmentGuidance();
+});
+
+const adminConfirmDialog = document.getElementById('admin-confirm-dialog');
+if (adminConfirmDialog) {
+    const title = adminConfirmDialog.querySelector('#admin-confirm-title');
+    const message = adminConfirmDialog.querySelector('#admin-confirm-message');
+    const accept = adminConfirmDialog.querySelector('[data-confirm-accept]');
+    const cancel = adminConfirmDialog.querySelector('[data-confirm-cancel]');
+    let pendingForm = null;
+
+    document.querySelectorAll('form[data-confirm-title]').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            if (form.dataset.confirmed === 'true') return;
+            event.preventDefault();
+            pendingForm = form;
+            title.textContent = form.dataset.confirmTitle || 'Xác nhận thao tác';
+            message.textContent = form.dataset.confirmMessage || 'Thao tác này sẽ được ghi vào nhật ký quản trị.';
+            adminConfirmDialog.showModal();
+        });
+    });
+    cancel?.addEventListener('click', () => {
+        pendingForm = null;
+        adminConfirmDialog.close();
+    });
+    accept?.addEventListener('click', () => {
+        if (!pendingForm) return;
+        const form = pendingForm;
+        pendingForm = null;
+        adminConfirmDialog.close();
+        form.dataset.confirmed = 'true';
+        form.requestSubmit();
+    });
+    adminConfirmDialog.addEventListener('click', (event) => {
+        if (event.target === adminConfirmDialog) {
+            pendingForm = null;
+            adminConfirmDialog.close();
+        }
+    });
+}
+
+document.querySelectorAll('[data-copy-value]').forEach((button) => {
+    button.addEventListener('click', async () => {
+        const value = button.dataset.copyValue;
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+            const original = button.textContent;
+            button.textContent = 'Đã sao chép';
+            document.querySelector('[data-copy-feedback]')?.replaceChildren('Đã sao chép mã vào bộ nhớ tạm.');
+            window.setTimeout(() => { button.textContent = original; }, 1800);
+        } catch {
+            document.querySelector('[data-copy-feedback]')?.replaceChildren('Không thể sao chép tự động. Vui lòng chọn và sao chép mã.');
+        }
+    });
+});
+
+document.querySelectorAll('[data-catalog-filter-form]').forEach((form) => {
+    const toggle = form.querySelector('[data-catalog-filter-toggle]');
+    const fields = form.querySelector('.catalog-filter-fields');
+    if (!toggle || !fields) return;
+
+    toggle.addEventListener('click', () => {
+        const isOpen = fields.dataset.open === 'true';
+        if (isOpen) {
+            delete fields.dataset.open;
+        } else {
+            fields.dataset.open = 'true';
+        }
+        toggle.setAttribute('aria-expanded', String(!isOpen));
+    });
 });

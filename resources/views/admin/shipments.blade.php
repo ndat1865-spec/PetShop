@@ -19,7 +19,7 @@
     <h2 id="shipment-rules-title">Cách vận hành</h2>
     <ol>
         <li><span>01</span><div><strong>Khởi tạo</strong><p>Chọn đơn vị giao hàng khi kho bắt đầu chuẩn bị kiện. Mã vận đơn chưa bắt buộc.</p></div></li>
-        <li><span>02</span><div><strong>Đóng gói & bàn giao</strong><p>Sau khi đóng gói, nhập mã vận đơn rồi chuyển sang “Đang giao hàng”.</p></div></li>
+        <li><span>02</span><div><strong>Đóng gói & bàn giao</strong><p>Chọn đơn vị giao hàng; hệ thống tự cấp mã vận đơn khi bạn lưu bước bàn giao.</p></div></li>
         <li><span>03</span><div><strong>Khách xác nhận, admin hoàn tất</strong><p>Khách bấm đã nhận hàng trước; admin mới được chọn “Đã giao hàng”. Lúc đó COD hoàn tất và bắt đầu hạn đổi trả.</p></div></li>
     </ol>
 </section>

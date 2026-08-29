@@ -17,8 +17,8 @@
                 <td><span class="admin-badge {{ $tx->status }}">{{ $tx->status }}</span></td>
                 <td><details><summary>Xem JSON</summary><pre>{{ json_encode($tx->response_payload, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE) }}</pre></details></td>
                 <td>
-                    @if(config('pawora.refunds.demo_mode') && $tx->type === 'refund' && $tx->status !== 'succeeded')
-                        <form method="post" action="{{ route('admin.payments.refunds.confirm-demo',$tx) }}" onsubmit="return confirm('Xác nhận đã hoàn tiền ảo cho giao dịch demo này?')">
+                    @if(auth()->user()->hasPermission('payments.refund') && config('pawora.refunds.demo_mode') && $tx->type === 'refund' && $tx->status !== 'succeeded')
+                        <form method="post" action="{{ route('admin.payments.refunds.confirm-demo',$tx) }}" data-confirm-title="Xác nhận hoàn tiền demo?" data-confirm-message="Giao dịch sẽ được đánh dấu hoàn tất và thao tác được lưu trong nhật ký quản trị.">
                             @csrf @method('PATCH')
                             <button class="button secondary small" type="submit">Đã hoàn tiền (demo)</button>
                         </form>

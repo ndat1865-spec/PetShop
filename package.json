@@ -3,19 +3,17 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build",
-        "test:e2e": "playwright test",
-        "test:e2e:ui": "playwright test --ui",
-        "test:e2e:headed": "playwright test --headed",
-        "test:e2e:report": "playwright show-report"
+        "build": "vite build"
     },
     "devDependencies": {
-        "@playwright/test": "^1.62.1",
+        "@types/node": "^26.4.0",
         "axios": "^1.1.2",
         "laravel-vite-plugin": "^3.2.0",
         "vite": "^8.2.1"
     },
     "dependencies": {
-        "lottie-web": "^5.13.0"
+        "laravel-echo": "^2.4.0",
+        "lottie-web": "^5.13.0",
+        "pusher-js": "^8.6.0"
     }
 }

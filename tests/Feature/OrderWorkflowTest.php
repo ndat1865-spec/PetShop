@@ -312,12 +312,24 @@ class OrderWorkflowTest extends TestCase
         $this->assertSame('confirmed', $order->fresh()->status);
     }
 
-    public function test_tracking_code_is_required_when_shipment_starts_delivery(): void
+    public function test_tracking_code_is_generated_when_shipment_starts_delivery(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create();
         $order = $this->order($customer, ['status' => 'packed', 'payment_status' => 'paid']);
-        $order->shipments()->create(['provider' => 'GHN', 'status' => 'packed', 'fee' => 30000]);
+        $originalTrackingCode = 'PAW-SHP-260829-OLD001';
+        $order->shipments()->create([
+            'provider' => 'Pawora nội bộ',
+            'tracking_code' => $originalTrackingCode,
+            'status' => 'packed',
+            'fee' => 30000,
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('data-shipment-provider', false)
+            ->assertSee('readonly aria-readonly="true"', false)
+            ->assertDontSee('name="tracking_code"', false);
 
         $this->actingAs($admin)->from(route('admin.orders.show', $order))
             ->patch(route('admin.shipments.update', $order), [
@@ -325,24 +337,19 @@ class OrderWorkflowTest extends TestCase
                 'status' => 'shipped',
                 'fee' => 30000,
             ])->assertRedirect(route('admin.orders.show', $order))
-            ->assertSessionHasErrors('tracking_code');
-        $this->assertSame('packed', $order->fresh()->status);
-
-        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
-            'provider' => 'GHN',
-            'tracking_code' => 'GHN-PAW-DEMO-01',
-            'status' => 'shipped',
-            'fee' => 30000,
-        ])->assertRedirect();
+            ->assertSessionDoesntHaveErrors();
 
         $this->assertSame('shipped', $order->fresh()->status);
+        $trackingCode = $order->shipments()->firstOrFail()->tracking_code;
+        $this->assertMatchesRegularExpression('/^GHN-\d{6}-[A-Z0-9]{6}$/', $trackingCode);
+        $this->assertNotSame($originalTrackingCode, $trackingCode);
         $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
-            ->assertSee('GHN-PAW-DEMO-01')
+            ->assertSee($trackingCode)
             ->assertSee('Đang giao hàng');
     }
 
-    public function test_duplicate_tracking_code_returns_a_field_error_instead_of_a_database_exception(): void
+    public function test_submitted_tracking_code_is_ignored_and_system_generates_a_unique_code(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create();
@@ -363,8 +370,10 @@ class OrderWorkflowTest extends TestCase
                 'status' => 'ready',
                 'fee' => 30000,
             ])->assertRedirect(route('admin.orders.show', $newOrder))
-            ->assertSessionHasErrors(['tracking_code' => 'Mã vận đơn này đã được dùng cho đơn hàng khác.']);
+            ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseMissing('shipments', ['order_id' => $newOrder->id]);
+        $shipment = $newOrder->shipments()->firstOrFail();
+        $this->assertMatchesRegularExpression('/^GHN-\d{6}-[A-Z0-9]{6}$/', $shipment->tracking_code);
+        $this->assertNotSame('1222', $shipment->tracking_code);
     }
 }

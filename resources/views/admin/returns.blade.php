@@ -9,7 +9,12 @@
             <thead><tr><th>Đơn</th><th>Khách</th><th>Lý do</th><th>Trạng thái</th><th>Bước xử lý tiếp theo</th></tr></thead>
             <tbody>
                 @forelse($returns as $return)
-                    @php($transitions = $return->allowedTransitions())
+                    @php
+                        $transitions = $return->allowedTransitions();
+                        if (! auth()->user()->hasPermission('payments.refund')) {
+                            $transitions = array_values(array_diff($transitions, ['refund_pending']));
+                        }
+                    @endphp
                     <tr>
                         <td><a class="text-link" href="{{ route('admin.orders.show', $return->order) }}">{{ $return->order?->number }}</a></td>
                         <td>{{ $return->user?->name ?: $return->order?->customer_name }}</td>

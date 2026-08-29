@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="app-url" content="{{ url('/') }}">
     <title>@yield('title', 'Pawora — Phụ kiện cho những người bạn nhỏ')</title>
     <meta name="description"
         content="@yield('description', 'Pawora tuyển chọn phụ kiện đẹp, bền và dễ dùng cho chó mèo.')">
@@ -46,7 +47,7 @@
                         <circle cx="11" cy="11" r="7" />
                         <path d="m20 20-4-4" />
                     </svg></a>
-                @auth<a class="header-avatar" href="{{ auth()->user()->canAccessAdmin() ? route('admin.dashboard') : route('account.index') }}"
+                @auth<a class="header-avatar" href="{{ auth()->user()->canAccessAdmin() ? route('admin.dashboard') : route('account.profile') }}"
                     aria-label="{{ auth()->user()->canAccessAdmin() ? 'Mở trang quản trị' : 'Mở tài khoản của '.auth()->user()->name }}"
                     title="{{ auth()->user()->name }}">@if(auth()->user()->avatarUrl())<img src="{{ auth()->user()->avatarUrl() }}" alt="" width="32" height="32">@else<span role="img" aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>@endif</a><form
                         action="{{ route('logout') }}" method="post">@csrf<button class="icon-button"
@@ -125,6 +126,7 @@
         </div>
         <div class="container legal">© {{ date('Y') }} Pawora. Mọi quyền được bảo lưu.</div>
     </footer>
+    <x-chat-widget />
 </body>
 
 </html>

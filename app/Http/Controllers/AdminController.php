@@ -2,18 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminAuditLog;
 use App\Models\Category;
+use App\Models\ContactMessage;
+use App\Models\ChatConversation;
 use App\Models\Coupon;
+use App\Models\InventoryAdjustment;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\ReturnRequest;
 use App\Models\Shipment;
+use App\Models\ShopSetting;
 use App\Models\User;
+use App\Services\AdminAuditLogger;
+use App\Services\InventoryService;
 use App\Services\RefundService;
+use App\Services\ShipmentInitializer;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -21,42 +31,171 @@ use Illuminate\Validation\ValidationException;
 
 class AdminController extends Controller
 {
-    public function dashboard()
+    public function dashboard(Request $request)
     {
+        $data = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
+        $from = Carbon::parse($data['from'] ?? now()->subDays(29)->toDateString())->startOfDay();
+        $to = Carbon::parse($data['to'] ?? now()->toDateString())->endOfDay();
+        $paidStatuses = ['paid', 'refund_pending', 'refunded'];
+        $revenueQuery = Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->whereBetween('paid_at', [$from, $to]);
+        $grossRevenue = (int) (clone $revenueQuery)->sum('total');
+        $refunds = (int) (clone $revenueQuery)->sum('refunded_amount');
+        $periodOrderCount = (clone $revenueQuery)->count();
+        $netRevenue = $grossRevenue - $refunds;
+        $periodDays = $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1;
+        $previousTo = $from->copy()->subSecond();
+        $previousFrom = $previousTo->copy()->subDays($periodDays - 1)->startOfDay();
+        $previousRevenueQuery = Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->whereBetween('paid_at', [$previousFrom, $previousTo]);
+        $previousNetRevenue = (int) (clone $previousRevenueQuery)->sum('total')
+            - (int) (clone $previousRevenueQuery)->sum('refunded_amount');
+
+        $chartStart = $to->copy()->startOfDay()->subDays(13);
+        if ($chartStart->lt($from)) {
+            $chartStart = $from->copy()->startOfDay();
+        }
+        $chartRevenue = Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->whereBetween('paid_at', [$chartStart, $to])
+            ->get(['paid_at', 'total', 'refunded_amount'])
+            ->groupBy(fn (Order $order) => $order->paid_at?->toDateString())
+            ->map(fn ($orders) => (int) $orders->sum('total') - (int) $orders->sum('refunded_amount'));
+        $revenueSeries = collect(range(0, $chartStart->diffInDays($to->copy()->startOfDay())))
+            ->map(function (int $offset) use ($chartStart, $chartRevenue) {
+                $date = $chartStart->copy()->addDays($offset);
+
+                return [
+                    'date' => $date->toDateString(),
+                    'label' => $date->format('d/m'),
+                    'amount' => (int) ($chartRevenue[$date->toDateString()] ?? 0),
+                ];
+            });
+        $chartMax = max(1, (int) $revenueSeries->max('amount'));
+        $chartCount = max(1, $revenueSeries->count() - 1);
+        $chartPoints = $revenueSeries->values()->map(function (array $point, int $index) use ($chartCount, $chartMax) {
+            $x = 18 + ($index * (564 / $chartCount));
+            $y = 142 - (($point['amount'] / $chartMax) * 112);
+
+            return round($x, 2).','.round($y, 2);
+        })->implode(' ');
+        if ($revenueSeries->count() === 1) {
+            $onlyY = explode(',', $chartPoints)[1];
+            $chartPoints = '18,'.$onlyY.' 582,'.$onlyY;
+        }
+        $todayQuery = Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->whereBetween('paid_at', [now()->startOfDay(), now()->endOfDay()]);
+        $lowStockThreshold = (int) ShopSetting::get('low_stock_threshold', 5);
+
         return view('admin.dashboard', [
-            'revenue' => Order::where('payment_status', 'paid')->sum('total'),
-            'todayRevenue' => Order::where('payment_status', 'paid')->where('created_at', '>=', now()->startOfDay())->sum('total'),
+            'grossRevenue' => $grossRevenue,
+            'refunds' => $refunds,
+            'netRevenue' => $netRevenue,
+            'periodOrderCount' => $periodOrderCount,
+            'averageOrderValue' => $periodOrderCount > 0 ? (int) round($netRevenue / $periodOrderCount) : 0,
+            'revenueTrend' => $previousNetRevenue > 0 ? round((($netRevenue - $previousNetRevenue) / $previousNetRevenue) * 100, 1) : null,
+            'revenueSeries' => $revenueSeries,
+            'revenueChartPoints' => $chartPoints,
+            'revenueChartArea' => '18,154 '.$chartPoints.' 582,154',
+            'revenueChartMax' => $chartMax,
+            'todayRevenue' => (int) (clone $todayQuery)->sum('total') - (int) (clone $todayQuery)->sum('refunded_amount'),
             'orders' => Order::count(),
             'pending' => Order::where('status', 'pending')->count(),
             'processing' => Order::whereIn('status', ['confirmed', 'processing', 'packed', 'shipped'])->count(),
             'completed' => Order::where('status', 'delivered')->count(),
             'cancelled' => Order::where('status', 'cancelled')->count(),
-            'lowStock' => Product::where('stock', '<=', 5)->count(),
+            'lowStock' => Product::where('stock', '<=', $lowStockThreshold)->count(),
             'customers' => User::where('role', 'customer')->count(),
-            'recent' => Order::with('items')->latest()->take(8)->get(),
-            'lowStockProducts' => Product::with('category')->where('stock', '<=', 5)->orderBy('stock')->take(8)->get(),
+            'recent' => Order::with('items')->whereBetween('paid_at', [$from, $to])->latest('paid_at')->take(8)->get(),
+            'lowStockProducts' => Product::with('category')->where('stock', '<=', $lowStockThreshold)->orderBy('stock')->take(8)->get(),
             'pendingPayments' => PaymentTransaction::with('order')->where('status', 'pending')->latest()->take(6)->get(),
             'returnRequests' => ReturnRequest::with('order', 'user')->where('status', 'requested')->latest()->take(6)->get(),
-            'topProducts' => DB::table('order_items')->select('product_name', DB::raw('SUM(quantity) as sold'), DB::raw('SUM(line_total) as revenue'))->groupBy('product_name')->orderByDesc('sold')->take(5)->get(),
+            'pendingReviewCount' => ProductReview::where('status', 'pending')->count(),
+            'pendingReviews' => ProductReview::with(['user', 'product'])->where('status', 'pending')->latest()->take(4)->get(),
+            'newContactCount' => ContactMessage::where('status', 'new')->count(),
+            'newContacts' => ContactMessage::where('status', 'new')->latest()->take(4)->get(),
+            'unreadChatCount' => ChatConversation::where('admin_unread_count', '>', 0)->count(),
+            'attentionChats' => ChatConversation::with(['assignee', 'latestMessage'])->needsAttention()->orderByDesc('last_message_at')->take(4)->get(),
+            'topProducts' => DB::table('order_items')
+                ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->whereIn('orders.payment_status', $paidStatuses)
+                ->where('orders.status', '!=', 'cancelled')
+                ->whereBetween('orders.paid_at', [$from, $to])
+                ->select('order_items.product_name', DB::raw('SUM(order_items.quantity) as sold'), DB::raw('SUM(order_items.line_total) as revenue'))
+                ->groupBy('order_items.product_name')
+                ->orderByDesc('sold')
+                ->take(5)
+                ->get(),
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+        ]);
+    }
+
+    public function exportOrders(Request $request)
+    {
+        $data = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after_or_equal:from'],
+        ]);
+        $from = Carbon::parse($data['from'])->startOfDay();
+        $to = Carbon::parse($data['to'])->endOfDay();
+        $orders = Order::query()
+            ->whereIn('payment_status', ['paid', 'refund_pending', 'refunded'])
+            ->whereBetween('paid_at', [$from, $to])
+            ->orderBy('paid_at')
+            ->get();
+
+        $stream = fopen('php://temp', 'w+');
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, ['Mã đơn', 'Khách hàng', 'Thanh toán lúc', 'Trạng thái', 'Doanh thu gộp', 'Đã hoàn', 'Doanh thu thuần']);
+        foreach ($orders as $order) {
+            fputcsv($stream, [
+                $order->number,
+                $order->customer_name,
+                $order->paid_at?->timezone(config('app.timezone'))->format('d/m/Y H:i'),
+                $order->paymentStatusLabel(),
+                (int) $order->total,
+                (int) $order->refunded_amount,
+                (int) $order->total - (int) $order->refunded_amount,
+            ]);
+        }
+        rewind($stream);
+        $csv = stream_get_contents($stream);
+        fclose($stream);
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="pawora-orders-'.$data['from'].'-to-'.$data['to'].'.csv"',
         ]);
     }
 
     public function products(Request $request)
     {
+        $lowStockThreshold = (int) ShopSetting::get('low_stock_threshold', 5);
         $products = Product::with('category')
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($x) => $x->where('name', 'like', '%'.$request->q.'%')->orWhere('sku', 'like', '%'.$request->q.'%')))
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->category_id))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
-            ->when($request->boolean('low_stock'), fn ($q) => $q->where('stock', '<=', 5))
+            ->when($request->boolean('low_stock'), fn ($q) => $q->where('stock', '<=', $lowStockThreshold))
             ->latest()->paginate(20)->withQueryString();
 
-        return view('admin.products', ['products' => $products, 'categories' => Category::orderBy('name')->get()]);
+        return view('admin.products', ['products' => $products, 'categories' => Category::orderBy('name')->get(), 'lowStockThreshold' => $lowStockThreshold]);
     }
 
-    public function storeProduct(Request $request)
+    public function storeProduct(Request $request, InventoryService $inventory, AdminAuditLogger $audit)
     {
         $data = $request->validate(['name' => 'required|max:150', 'category_id' => 'required|exists:categories,id', 'sku' => 'required|max:50|unique:products', 'price' => 'required|numeric|min:0', 'compare_price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'short_description' => 'required|max:500', 'description' => 'nullable|string', 'image' => 'nullable|string|max:1000', 'pet_type' => 'required|in:dog,cat,all', 'status' => 'nullable|in:active,draft,archived', 'is_featured' => 'nullable|boolean']);
-        Product::create([...$data, 'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)), 'status' => $data['status'] ?? 'active', 'is_featured' => $request->boolean('is_featured')]);
+        $product = Product::create([...$data, 'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)), 'status' => $data['status'] ?? 'active', 'is_featured' => $request->boolean('is_featured')]);
+        if ((int) $product->stock > 0) {
+            $inventory->record($product, null, $request->user(), 'initial_stock', 0, (int) $product->stock, 'Tồn đầu khi tạo sản phẩm');
+        }
+        $audit->record($request, 'product.created', 'Tạo sản phẩm', $product, [], $product->only(['name', 'sku', 'price', 'stock', 'status']));
 
         return back()->with('success', 'Đã tạo sản phẩm mới.');
     }
@@ -66,57 +205,105 @@ class AdminController extends Controller
         return view('admin.product-edit', ['product' => $product->load('variants', 'category'), 'categories' => Category::orderBy('name')->get()]);
     }
 
-    public function updateProduct(Request $request, Product $product)
+    public function updateProduct(Request $request, Product $product, InventoryService $inventory, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['name' => 'required|max:150', 'category_id' => 'required|exists:categories,id', 'sku' => ['required', 'max:50', Rule::unique('products')->ignore($product)], 'price' => 'required|numeric|min:0', 'compare_price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'short_description' => 'required|max:500', 'description' => 'nullable|string', 'image' => 'nullable|string|max:1000', 'pet_type' => 'required|in:dog,cat,all', 'status' => 'required|in:active,draft,archived', 'is_featured' => 'nullable|boolean']);
+        $data = $request->validate(['name' => 'required|max:150', 'category_id' => 'required|exists:categories,id', 'sku' => ['required', 'max:50', Rule::unique('products')->ignore($product)], 'price' => 'required|numeric|min:0', 'compare_price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'stock_reason' => 'nullable|string|min:5|max:255', 'short_description' => 'required|max:500', 'description' => 'nullable|string', 'image' => 'nullable|string|max:1000', 'pet_type' => 'required|in:dog,cat,all', 'status' => 'required|in:active,draft,archived', 'is_featured' => 'nullable|boolean']);
+        $before = $product->only(['name', 'sku', 'price', 'compare_price', 'stock', 'status', 'is_featured']);
+        if ((int) $data['stock'] !== (int) $product->stock) {
+            if (blank($data['stock_reason'] ?? null)) {
+                throw ValidationException::withMessages(['stock_reason' => 'Vui lòng nhập lý do khi thay đổi tồn kho.']);
+            }
+            $inventory->setProductStock($product, (int) $data['stock'], $request->user(), $data['stock_reason']);
+        }
+        unset($data['stock_reason'], $data['stock']);
         $product->update([...$data, 'is_featured' => $request->boolean('is_featured')]);
+        $audit->record($request, 'product.updated', 'Cập nhật sản phẩm', $product, $before, $product->fresh()->only(['name', 'sku', 'price', 'compare_price', 'stock', 'status', 'is_featured']));
 
         return back()->with('success', 'Đã cập nhật sản phẩm.');
     }
 
-    public function destroyProduct(Product $product)
+    public function destroyProduct(Request $request, Product $product, AdminAuditLogger $audit)
     {
         abort_if($product->orderItems()->exists(), 422, 'Sản phẩm đã phát sinh đơn hàng và chỉ có thể lưu trữ.');
+        $before = $product->only(['name', 'sku', 'price', 'stock', 'status']);
         $product->delete();
+        $audit->record($request, 'product.deleted', 'Xóa sản phẩm', $product, $before, ['deleted_at' => now()->toIso8601String()]);
 
         return redirect()->route('admin.products')->with('success', 'Đã xóa sản phẩm.');
     }
 
-    public function storeVariant(Request $request, Product $product)
+    public function storeVariant(Request $request, Product $product, InventoryService $inventory, AdminAuditLogger $audit)
     {
         $data = $request->validate(['name' => 'required|string|max:100', 'sku' => 'required|max:50|unique:product_variants', 'size' => 'nullable|string|max:50', 'color' => 'nullable|string|max:50', 'price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'is_active' => 'nullable|boolean']);
-        $product->variants()->create([...$data, 'is_active' => $request->boolean('is_active')]);
+        $variant = $product->variants()->create([...$data, 'is_active' => $request->boolean('is_active')]);
+        if ((int) $variant->stock > 0) {
+            $inventory->record($product, $variant->id, $request->user(), 'initial_stock', 0, (int) $variant->stock, 'Tồn đầu khi tạo biến thể');
+        }
         $this->syncProductStock($product);
+        $audit->record($request, 'variant.created', 'Tạo biến thể sản phẩm', $variant, [], $variant->only(['name', 'sku', 'price', 'stock', 'is_active']));
 
         return back()->with('success', 'Đã thêm biến thể.');
     }
 
-    public function updateVariant(Request $request, ProductVariant $variant)
+    public function updateVariant(Request $request, ProductVariant $variant, InventoryService $inventory, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['name' => 'required|string|max:100', 'sku' => ['required', 'max:50', Rule::unique('product_variants')->ignore($variant)], 'size' => 'nullable|string|max:50', 'color' => 'nullable|string|max:50', 'price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'is_active' => 'nullable|boolean']);
+        $data = $request->validate(['name' => 'required|string|max:100', 'sku' => ['required', 'max:50', Rule::unique('product_variants')->ignore($variant)], 'size' => 'nullable|string|max:50', 'color' => 'nullable|string|max:50', 'price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'stock_reason' => 'nullable|string|min:5|max:255', 'is_active' => 'nullable|boolean']);
+        $before = $variant->only(['name', 'sku', 'size', 'color', 'price', 'stock', 'is_active']);
+        if ((int) $data['stock'] !== (int) $variant->stock && blank($data['stock_reason'] ?? null)) {
+            throw ValidationException::withMessages(['stock_reason' => 'Vui lòng nhập lý do khi thay đổi tồn kho biến thể.']);
+        }
+        $stockReason = $data['stock_reason'] ?? null;
+        unset($data['stock_reason']);
         $variant->update([...$data, 'is_active' => $request->boolean('is_active')]);
+        if ((int) $before['stock'] !== (int) $variant->stock) {
+            $inventory->record($variant->product, $variant->id, $request->user(), 'manual_count', (int) $before['stock'], (int) $variant->stock, $stockReason);
+        }
         $this->syncProductStock($variant->product);
+        $audit->record($request, 'variant.updated', 'Cập nhật biến thể sản phẩm', $variant, $before, $variant->fresh()->only(['name', 'sku', 'size', 'color', 'price', 'stock', 'is_active']));
 
         return back()->with('success', 'Đã cập nhật biến thể.');
     }
 
-    public function destroyVariant(ProductVariant $variant)
+    public function destroyVariant(Request $request, ProductVariant $variant, InventoryService $inventory, AdminAuditLogger $audit)
     {
         $product = $variant->product;
+        $before = $variant->only(['name', 'sku', 'price', 'stock', 'is_active']);
+        if ((int) $variant->stock > 0) {
+            $inventory->record($product, $variant->id, $request->user(), 'variant_deleted', (int) $variant->stock, 0, 'Xóa biến thể khỏi danh mục');
+        }
         $variant->delete();
         $this->syncProductStock($product);
+        $audit->record($request, 'variant.deleted', 'Xóa biến thể sản phẩm', $variant, $before, ['deleted' => true]);
 
         return back()->with('success', 'Đã xóa biến thể.');
     }
 
     public function inventory(Request $request)
     {
-        return view('admin.inventory', ['products' => Product::with('category', 'variants')->when($request->boolean('low_stock'), fn ($q) => $q->where('stock', '<=', 5))->orderBy('stock')->paginate(24)->withQueryString()]);
+        $lowStockThreshold = (int) ShopSetting::get('low_stock_threshold', 5);
+
+        return view('admin.inventory', [
+            'products' => Product::with('category', 'variants')->when($request->boolean('low_stock'), fn ($q) => $q->where('stock', '<=', $lowStockThreshold))->orderBy('stock')->paginate(24)->withQueryString(),
+            'adjustments' => InventoryAdjustment::with('product', 'variant', 'user')->latest('id')->take(30)->get(),
+            'lowStockThreshold' => $lowStockThreshold,
+        ]);
     }
 
-    public function updateInventory(Request $request, Product $product)
+    public function updateInventory(Request $request, Product $product, InventoryService $inventory, AdminAuditLogger $audit)
     {
-        $product->update($request->validate(['stock' => ['required', 'integer', 'min:0']]));
+        $data = $request->validate([
+            'stock' => ['required', 'integer', 'min:0'],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+        $adjustment = $inventory->setProductStock($product, (int) $data['stock'], $request->user(), $data['reason']);
+        $audit->record(
+            $request,
+            'inventory.adjusted',
+            'Điều chỉnh tồn kho',
+            $product,
+            ['stock' => $adjustment->quantity_before],
+            ['stock' => $adjustment->quantity_after, 'reason' => $adjustment->reason],
+        );
 
         return back()->with('success', 'Đã cập nhật tồn kho.');
     }
@@ -126,18 +313,21 @@ class AdminController extends Controller
         return view('admin.categories', ['categories' => Category::withCount('products')->orderBy('name')->paginate(20)]);
     }
 
-    public function storeCategory(Request $request)
+    public function storeCategory(Request $request, AdminAuditLogger $audit)
     {
         $data = $request->validate(['name' => 'required|string|max:120', 'slug' => 'nullable|string|max:140|unique:categories', 'description' => 'nullable|string|max:1000', 'image' => 'nullable|string|max:1000', 'is_active' => 'nullable|boolean']);
-        Category::create([...$data, 'slug' => ($data['slug'] ?? null) ?: Str::slug($data['name']), 'is_active' => $request->boolean('is_active', true)]);
+        $category = Category::create([...$data, 'slug' => ($data['slug'] ?? null) ?: Str::slug($data['name']), 'is_active' => $request->boolean('is_active', true)]);
+        $audit->record($request, 'category.created', 'Tạo danh mục', $category, [], $category->only(['name', 'slug', 'is_active']));
 
         return back()->with('success', 'Đã tạo danh mục.');
     }
 
-    public function updateCategory(Request $request, Category $category)
+    public function updateCategory(Request $request, Category $category, AdminAuditLogger $audit)
     {
         $data = $request->validate(['name' => 'required|string|max:120', 'slug' => ['required', 'string', 'max:140', Rule::unique('categories')->ignore($category)], 'description' => 'nullable|string|max:1000', 'image' => 'nullable|string|max:1000', 'is_active' => 'nullable|boolean']);
+        $before = $category->only(['name', 'slug', 'is_active']);
         $category->update([...$data, 'is_active' => $request->boolean('is_active')]);
+        $audit->record($request, 'category.updated', 'Cập nhật danh mục', $category, $before, $category->fresh()->only(['name', 'slug', 'is_active']));
 
         return back()->with('success', 'Đã cập nhật danh mục.');
     }
@@ -147,18 +337,21 @@ class AdminController extends Controller
         return view('admin.coupons', ['coupons' => Coupon::when($request->filled('q'), fn ($q) => $q->where('code', 'like', '%'.$request->q.'%'))->latest()->paginate(20)->withQueryString()]);
     }
 
-    public function storeCoupon(Request $request)
+    public function storeCoupon(Request $request, AdminAuditLogger $audit)
     {
         $data = $request->validate(['code' => 'required|string|max:30|unique:coupons', 'type' => 'required|in:percent,fixed', 'value' => 'required|numeric|min:0', 'minimum_order' => 'nullable|numeric|min:0', 'starts_at' => 'nullable|date', 'expires_at' => 'nullable|date|after_or_equal:starts_at', 'usage_limit' => 'nullable|integer|min:1', 'is_active' => 'nullable|boolean']);
-        Coupon::create([...$data, 'code' => Str::upper($data['code']), 'minimum_order' => $data['minimum_order'] ?? 0, 'is_active' => $request->boolean('is_active', true)]);
+        $coupon = Coupon::create([...$data, 'code' => Str::upper($data['code']), 'minimum_order' => $data['minimum_order'] ?? 0, 'is_active' => $request->boolean('is_active', true)]);
+        $audit->record($request, 'coupon.created', 'Tạo mã giảm giá', $coupon, [], $coupon->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']));
 
         return back()->with('success', 'Đã tạo mã giảm giá.');
     }
 
-    public function updateCoupon(Request $request, Coupon $coupon)
+    public function updateCoupon(Request $request, Coupon $coupon, AdminAuditLogger $audit)
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:30', Rule::unique('coupons')->ignore($coupon)], 'type' => 'required|in:percent,fixed', 'value' => 'required|numeric|min:0', 'minimum_order' => 'nullable|numeric|min:0', 'starts_at' => 'nullable|date', 'expires_at' => 'nullable|date|after_or_equal:starts_at', 'usage_limit' => 'nullable|integer|min:1', 'is_active' => 'nullable|boolean']);
+        $before = $coupon->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']);
         $coupon->update([...$data, 'code' => Str::upper($data['code']), 'minimum_order' => $data['minimum_order'] ?? 0, 'is_active' => $request->boolean('is_active')]);
+        $audit->record($request, 'coupon.updated', 'Cập nhật mã giảm giá', $coupon, $before, $coupon->fresh()->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']));
 
         return back()->with('success', 'Đã cập nhật mã giảm giá.');
     }
@@ -194,7 +387,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function updateUserRole(Request $request, User $user)
+    public function updateUserRole(Request $request, User $user, AdminAuditLogger $audit)
     {
         $data = $request->validate([
             'role' => ['required', Rule::in(array_keys(User::ROLE_LABELS))],
@@ -206,8 +399,41 @@ class AdminController extends Controller
 
         $previousRole = $user->role;
         $user->update(['role' => $data['role']]);
+        $audit->record(
+            $request,
+            'user.role_changed',
+            'Đổi quyền tài khoản',
+            $user,
+            ['role' => $previousRole],
+            ['role' => $user->role],
+        );
 
         return back()->with('success', "Đã đổi quyền của {$user->name} từ ".(User::ROLE_LABELS[$previousRole] ?? $previousRole).' thành '.$user->roleLabel().'.');
+    }
+
+    public function updateUserStatus(Request $request, User $user, AdminAuditLogger $audit)
+    {
+        $data = $request->validate([
+            'is_active' => ['required', 'boolean'],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+        if ($request->user()->is($user)) {
+            return back()->withErrors(['is_active' => 'Bạn không thể khóa tài khoản đang đăng nhập.']);
+        }
+
+        $before = (bool) $user->is_active;
+        $active = (bool) $data['is_active'];
+        $user->update(['is_active' => $active, 'deactivated_at' => $active ? null : now()]);
+        $audit->record(
+            $request,
+            $active ? 'user.activated' : 'user.deactivated',
+            $active ? 'Mở khóa tài khoản' : 'Khóa tài khoản',
+            $user,
+            ['is_active' => $before],
+            ['is_active' => $active, 'reason' => $data['reason']],
+        );
+
+        return back()->with('success', $active ? "Đã mở lại tài khoản {$user->name}." : "Đã khóa tài khoản {$user->name}.");
     }
 
     public function orders(Request $request)
@@ -232,18 +458,22 @@ class AdminController extends Controller
         return view('admin.order-print', ['order' => $order->load('items')]);
     }
 
-    public function updateOrder(Request $request, Order $order, RefundService $refunds)
+    public function updateOrder(Request $request, Order $order, RefundService $refunds, AdminAuditLogger $audit, ShipmentInitializer $shipments)
     {
         $data = $request->validate(['status' => 'required|in:'.implode(',', Order::STATUSES), 'note' => 'nullable|max:500']);
+        $originalStatus = $order->status;
 
-        $requiresRefund = DB::transaction(function () use ($order, $data, $request) {
+        $result = DB::transaction(function () use ($order, $data, $request, $shipments) {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             abort_unless($lockedOrder->canAdminTransitionTo($data['status']), 422, 'Không thể chuyển sang trạng thái này.');
 
             $from = $lockedOrder->status;
             $lockedOrder->update(['status' => $data['status']]);
+            $shipment = $data['status'] === 'confirmed'
+                ? $shipments->ensureForConfirmedOrder($lockedOrder)
+                : null;
             if ($data['status'] === 'cancelled') {
-                $this->restoreStock($lockedOrder);
+                $this->restoreStock($lockedOrder, $request->user());
                 $lockedOrder->shipments()->whereNotIn('status', ['delivered', 'cancelled'])->update(['status' => 'cancelled']);
             }
             $lockedOrder->histories()->create([
@@ -253,8 +483,13 @@ class AdminController extends Controller
                 'note' => ($data['note'] ?? null) ?: ($data['status'] === 'cancelled' ? 'Admin huỷ đơn và hoàn tồn kho.' : 'Admin cập nhật trạng thái đơn.'),
             ]);
 
-            return $data['status'] === 'cancelled' && $lockedOrder->payment_status === 'paid';
+            return [
+                'requires_refund' => $data['status'] === 'cancelled' && $lockedOrder->payment_status === 'paid',
+                'shipment_id' => $shipment?->id,
+            ];
         });
+
+        $requiresRefund = $result['requires_refund'];
 
         if ($requiresRefund) {
             try {
@@ -269,13 +504,35 @@ class AdminController extends Controller
             }
         }
 
+        $audit->record(
+            $request,
+            'order.status_changed',
+            'Cập nhật trạng thái đơn',
+            $order,
+            ['order_number' => $order->number, 'status' => $originalStatus],
+            ['order_number' => $order->number, 'status' => $data['status'], 'note' => $data['note'] ?? null],
+        );
+
+        if ($result['shipment_id']) {
+            $shipment = Shipment::find($result['shipment_id']);
+            $audit->record(
+                $request,
+                'shipment.created_automatically',
+                'Tự động tạo vận đơn khi xác nhận đơn hàng',
+                $shipment,
+                [],
+                $shipment?->only(['provider', 'tracking_code', 'status', 'fee']) ?? [],
+            );
+        }
+
         return back()->with('success', $requiresRefund
             ? 'Đã huỷ đơn và chuyển khoản thanh toán sang chờ hoàn tiền.'
             : 'Đã cập nhật trạng thái đơn hàng.');
     }
 
-    public function markOrderPaid(Request $request, Order $order)
+    public function markOrderPaid(Request $request, Order $order, AdminAuditLogger $audit)
     {
+        $before = $order->payment_status;
         DB::transaction(function () use ($order, $request) {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             if ($lockedOrder->payment_status === 'paid') {
@@ -286,6 +543,10 @@ class AdminController extends Controller
             $lockedOrder->update(['payment_status' => 'paid', 'paid_at' => now()]);
             $lockedOrder->histories()->create(['user_id' => $request->user()->id, 'from_status' => $lockedOrder->status, 'to_status' => $lockedOrder->status, 'note' => 'Admin xác nhận đã nhận thanh toán.']);
         });
+
+        if ($before !== 'paid') {
+            $audit->record($request, 'order.payment_confirmed', 'Xác nhận thanh toán đơn', $order, ['payment_status' => $before], ['payment_status' => 'paid', 'order_number' => $order->number]);
+        }
 
         return back()->with('success', 'Đã xác nhận thanh toán.');
     }
@@ -301,34 +562,25 @@ class AdminController extends Controller
         ]);
     }
 
-    public function updateShipment(Request $request, Order $order)
+    public function updateShipment(Request $request, Order $order, AdminAuditLogger $audit, ShipmentInitializer $shipments)
     {
-        $trackingCode = trim((string) $request->input('tracking_code', ''));
-        $request->merge(['tracking_code' => $trackingCode !== '' ? $trackingCode : null]);
         $existingShipment = $order->shipments()->latest('id')->first();
+        $beforeShipment = $existingShipment?->only(['provider', 'tracking_code', 'status', 'fee']) ?? [];
 
         $data = $request->validate([
             'provider' => ['required', 'string', 'max:40'],
-            'tracking_code' => [
-                Rule::requiredIf(fn () => in_array($request->string('status')->toString(), ['shipped', 'delivered'], true)),
-                'nullable',
-                'string',
-                'max:80',
-                Rule::unique('shipments', 'tracking_code')->ignore($existingShipment?->id),
-            ],
             'status' => ['required', Rule::in(Shipment::STATUSES)],
             'fee' => ['nullable', 'numeric', 'min:0'],
-        ], [
-            'tracking_code.required' => 'Mã vận đơn là bắt buộc khi bắt đầu giao hàng hoặc xác nhận đã giao.',
-            'tracking_code.unique' => 'Mã vận đơn này đã được dùng cho đơn hàng khác.',
         ]);
 
         try {
-            DB::transaction(function () use ($data, $order, $request) {
+            DB::transaction(function () use ($data, $order, $request, $shipments) {
                 $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
                 abort_unless($lockedOrder->canManageShipment(), 422, 'Vận chuyển đang bị khóa theo trạng thái đơn hàng.');
 
                 $shipment = Shipment::query()->where('order_id', $lockedOrder->id)->latest('id')->lockForUpdate()->first();
+                $previousProvider = $shipment?->provider;
+                $previousStatus = $shipment?->status;
                 if ($shipment) {
                     if ($data['status'] === 'delivered') {
                         abort_unless(
@@ -358,6 +610,12 @@ class AdminController extends Controller
                 abort_unless(in_array($lockedOrder->status, $requiredOrderStatus, true), 422, 'Trạng thái đơn hàng chưa sẵn sàng cho bước vận chuyển này.');
 
                 $shipment->fill([...$data, 'fee' => $data['fee'] ?? $lockedOrder->shipping_fee]);
+                $providerChangedBeforeDispatch = $shipment->exists
+                    && $previousProvider !== $data['provider']
+                    && in_array($previousStatus, ['ready', 'packed'], true);
+                if (! $shipment->tracking_code || $providerChangedBeforeDispatch) {
+                    $shipment->tracking_code = $shipments->nextTrackingCode($data['provider']);
+                }
                 if ($data['status'] === 'shipped' && ! $shipment->shipped_at) {
                     $shipment->shipped_at = now();
                 }
@@ -389,12 +647,15 @@ class AdminController extends Controller
         } catch (QueryException $exception) {
             if ((string) $exception->getCode() === '23000' && str_contains($exception->getMessage(), 'shipments_tracking_code_unique')) {
                 throw ValidationException::withMessages([
-                    'tracking_code' => 'Mã vận đơn này vừa được dùng cho đơn hàng khác. Vui lòng nhập mã khác.',
+                    'provider' => 'Hệ thống chưa tạo được mã vận đơn duy nhất. Vui lòng lưu lại để thử lần nữa.',
                 ]);
             }
 
             throw $exception;
         }
+
+        $shipment = $order->shipments()->latest('id')->first();
+        $audit->record($request, 'shipment.updated', 'Cập nhật vận chuyển', $shipment, $beforeShipment, $shipment?->only(['provider', 'tracking_code', 'status', 'fee']) ?? []);
 
         return back()->with('success', 'Đã cập nhật vận chuyển.');
     }
@@ -404,12 +665,14 @@ class AdminController extends Controller
         return view('admin.payments', ['transactions' => PaymentTransaction::with('order')->latest()->paginate(20)]);
     }
 
-    public function confirmDemoRefund(Request $request, PaymentTransaction $transaction, RefundService $refunds)
+    public function confirmDemoRefund(Request $request, PaymentTransaction $transaction, RefundService $refunds, AdminAuditLogger $audit)
     {
         abort_unless((bool) config('pawora.refunds.demo_mode', true), 403);
         abort_unless($transaction->type === 'refund', 422, 'Giao dịch này không phải yêu cầu hoàn tiền.');
 
+        $previousStatus = $transaction->status;
         $refunds->completeDemo($transaction, $request->user()->id);
+        $audit->record($request, 'payment.refund_confirmed', 'Xác nhận hoàn tiền demo', $transaction, ['status' => $previousStatus], ['status' => $transaction->fresh()->status, 'amount' => (int) $transaction->amount]);
 
         return back()->with('success', 'Đã xác nhận hoàn tiền demo. Không có giao dịch tiền thật nào được thực hiện.');
     }
@@ -419,12 +682,13 @@ class AdminController extends Controller
         return view('admin.returns', ['returns' => ReturnRequest::with('order', 'user')->latest()->paginate(20)]);
     }
 
-    public function updateReturn(Request $request, ReturnRequest $return, RefundService $refunds)
+    public function updateReturn(Request $request, ReturnRequest $return, RefundService $refunds, AdminAuditLogger $audit)
     {
         $data = $request->validate(['status' => 'required|in:requested,approved,rejected,received,refund_pending', 'resolution' => 'nullable|string|max:255', 'refund_amount' => 'nullable|numeric|min:0', 'admin_note' => 'nullable|string|max:1000']);
         $previousStatus = $return->status;
         abort_unless($return->canTransitionTo($data['status']), 422, 'Không thể chuyển yêu cầu đổi trả sang trạng thái này.');
         if ($data['status'] === 'refund_pending') {
+            abort_unless($request->user()->hasPermission('payments.refund'), 403);
             abort_unless($return->order && in_array($return->order->payment_status, ['paid', 'refund_pending'], true), 422, 'Đơn hàng chưa có khoản thanh toán đủ điều kiện hoàn.');
             abort_unless((int) ($data['refund_amount'] ?? 0) > 0, 422, 'Vui lòng nhập số tiền cần hoàn.');
         }
@@ -442,12 +706,57 @@ class AdminController extends Controller
             }
         }
 
+        $audit->record($request, 'return.updated', 'Cập nhật yêu cầu đổi trả', $return, ['status' => $previousStatus], ['status' => $data['status'], 'refund_amount' => (int) ($data['refund_amount'] ?? 0), 'resolution' => $data['resolution'] ?? null]);
+
         return back()->with('success', $data['status'] === 'refund_pending' ? 'Đã gửi yêu cầu hoàn tiền tới cổng thanh toán.' : 'Đã cập nhật yêu cầu đổi trả.');
     }
 
     public function settings()
     {
-        return view('admin.settings');
+        return view('admin.settings', ['settings' => [
+            'shop_name' => ShopSetting::get('shop_name', 'Pawora'),
+            'support_email' => ShopSetting::get('support_email', 'hello@pawora.vn'),
+            'warehouse_address' => ShopSetting::get('warehouse_address', 'Tây Tựu, Hà Nội'),
+            'free_shipping_threshold' => ShopSetting::get('free_shipping_threshold', config('pawora.shipping.free_threshold', 700000)),
+            'low_stock_threshold' => ShopSetting::get('low_stock_threshold', 5),
+        ]]);
+    }
+
+    public function updateSettings(Request $request, AdminAuditLogger $audit)
+    {
+        $data = $request->validate([
+            'shop_name' => ['required', 'string', 'max:120'],
+            'support_email' => ['required', 'email', 'max:150'],
+            'warehouse_address' => ['required', 'string', 'max:255'],
+            'free_shipping_threshold' => ['required', 'integer', 'min:0', 'max:100000000'],
+            'low_stock_threshold' => ['required', 'integer', 'min:0', 'max:100000'],
+        ]);
+        $types = ['free_shipping_threshold' => 'integer', 'low_stock_threshold' => 'integer'];
+        $before = collect(array_keys($data))->mapWithKeys(fn ($key) => [$key => ShopSetting::get($key)])->all();
+        DB::transaction(function () use ($data, $types, $request) {
+            foreach ($data as $key => $value) {
+                ShopSetting::put($key, $value, $types[$key] ?? 'string', $request->user()->id);
+            }
+        });
+        $audit->record($request, 'settings.updated', 'Cập nhật cài đặt vận hành', null, $before, $data);
+
+        return back()->with('success', 'Đã lưu cài đặt vận hành.');
+    }
+
+    public function auditLogs(Request $request)
+    {
+        $logs = AdminAuditLog::query()
+            ->with('actor')
+            ->when($request->filled('event'), fn ($query) => $query->where('event', $request->string('event')))
+            ->when($request->filled('actor'), fn ($query) => $query->where('actor_user_id', $request->integer('actor')))
+            ->latest('id')
+            ->paginate(30)
+            ->withQueryString();
+
+        return view('admin.audit-logs', [
+            'logs' => $logs,
+            'actors' => User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_STAFF])->orderBy('name')->get(),
+        ]);
     }
 
     private function syncProductStock(Product $product): void
@@ -457,18 +766,13 @@ class AdminController extends Controller
         }
     }
 
-    private function restoreStock(Order $order): void
+    private function restoreStock(Order $order, ?User $actor = null): void
     {
         if ($order->histories()->where('note', 'like', '%hoàn tồn kho%')->exists()) {
             return;
         }
         foreach ($order->items as $item) {
-            if ($item->product_id) {
-                Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
-            }
-            if ($item->product_variant_id) {
-                ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
-            }
+            app(InventoryService::class)->restoreOrderItem($item, $actor, $order);
         }
     }
 }

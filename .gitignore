@@ -2,8 +2,8 @@
 /.phpunit.result.cache
 /.npm-cache
 /node_modules
-/playwright-report
-/test-results
+/.tmp/
+/tmp/
 /public/build
 /public/hot
 /public/storage

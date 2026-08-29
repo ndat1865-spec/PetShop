@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\AddressDirectory;
+use App\Services\InventoryService;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
 use App\Services\ResendMailer;
@@ -22,7 +23,8 @@ class CheckoutController extends Controller
 {
     public function create(Request $request, CartController $cart)
     {
-        if (empty($cart->details()['items'])) {
+        $details = $cart->details();
+        if (empty($details['items'])) {
             return redirect()->route('cart.index')->with('success', 'Hãy thêm sản phẩm trước khi thanh toán.');
         }
 
@@ -33,7 +35,11 @@ class CheckoutController extends Controller
         $savedDefault = $savedAddresses->firstWhere('is_default', true) ?? $savedAddresses->first();
 
         return view('store.checkout', [
-            'cart' => $cart->details(),
+            'cart' => $details,
+            'coupons' => Coupon::query()
+                ->orderBy('minimum_order')
+                ->orderByDesc('value')
+                ->get(),
             'provinces' => config('pawora.shipping.provinces', []),
             'savedAddresses' => $savedAddresses,
             'defaultAddress' => [
@@ -73,15 +79,36 @@ class CheckoutController extends Controller
             'province' => ['required', 'string', 'in:'.implode(',', config('pawora.shipping.provinces', []))],
             'district_id' => ['nullable', 'integer'],
             'ward_code' => ['nullable', 'string', 'max:20'],
+            'coupon_code' => ['nullable', 'string', 'max:30'],
         ]);
         $details = $cart->details();
         abort_if(empty($details['items']), 422, 'Giỏ hàng đang trống.');
 
-        return response()->json($shipping->quote($data['province'], $details['subtotal'], $data['district_id'] ?? null, $data['ward_code'] ?? null));
+        $discount = $this->couponDiscount($data['coupon_code'] ?? null, (float) $details['subtotal']);
+        $discountedSubtotal = (float) $details['subtotal'] - $discount;
+        $quote = $shipping->quote($data['province'], $discountedSubtotal, $data['district_id'] ?? null, $data['ward_code'] ?? null);
+
+        return response()->json([...$quote, 'discount' => $discount, 'total' => $discountedSubtotal + (float) $quote['fee']]);
+    }
+
+    public function couponPreview(Request $request, CartController $cart)
+    {
+        $data = $request->validate(['coupon_code' => ['required', 'string', 'max:30']]);
+        $details = $cart->details();
+        abort_if(empty($details['items']), 422, 'Giỏ hàng đang trống.');
+
+        $discount = $this->couponDiscount($data['coupon_code'], (float) $details['subtotal']);
+
+        return response()->json([
+            'code' => Str::upper($data['coupon_code']),
+            'discount' => $discount,
+            'subtotal_after_discount' => (float) $details['subtotal'] - $discount,
+        ]);
     }
 
     public function store(Request $request)
     {
+        abort_unless($request->user(), 401);
         $data = $request->validate([
             'customer_name' => 'required|string|max:100',
             'email' => 'required|email|max:150',
@@ -145,18 +172,17 @@ class CheckoutController extends Controller
             }
             $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
             $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
-            $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'user_id' => $request->user()?->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
+            $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
             foreach ($lines as [$product, $variant, $qty, $unitPrice, $line]) {
                 $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
-                if ($variant) $variant->decrement('stock', $qty);
-                $product->decrement('stock', $qty);
+                app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
             }
             $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
             if ($coupon) {
                 $coupon->increment('used_count');
             }
 
-return $order;
+            return $order;
         });
         app(ResendMailer::class)->sendOrderConfirmation($order);
         session()->forget('cart');
@@ -208,7 +234,7 @@ return $order;
     {
         abort_unless($request->user()?->canAccessAdmin() || $request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->id || hash_equals((string) $order->public_token, (string) $request->query('token')), 403);
 
-        return view('store.confirmation', ['order' => $order->load('items')]);
+        return view('store.confirmation', ['order' => $order->load('items', 'shipments')]);
     }
 
     public function show(Request $request, Order $order)
@@ -219,5 +245,17 @@ return $order;
         $request->session()->put('last_order', $order->id);
 
         return view('store.order', ['order' => $order->load('items', 'histories')]);
+    }
+
+    private function couponDiscount(?string $code, float $subtotal): float
+    {
+        if (! $code) {
+            return 0;
+        }
+
+        $coupon = Coupon::where('code', Str::upper(trim($code)))->first();
+        abort_if(! $coupon || ! $coupon->isValidFor($subtotal), 422, 'Mã ưu đãi không hợp lệ hoặc chưa đủ điều kiện.');
+
+        return $coupon->discountFor($subtotal);
     }
 }

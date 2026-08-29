@@ -1,33 +1,68 @@
 @extends('layouts.app')
-@section('title', 'Đơn hàng của bạn — Pawora')
+@section('title', 'Đơn hàng của tôi — Pawora')
 @section('content')
-<section class="container account-subhero"><p class="eyebrow">Lịch sử mua sắm</p><h1>Đơn hàng của bạn</h1><p>Theo dõi thanh toán, quá trình chuẩn bị và giao hàng.</p></section>
-<div class="container">@include('account._nav')</div>
-<section class="container account-orders-page">
-    @php($filters = [''=>'Tất cả','active'=>'Đang xử lý','pending'=>'Chờ xác nhận','processing'=>'Đang chuẩn bị','shipped'=>'Đang giao','delivered'=>'Đã giao','cancelled'=>'Đã huỷ'])
-    <nav class="order-filters" aria-label="Lọc đơn hàng">@foreach($filters as $value=>$label)<a href="{{ route('account.orders.index', array_filter(['status'=>$value])) }}" @class(['is-active'=>$status===$value]) @if($status===$value) aria-current="page" @endif>{{ $label }}</a>@endforeach</nav>
-    <div class="account-order-list">@forelse($orders as $order)
-        @php($shipment = $order->shipments->sortByDesc('created_at')->first())
-        <article class="order-card">
-            <header><div><p class="eyebrow">{{ $order->created_at->format('d.m.Y') }}</p><h2>{{ $order->number }}</h2></div><span class="order-status status-{{ $order->status }}">{{ $order->statusLabel() }}</span></header>
-            <div class="order-card__items">@foreach($order->items->take(3) as $item)<div>@if($item->product?->image)<img src="{{ $item->product->image }}" alt="" width="68" height="68" loading="lazy">@else<span class="order-item-placeholder" aria-hidden="true"></span>@endif<span><strong>{{ $item->product_name }}</strong><small>Số lượng: {{ $item->quantity }}</small></span></div>@endforeach @if($order->items->count()>3)<small>+{{ $order->items->count()-3 }} sản phẩm khác</small>@endif</div>
-            <div class="order-card__meta"><span><small>Thanh toán</small><strong class="payment-{{ $order->payment_status }}">{{ $order->paymentStatusLabel() }}</strong></span><span><small>Giao hàng</small><strong>{{ $shipment ? ucfirst($shipment->status) : ($order->status === 'shipped' ? 'Đang giao hàng' : 'Chưa bàn giao vận chuyển') }}</strong></span><span><small>Tổng tiền</small><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong></span></div>
-            <footer><a class="button secondary" href="{{ route('account.orders.show', $order) }}">Xem chi tiết</a>@if($order->canBeCancelledByCustomer())<details class="cancel-order"><summary>Huỷ đơn</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label><div><button type="button" class="button secondary" onclick="this.closest('details').removeAttribute('open')">Giữ đơn hàng</button><button type="submit" class="button danger-button">Xác nhận huỷ</button></div></form></details>@endif</footer>
-        </article>
-    @empty<div class="empty-state"><h2>Không có đơn hàng phù hợp</h2><p>Những món đồ cho người bạn nhỏ vẫn đang chờ bạn.</p><a class="button primary" href="{{ route('products.index') }}">Khám phá sản phẩm</a></div>@endforelse</div>
-    @if($orders->hasPages())
-        <nav class="account-pagination" aria-label="Phân trang đơn hàng">
-            @if($orders->onFirstPage())
-                <span class="is-disabled">« Previous</span>
-            @else
-                <a href="{{ $orders->previousPageUrl() }}">« Previous</a>
-            @endif
-            @if($orders->hasMorePages())
-                <a href="{{ $orders->nextPageUrl() }}">Next »</a>
-            @else
-                <span class="is-disabled">Next »</span>
-            @endif
-        </nav>
-    @endif
+@php
+    $accountSection = 'orders';
+    $filters = [''=>'Tất cả','active'=>'Đang xử lý','pending'=>'Chờ xác nhận','processing'=>'Đang chuẩn bị','shipped'=>'Đang giao','delivered'=>'Đã giao','cancelled'=>'Đã huỷ'];
+@endphp
+<section class="container member-account-layout">
+    @include('account._sidebar')
+    <div class="member-account-main">
+        <header class="member-account-header member-account-header--compact">
+            <div><p>Tài khoản Pawora</p><h1>Đơn hàng của tôi</h1><span>Theo dõi trạng thái chuẩn bị, thanh toán và vận chuyển.</span></div>
+            <a class="member-account-secondary-action" href="{{ route('products.index') }}">Tiếp tục mua sắm <span aria-hidden="true">›</span></a>
+        </header>
+
+        <section class="member-account-card member-orders-page" aria-labelledby="orders-list-title">
+            <header class="member-orders-toolbar">
+                <div><p>Lịch sử mua sắm</p><h2 id="orders-list-title">{{ $status === '' ? 'Tất cả đơn hàng' : ($filters[$status] ?? 'Đơn hàng') }}</h2></div>
+                <nav class="member-order-filters" aria-label="Lọc đơn hàng">
+                    @foreach($filters as $value=>$label)<a href="{{ route('account.orders.index', array_filter(['status'=>$value])) }}" @class(['is-active'=>$status===$value]) @if($status===$value) aria-current="page" @endif>{{ $label }}</a>@endforeach
+                </nav>
+            </header>
+
+            <div class="member-purchase-list">
+                @forelse($orders as $order)
+                    @php($shipment = $order->shipments->sortByDesc('created_at')->first())
+                    <article class="member-purchase-card">
+                        <header>
+                            <div><small>Đặt ngày {{ $order->created_at->format('d/m/Y') }}</small><h2>{{ $order->number }}</h2></div>
+                            <span class="member-order-status status-{{ $order->status }}">{{ $order->statusLabel() }}</span>
+                        </header>
+                        <div class="member-purchase-products">
+                            @foreach($order->items->take(3) as $item)
+                                <div class="member-purchase-product">
+                                    <span>@if($item->product?->image)<img src="{{ $item->product->image }}" alt="" width="64" height="64" loading="lazy">@else<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg>@endif</span>
+                                    <div><strong>{{ $item->product_name }}</strong><small>{{ $item->sku }} · Số lượng {{ $item->quantity }}</small></div>
+                                </div>
+                            @endforeach
+                            @if($order->items->count()>3)<small class="member-purchase-more">+{{ $order->items->count()-3 }} sản phẩm khác</small>@endif
+                        </div>
+                        <dl class="member-purchase-meta">
+                            <div><dt>Thanh toán</dt><dd class="payment-{{ $order->payment_status }}">{{ $order->paymentStatusLabel() }}</dd></div>
+                            <div><dt>Vận chuyển</dt><dd>{{ $shipment?->statusLabel() ?? ($order->status === 'shipped' ? 'Đang giao hàng' : 'Chưa bàn giao') }}</dd></div>
+                            <div><dt>Tổng tiền</dt><dd>{{ number_format($order->total, 0, ',', '.') }}đ</dd></div>
+                        </dl>
+                        <footer>
+                            @if($order->canBeCancelledByCustomer())
+                                <details class="member-cancel-order"><summary>Huỷ đơn</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label><button type="submit">Xác nhận huỷ đơn</button></form></details>
+                            @endif
+                            <a href="{{ route('account.orders.show', $order) }}">Xem chi tiết <span aria-hidden="true">›</span></a>
+                        </footer>
+                    </article>
+                @empty
+                    <div class="member-empty-state"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg></span><h2>Không có đơn hàng phù hợp</h2><p>Thử chọn trạng thái khác hoặc khám phá thêm sản phẩm cho người bạn nhỏ.</p><a href="{{ route('products.index') }}">Khám phá sản phẩm</a></div>
+                @endforelse
+            </div>
+        </section>
+
+        @if($orders->hasPages())
+            <nav class="member-pagination" aria-label="Phân trang đơn hàng">
+                @if($orders->onFirstPage())<span aria-disabled="true">← Trang trước</span>@else<a href="{{ $orders->previousPageUrl() }}">← Trang trước</a>@endif
+                <small>Trang {{ $orders->currentPage() }} / {{ $orders->lastPage() }}</small>
+                @if($orders->hasMorePages())<a href="{{ $orders->nextPageUrl() }}">Trang sau →</a>@else<span aria-disabled="true">Trang sau →</span>@endif
+            </nav>
+        @endif
+    </div>
 </section>
 @endsection

@@ -14,7 +14,15 @@ class Product extends Model
     public function category() { return $this->belongsTo(Category::class); }
     public function variants() { return $this->hasMany(ProductVariant::class); }
     public function orderItems() { return $this->hasMany(OrderItem::class); }
+    public function reviews() { return $this->hasMany(ProductReview::class); }
+    public function approvedReviews() { return $this->reviews()->approved(); }
     public function scopeActive(Builder $query): Builder { return $query->where('status', 'active'); }
+    public function scopeWithReviewSummary(Builder $query): Builder
+    {
+        return $query
+            ->withCount(['approvedReviews as approved_review_count'])
+            ->withAvg('approvedReviews as approved_rating', 'rating');
+    }
     public function getImageAttribute($value): ?string
     {
         if (!$value || str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) return $value;

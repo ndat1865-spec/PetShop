@@ -129,6 +129,11 @@ class AddressReturnRefundTest extends TestCase
         ])->assertRedirect()->assertSessionHas('success');
         $this->actingAs($user)->get(route('account.orders.show', $eligible))
             ->assertOk()->assertSee('Đã tiếp nhận')->assertSee('Sản phẩm bị vỡ khi mở hộp.');
+        $this->actingAs($user)->get(route('account.returns.index'))
+            ->assertOk()
+            ->assertSee('Đổi trả &amp; hoàn tiền', false)
+            ->assertSee($eligible->number)
+            ->assertSee('Đã tiếp nhận');
     }
 
     public function test_customer_cannot_create_return_for_another_customers_order(): void

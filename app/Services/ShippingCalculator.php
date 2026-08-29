@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\ShopSetting;
+
 class ShippingCalculator
 {
-    public function __construct(private readonly GhnShippingClient $ghn)
-    {
-    }
+    public function __construct(private readonly GhnShippingClient $ghn) {}
 
     public function quote(string $province, float $subtotal, ?int $districtId = null, ?string $wardCode = null): array
     {
-        $threshold = (float) config('pawora.shipping.free_threshold', 700000);
+        $threshold = (float) ShopSetting::get('free_shipping_threshold', config('pawora.shipping.free_threshold', 700000));
 
         if ($this->ghn->enabled() && $districtId && $wardCode) {
             try {

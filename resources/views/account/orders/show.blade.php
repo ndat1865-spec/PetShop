@@ -6,8 +6,15 @@
 @php($shipment = $order->shipments->sortByDesc('created_at')->first())
 @php($returnRequest = $order->returnRequests->sortByDesc('created_at')->first())
 @php($returnDeadline = $order->returnDeadline())
-<section class="container order-detail-hero"><a class="text-link" href="{{ route('account.orders.index') }}">← Trở lại đơn hàng</a><div><span><p class="eyebrow">Đặt ngày {{ $order->created_at->format('d.m.Y') }}</p><h1>{{ $order->number }}</h1></span><span class="order-status status-{{ $order->status }}">{{ $order->statusLabel() }}</span></div></section>
-<section class="container account-order-detail">
+@php($accountSection = 'orders')
+<section class="container member-account-layout">
+    @include('account._sidebar')
+    <div class="member-account-main">
+        <header class="member-account-header member-account-header--detail">
+            <div><a class="member-back-link" href="{{ route('account.orders.index') }}">← Trở lại đơn hàng</a><p>Đặt ngày {{ $order->created_at->format('d/m/Y') }}</p><h1>{{ $order->number }}</h1><span>Chi tiết thanh toán, sản phẩm và quá trình vận chuyển.</span></div>
+            <span class="member-order-status status-{{ $order->status }}">{{ $order->statusLabel() }}</span>
+        </header>
+<section class="account-order-detail member-order-detail-layout">
     <div class="order-detail-main">
         @if($order->status === 'cancelled')<div class="cancelled-note"><strong>Đơn hàng đã được huỷ</strong><p>Đơn hàng này không tiếp tục được chuẩn bị hoặc giao đi.</p></div>@else<ol class="order-timeline">@foreach($steps as $value=>$label)@php($stepIndex=$loop->index)<li @class(['is-complete'=>$currentIndex!==false && $stepIndex<$currentIndex,'is-current'=>$currentIndex===$stepIndex])><span aria-hidden="true">@if($currentIndex!==false && $stepIndex<$currentIndex)✓@else{{ $loop->iteration }}@endif</span><strong>{{ $label }}</strong></li>@endforeach</ol>@endif
         <section class="order-detail-section"><h2>Sản phẩm</h2>@foreach($order->items as $item)<article class="order-detail-item">@if($item->product?->image)<img src="{{ $item->product->image }}" alt="{{ $item->product_name }}" width="84" height="84">@else<span class="order-item-placeholder" aria-hidden="true"></span>@endif<div><strong>{{ $item->product_name }}</strong><small>{{ $item->sku }} · Số lượng {{ $item->quantity }}</small></div><b>{{ number_format($item->line_total, 0, ',', '.') }}đ</b></article>@endforeach</section>
@@ -42,7 +49,7 @@
                 @if($returnRequest->resolution)<p class="return-resolution"><strong>Hướng xử lý:</strong> {{ $returnRequest->resolution }}</p>@endif
             </section>
         @elseif($order->canRequestReturn())
-            <details class="order-detail-section return-request" @if($errors->hasAny(['reason','details'])) open @endif>
+            <details class="order-detail-section return-request" id="return-request" @if($errors->hasAny(['reason','details'])) open @endif>
                 <summary>Yêu cầu đổi trả</summary>
                 <p class="fine">Bạn có thể gửi yêu cầu đến hết <strong>{{ $returnDeadline?->format('H:i d/m/Y') }}</strong>, tính từ thời điểm đơn được giao thành công.</p>
                 <form method="post" action="{{ route('account.returns.store',$order) }}">@csrf
@@ -63,5 +70,7 @@
         <article class="order-totals"><div><span>Tạm tính</span><strong>{{ number_format($order->subtotal, 0, ',', '.') }}đ</strong></div><div><span>Giảm giá</span><strong>-{{ number_format($order->discount, 0, ',', '.') }}đ</strong></div><div><span>Phí giao hàng</span><strong>{{ number_format($order->shipping_fee, 0, ',', '.') }}đ</strong></div><div><span>Tổng cộng</span><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong></div></article>
         @if($order->canBeCancelledByCustomer())<details class="cancel-order cancel-order--detail"><summary>Huỷ đơn hàng</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label>@if($order->payment_status === 'paid')<p class="fine">Số tiền {{ number_format($order->total, 0, ',', '.') }}đ sẽ được hoàn về phương thức thanh toán ban đầu.</p>@endif<button type="submit" class="button danger-button">Xác nhận huỷ đơn</button></form></details>@endif
     </aside>
+</section>
+    </div>
 </section>
 @endsection

@@ -117,7 +117,7 @@
             <div class="mini-row"><span>Phí giao hàng</span><strong>{{ number_format($order->shipping_fee, 0, ',', '.') }}đ</strong></div>
             <div class="mini-row total"><span>Tổng thanh toán</span><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong></div>
 
-            @if($order->canBeMarkedPaid())
+            @if(auth()->user()->hasPermission('payments.manage') && $order->canBeMarkedPaid())
                 <form method="post" action="{{ route('admin.orders.paid', $order) }}">
                     @csrf @method('patch')
                     <button class="button primary wide">Xác nhận đã nhận thanh toán</button>
@@ -132,7 +132,7 @@
                 <div class="admin-action-state">
                     <strong>Yêu cầu hoàn tiền đang chờ xử lý</strong>
                     <p>Web demo không chuyển tiền thật. Kiểm tra đúng số tiền và giao dịch trước khi xác nhận.</p>
-                    @if(config('pawora.refunds.demo_mode', true) && $pendingRefund)
+                    @if(auth()->user()->hasPermission('payments.refund') && config('pawora.refunds.demo_mode', true) && $pendingRefund)
                         <form method="post" action="{{ route('admin.payments.refunds.confirm-demo', $pendingRefund) }}">
                             @csrf @method('patch')
                             <button class="button secondary wide">Xác nhận đã hoàn tiền (demo)</button>

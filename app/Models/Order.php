@@ -77,6 +77,16 @@ class Order extends Model
         return $this->hasMany(ReturnRequest::class);
     }
 
+    public function productReviews()
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
+    public function chatConversations()
+    {
+        return $this->hasMany(ChatConversation::class, 'order_number', 'number');
+    }
+
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst($this->status);

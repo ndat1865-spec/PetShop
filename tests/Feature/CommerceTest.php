@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
@@ -139,6 +140,7 @@ class CommerceTest extends TestCase
 
     public function test_customer_can_select_a_product_variant_and_cart_uses_variant_price(): void
     {
+        $customer = User::factory()->create();
         $product = $this->product(8);
         $variant = ProductVariant::create([
             'product_id' => $product->id,
@@ -159,7 +161,8 @@ class CommerceTest extends TestCase
 
         $this->get(route('products.index'))
             ->assertOk()
-            ->assertSee('Chọn tùy chọn');
+            ->assertSee('Xem chi tiết')
+            ->assertDontSee('Chọn tùy chọn');
 
         $this->postJson(route('cart.store', $product), ['variant_id' => $variant->id, 'quantity' => 2])
             ->assertOk()
@@ -182,7 +185,7 @@ class CommerceTest extends TestCase
                 'free_shipping_remaining' => 10000,
             ]);
 
-        $this->post(route('checkout.store'), [
+        $this->actingAs($customer)->post(route('checkout.store'), [
             'customer_name' => 'Nguyễn An',
             'email' => 'variant@example.com',
             'phone' => '0909000000',
@@ -202,6 +205,128 @@ class CommerceTest extends TestCase
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock' => 1]);
     }
 
+    public function test_catalog_pet_filter_includes_universal_products_and_excludes_the_other_pet(): void
+    {
+        $dog = $this->product();
+        Product::create([
+            'category_id' => $dog->category_id,
+            'name' => 'Bát ăn dùng chung',
+            'slug' => 'bat-an-dung-chung',
+            'sku' => 'PAW-ALL-01',
+            'pet_type' => 'all',
+            'short_description' => 'Dùng chung cho chó và mèo.',
+            'price' => 180000,
+            'stock' => 5,
+            'status' => 'active',
+        ]);
+        Product::create([
+            'category_id' => $dog->category_id,
+            'name' => 'Cần câu cho mèo',
+            'slug' => 'can-cau-cho-meo',
+            'sku' => 'PAW-CAT-01',
+            'pet_type' => 'cat',
+            'short_description' => 'Đồ chơi dành cho mèo.',
+            'price' => 220000,
+            'stock' => 5,
+            'status' => 'active',
+        ]);
+
+        $this->get(route('products.index', ['pet_type' => 'dog']))
+            ->assertOk()
+            ->assertSee($dog->name)
+            ->assertSee('Bát ăn dùng chung')
+            ->assertDontSee('Cần câu cho mèo')
+            ->assertSee('Sản phẩm dành cho chó');
+    }
+
+    public function test_catalog_renders_the_correct_cta_and_rating_state_for_each_product(): void
+    {
+        $simple = $this->product();
+        $reviewer = User::factory()->create();
+        ProductReview::create([
+            'product_id' => $simple->id,
+            'user_id' => $reviewer->id,
+            'rating' => 5,
+            'comment' => 'Sản phẩm tốt, phù hợp với thú cưng nhà tôi.',
+            'status' => 'approved',
+        ]);
+        ProductVariant::create([
+            'product_id' => $simple->id,
+            'name' => 'Xanh · Lớn',
+            'sku' => 'PAW-T01-BLUE-L',
+            'price' => 230000,
+            'stock' => 3,
+            'is_active' => true,
+        ]);
+        Product::create([
+            'category_id' => $simple->category_id,
+            'name' => 'Đệm Pawora hết hàng',
+            'slug' => 'dem-pawora-het-hang',
+            'sku' => 'PAW-OOS-01',
+            'pet_type' => 'all',
+            'short_description' => 'Đệm nằm êm cho thú cưng.',
+            'price' => 450000,
+            'stock' => 0,
+            'status' => 'active',
+        ]);
+        Product::create([
+            'category_id' => $simple->category_id,
+            'name' => 'Bình nước Pawora',
+            'slug' => 'binh-nuoc-pawora',
+            'sku' => 'PAW-SIMPLE-01',
+            'pet_type' => 'dog',
+            'short_description' => 'Bình nước gọn nhẹ.',
+            'price' => 150000,
+            'stock' => 6,
+            'status' => 'active',
+        ]);
+
+        $this->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('Xem chi tiết')
+            ->assertSee('Thêm vào giỏ')
+            ->assertSee('Tạm hết hàng')
+            ->assertSee('5.0')
+            ->assertSee('1 đánh giá')
+            ->assertSee('Chưa có đánh giá')
+            ->assertDontSee('Chọn tùy chọn');
+    }
+
+    public function test_catalog_validates_price_filters_preserves_query_and_uses_numbered_pagination(): void
+    {
+        $first = $this->product();
+        foreach (range(2, 14) as $index) {
+            Product::create([
+                'category_id' => $first->category_id,
+                'name' => 'Sản phẩm phân trang '.$index,
+                'slug' => 'san-pham-phan-trang-'.$index,
+                'sku' => 'PAW-PAGE-'.$index,
+                'pet_type' => $index % 2 ? 'dog' : 'all',
+                'short_description' => 'Sản phẩm phục vụ kiểm thử phân trang.',
+                'price' => 100000 + ($index * 10000),
+                'stock' => 3,
+                'status' => 'active',
+            ]);
+        }
+
+        $this->get(route('products.index', [
+            'pet_type' => 'dog',
+            'min_price' => 100000,
+            'max_price' => 500000,
+            'sort' => 'price_asc',
+        ]))
+            ->assertOk()
+            ->assertSee('aria-label="Phân trang sản phẩm"', false)
+            ->assertSee('pet_type=dog', false)
+            ->assertSee('min_price=100000', false)
+            ->assertSee('Giá tăng dần')
+            ->assertDontSee('id="category"', false);
+
+        $this->get(route('products.index', ['min_price' => 'khong-hop-le', 'max_price' => -50, 'pet_type' => 'bird']))
+            ->assertOk()
+            ->assertSee('Tất cả sản phẩm');
+    }
+
     public function test_homepage_exposes_pet_filters_bestsellers_and_category_bento(): void
     {
         $this->product();
@@ -217,19 +342,21 @@ class CommerceTest extends TestCase
 
     public function test_checkout_creates_order_and_deducts_inventory(): void
     {
+        $customer = User::factory()->create();
         $product = $this->product();
-        $response = $this->withSession(['cart' => [$product->id => 2]])->post(route('checkout.store'), [
+        $response = $this->actingAs($customer)->withSession(['cart' => [$product->id => 2]])->post(route('checkout.store'), [
             'customer_name' => 'Nguyễn An', 'email' => 'an@example.com', 'phone' => '0909000000', 'province' => 'Thành phố Hồ Chí Minh', 'ward' => 'Phường Sài Gòn', 'address_line' => '01 Nguyễn Huệ', 'payment_method' => 'cod', 'terms' => '1',
         ]);
         $response->assertRedirect();
-        $this->assertDatabaseHas('orders', ['email' => 'an@example.com', 'shipping_fee' => 25000, 'total' => 425000]);
+        $this->assertDatabaseHas('orders', ['email' => 'an@example.com', 'user_id' => $customer->id, 'shipping_fee' => 25000, 'total' => 425000]);
         $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 3]);
     }
 
     public function test_checkout_rejects_quantity_above_stock(): void
     {
+        $customer = User::factory()->create();
         $product = $this->product(1);
-        $this->withSession(['cart' => [$product->id => 2]])->post(route('checkout.store'), ['customer_name' => 'An', 'email' => 'an@example.com', 'phone' => '0909000000', 'province' => 'Thành phố Hồ Chí Minh', 'ward' => 'Phường Sài Gòn', 'address_line' => '01 Nguyễn Huệ', 'payment_method' => 'cod', 'terms' => '1'])->assertStatus(422);
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 2]])->post(route('checkout.store'), ['customer_name' => 'An', 'email' => 'an@example.com', 'phone' => '0909000000', 'province' => 'Thành phố Hồ Chí Minh', 'ward' => 'Phường Sài Gòn', 'address_line' => '01 Nguyễn Huệ', 'payment_method' => 'cod', 'terms' => '1'])->assertStatus(422);
     }
 
     public function test_customer_cannot_access_admin_but_admin_can(): void
@@ -242,8 +369,9 @@ class CommerceTest extends TestCase
 
     public function test_shipping_quote_uses_province_and_free_shipping_threshold(): void
     {
+        $customer = User::factory()->create();
         $product = $this->product();
-        $this->withSession(['cart' => [$product->id => 2]])->getJson(route('shipping.quote', ['province' => 'Thành phố Hồ Chí Minh']))
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 2]])->getJson(route('shipping.quote', ['province' => 'Thành phố Hồ Chí Minh']))
             ->assertOk()->assertJson(['fee' => 25000, 'free_shipping' => false, 'estimated_days' => '1–2 ngày']);
         $product->update(['price' => 400000]);
         $this->withSession(['cart' => [$product->id => 2]])->getJson(route('shipping.quote', ['province' => 'Thành phố Hà Nội']))
@@ -263,12 +391,73 @@ class CommerceTest extends TestCase
     {
         $customer = User::factory()->create();
         Order::create(['number' => 'PAW-HISTORY-1', 'public_token' => (string) Str::uuid(), 'user_id' => $customer->id, 'customer_name' => 'Customer', 'email' => $customer->email, 'phone' => '0909000000', 'shipping_address' => 'Hà Nội', 'subtotal' => 100000, 'total' => 100000, 'payment_method' => 'cod']);
-        $this->actingAs($customer)->get(route('account.index'))->assertOk()->assertSee('Đơn hàng');
+        $this->actingAs($customer)->get(route('home'))->assertOk()->assertSee('href="'.route('account.profile').'"', false);
+        $this->actingAs($customer)->get(route('account.index'))->assertRedirect(route('account.profile'));
         $this->actingAs($customer)->get(route('account.orders.index'))
             ->assertOk()
             ->assertSee('PAW-HISTORY-1')
             ->assertSee('Chưa thanh toán')
             ->assertSee('Chờ xác nhận');
+    }
+
+    public function test_profile_page_is_a_personal_account_hub_with_real_customer_data(): void
+    {
+        $customer = User::factory()->create([
+            'name' => 'Minh Anh',
+            'email' => 'minhanh@example.com',
+            'phone' => '0909000111',
+        ]);
+        $customer->addresses()->create([
+            'label' => 'Nhà riêng',
+            'receiver_name' => 'Minh Anh',
+            'phone' => '0909000111',
+            'province' => 'TP. Hồ Chí Minh',
+            'district' => 'Quận 3',
+            'ward' => 'Phường 6',
+            'address_line' => '12 Võ Văn Tần',
+            'is_default' => true,
+        ]);
+        Order::create([
+            'number' => 'PAW-PROFILE-1',
+            'public_token' => (string) Str::uuid(),
+            'user_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'email' => $customer->email,
+            'phone' => $customer->phone,
+            'shipping_address' => '12 Võ Văn Tần, Quận 3, TP. Hồ Chí Minh',
+            'subtotal' => 250000,
+            'total' => 250000,
+            'payment_method' => 'cod',
+        ]);
+
+        $this->actingAs($customer)->get(route('account.profile'))
+            ->assertOk()
+            ->assertSee('Xin chào, Minh Anh')
+            ->assertSee('Thông tin cá nhân')
+            ->assertSee('Địa chỉ mặc định')
+            ->assertSee('12 Võ Văn Tần')
+            ->assertSee('PAW-PROFILE-1')
+            ->assertSee('Đăng nhập &amp; bảo mật', false)
+            ->assertDontSee('điểm thưởng');
+    }
+
+    public function test_customer_can_open_security_page_and_change_password(): void
+    {
+        $customer = User::factory()->create(['password' => Hash::make('OldPassword!123')]);
+
+        $this->actingAs($customer)->get(route('account.security'))
+            ->assertOk()
+            ->assertSee('Bảo mật tài khoản')
+            ->assertSee('Đổi mật khẩu')
+            ->assertSee($customer->email);
+
+        $this->actingAs($customer)->patch(route('account.password.update'), [
+            'current_password' => 'OldPassword!123',
+            'password' => 'NewPassword!456',
+            'password_confirmation' => 'NewPassword!456',
+        ])->assertRedirect(route('account.security'))->assertSessionHas('success');
+
+        $this->assertTrue(Hash::check('NewPassword!456', $customer->fresh()->password));
     }
 
     public function test_customer_can_upload_and_replace_their_avatar(): void
