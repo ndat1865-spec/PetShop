@@ -149,6 +149,11 @@ class Order extends Model
             && ! in_array($this->payment_status, ['refunded', 'refund_pending'], true);
     }
 
+    public function canUsePostPurchaseActions(): bool
+    {
+        return $this->status === 'delivered' && $this->payment_status === 'paid';
+    }
+
     public function deliveredAt(): ?Carbon
     {
         return $this->shipments->whereNotNull('delivered_at')->max('delivered_at');

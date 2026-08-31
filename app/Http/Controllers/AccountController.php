@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\ReturnRequest;
 use App\Models\User;
 use App\Models\UserAddress;
+use App\Services\CartService;
 use App\Services\InventoryService;
 use App\Services\RefundService;
 use Illuminate\Http\Request;
@@ -332,6 +333,72 @@ class AccountController extends Controller
         });
 
         return back()->with('success', 'Đã ghi nhận bạn đã nhận hàng. Pawora sẽ đối chiếu và hoàn tất đơn hàng.');
+    }
+
+    public function reorder(Request $request, Order $order, CartService $cart)
+    {
+        abort_unless($order->user_id === $request->user()->id, 403);
+        abort_unless($order->canUsePostPurchaseActions(), 422, 'Chỉ có thể mua lại đơn đã giao và thanh toán hoàn tất.');
+
+        $order->loadMissing(['items.product.variants', 'items.variant']);
+        $lines = $cart->lines();
+        $addedQuantity = 0;
+        $unavailableItems = 0;
+
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            $variant = $item->variant;
+
+            if (! $product || $product->status !== 'active') {
+                $unavailableItems++;
+                continue;
+            }
+
+            if ($item->product_variant_id) {
+                if (! $variant || ! $variant->is_active || (int) $variant->product_id !== (int) $product->id) {
+                    $unavailableItems++;
+                    continue;
+                }
+            } elseif ($product->variants->where('is_active', true)->isNotEmpty()) {
+                $unavailableItems++;
+                continue;
+            }
+
+            $available = (int) ($variant?->stock ?? $product->stock);
+            if ($available < 1) {
+                $unavailableItems++;
+                continue;
+            }
+
+            $lineKey = $cart->lineKey((int) $product->id, $variant?->id);
+            $currentQuantity = (int) ($lines[$lineKey]['quantity'] ?? 0);
+            $newQuantity = min(20, $available, $currentQuantity + (int) $item->quantity);
+            $quantityAdded = max(0, $newQuantity - $currentQuantity);
+
+            if ($quantityAdded < 1) {
+                $unavailableItems++;
+                continue;
+            }
+
+            $lines[$lineKey] = [
+                'product_id' => (int) $product->id,
+                'variant_id' => $variant?->id,
+                'quantity' => $newQuantity,
+            ];
+            $addedQuantity += $quantityAdded;
+        }
+
+        if ($addedQuantity < 1) {
+            return back()->withErrors(['cart' => 'Các sản phẩm trong đơn này hiện đã hết hàng hoặc không còn được bán.']);
+        }
+
+        $cart->put($lines);
+        $message = 'Đã thêm '.$addedQuantity.' sản phẩm từ đơn '.$order->number.' vào giỏ hàng.';
+        if ($unavailableItems > 0) {
+            $message .= ' Một số lựa chọn không còn đủ hàng nên chưa được thêm.';
+        }
+
+        return redirect()->route('cart.index')->with('success', $message);
     }
 
     public function requestReturn(Request $request, Order $order)

@@ -1,15 +1,15 @@
 @extends('layouts.admin')
 @section('title', 'Đánh giá Pawora Admin')
-@section('admin-title', 'Kiểm duyệt đánh giá')
+@section('admin-title', 'Đánh giá & phản hồi')
 
 @section('admin-content')
 <div class="admin-moderation-page">
     <section class="ops-stat-grid" aria-label="Thống kê đánh giá">
         <article><span>Tổng đánh giá</span><strong>{{ number_format((int) $stats->total) }}</strong><small>Từ khách đã mua hàng</small></article>
-        <article class="is-warning"><span>Chờ duyệt</span><strong>{{ number_format((int) $stats->pending) }}</strong><small>Cần kiểm tra nội dung</small></article>
-        <article class="is-success"><span>Đã duyệt</span><strong>{{ number_format((int) $stats->approved) }}</strong><small>Đang hiển thị công khai</small></article>
-        <article><span>Điểm trung bình</span><strong>{{ number_format($averageRating, 1) }}</strong><small>Trên đánh giá đã duyệt</small></article>
-        <article><span>Ẩn / từ chối</span><strong>{{ number_format((int) $stats->hidden + (int) $stats->rejected) }}</strong><small>{{ (int) $stats->hidden }} ẩn · {{ (int) $stats->rejected }} từ chối</small></article>
+        <article class="is-success"><span>Đang hiển thị</span><strong>{{ number_format((int) $stats->approved) }}</strong><small>Đã đăng công khai</small></article>
+        <article><span>Shop đã trả lời</span><strong>{{ number_format((int) $stats->replied) }}</strong><small>Phản hồi công khai</small></article>
+        <article><span>Điểm trung bình</span><strong>{{ number_format($averageRating, 1) }}</strong><small>Trên đánh giá đang hiển thị</small></article>
+        <article><span>Đã ẩn</span><strong>{{ number_format((int) $stats->hidden) }}</strong><small>Không hiển thị trên cửa hàng</small></article>
     </section>
 
     <form class="ops-filter" method="get" action="{{ route('admin.reviews') }}" aria-label="Lọc đánh giá">
@@ -23,7 +23,7 @@
     </form>
 
     <section class="admin-panel moderation-list" aria-labelledby="review-list-title">
-        <header class="panel-title"><div><p class="eyebrow">Phản hồi đã xác minh</p><h2 id="review-list-title">Danh sách đánh giá</h2></div><span>{{ $reviews->total() }} kết quả</span></header>
+        <header class="panel-title"><div><p class="eyebrow">Khách hàng đã mua</p><h2 id="review-list-title">Đánh giá và phản hồi của shop</h2></div><span>{{ $reviews->total() }} kết quả</span></header>
         @forelse($reviews as $review)
             <article class="moderation-card">
                 <div class="moderation-card__summary">
@@ -35,16 +35,25 @@
                 </div>
                 <div class="moderation-card__content">
                     <div class="moderation-rating" aria-label="{{ $review->rating }} trên 5 sao">@for($star = 1; $star <= 5; $star++)<svg @class(['is-active' => $star <= $review->rating]) viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>@endfor<strong>{{ $review->rating }}/5</strong></div>
+                    @if($review->purchased_variant || $review->fit || $review->pet_weight)
+                        <dl class="moderation-review-context">
+                            @if($review->purchased_variant)<div><dt>Biến thể đã mua</dt><dd>{{ $review->purchased_variant }}</dd></div>@endif
+                            @if($review->fitLabel())<div><dt>Độ vừa vặn</dt><dd>{{ $review->fitLabel() }}</dd></div>@endif
+                            @if($review->pet_weight)<div><dt>Cân nặng thú cưng</dt><dd>{{ rtrim(rtrim(number_format((float) $review->pet_weight, 2, ',', '.'), '0'), ',') }} kg</dd></div>@endif
+                        </dl>
+                    @endif
                     @if($review->title)<h3>{{ $review->title }}</h3>@endif
                     <p>{{ $review->comment }}</p>
-                    @if($review->admin_note)<aside><strong>Ghi chú kiểm duyệt</strong><p>{{ $review->admin_note }}</p>@if($review->moderator)<small>{{ $review->moderator->name }} · {{ $review->moderated_at?->format('d/m/Y H:i') }}</small>@endif</aside>@endif
+                    @if($review->shop_reply)<aside class="moderation-shop-reply"><strong>Phản hồi công khai của shop</strong><p>{{ $review->shop_reply }}</p>@if($review->replier)<small>{{ $review->replier->name }} · {{ $review->replied_at?->format('d/m/Y H:i') }}</small>@endif</aside>@endif
+                    @if($review->admin_note)<aside><strong>Ghi chú nội bộ</strong><p>{{ $review->admin_note }}</p>@if($review->moderator)<small>{{ $review->moderator->name }} · {{ $review->moderated_at?->format('d/m/Y H:i') }}</small>@endif</aside>@endif
                 </div>
                 @if(auth()->user()->hasPermission('reviews.manage'))
-                    <form class="moderation-action" method="post" action="{{ route('admin.reviews.update', $review) }}" data-confirm-title="Xác nhận kiểm duyệt đánh giá?" data-confirm-message="Trạng thái mới sẽ ảnh hưởng ngay đến nội dung và điểm số hiển thị trên cửa hàng.">
+                    <form class="moderation-action moderation-action--review" method="post" action="{{ route('admin.reviews.update', $review) }}" data-confirm-title="Lưu phản hồi của shop?" data-confirm-message="Phản hồi và trạng thái mới sẽ được cập nhật ngay trên cửa hàng.">
                         @csrf @method('patch')
-                        <label><span>Trạng thái mới</span><select name="status" required>@foreach(\App\Models\ProductReview::STATUS_LABELS as $value => $label)<option value="{{ $value }}" @selected($review->status === $value)>{{ $label }}</option>@endforeach</select></label>
-                        <label><span>Ghi chú nội bộ</span><input name="admin_note" value="{{ $review->admin_note }}" maxlength="1000" placeholder="Bắt buộc khi từ chối hoặc ẩn"></label>
-                        <button class="button secondary small" type="submit">Lưu kiểm duyệt</button>
+                        <label><span>Trạng thái hiển thị</span><select name="status" required>@foreach(\App\Models\ProductReview::STATUS_LABELS as $value => $label)<option value="{{ $value }}" @selected($review->status === $value)>{{ $label }}</option>@endforeach</select></label>
+                        <label><span>Phản hồi công khai của shop</span><textarea name="shop_reply" maxlength="1000" rows="3" placeholder="Cảm ơn bạn đã chia sẻ trải nghiệm...">{{ $review->shop_reply }}</textarea></label>
+                        <label><span>Ghi chú nội bộ</span><input name="admin_note" value="{{ $review->admin_note }}" maxlength="1000" placeholder="Bắt buộc khi ẩn đánh giá"></label>
+                        <button class="button secondary small" type="submit">Lưu phản hồi</button>
                     </form>
                 @endif
             </article>

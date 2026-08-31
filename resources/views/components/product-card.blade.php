@@ -1,10 +1,11 @@
+@props(['product', 'motion' => true, 'catalogMotion' => false])
 @php
     $isOutOfStock = $product->stock < 1;
     $hasVariants = $product->variants->isNotEmpty();
     $reviewCount = (int) ($product->approved_review_count ?? 0);
     $rating = (float) ($product->approved_rating ?? 0);
 @endphp
-<article @class(['product-card', 'is-out-of-stock' => $isOutOfStock]) data-reveal>
+<article @class(['product-card', 'is-out-of-stock' => $isOutOfStock]) @if($motion) data-reveal @endif @if($catalogMotion) data-catalog-card @endif>
     <a class="product-image" href="{{ route('products.show', $product->slug) }}" aria-label="Xem chi tiết {{ $product->name }}">
         <img src="{{ $product->image }}" alt="{{ $product->name }}" width="640" height="640" loading="lazy">
         @if($product->discount_percent)<span class="badge">Giảm {{ $product->discount_percent }}%</span>@endif
