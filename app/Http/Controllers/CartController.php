@@ -8,7 +8,11 @@ use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
-    public function index() { return view('store.cart', ['cart'=>$this->details()]); }
+    public function index()
+    {
+        return view('store.cart', ['cart' => $this->details()]);
+    }
+
     public function store(Request $request, Product $product)
     {
         $data = $request->validate([
@@ -28,7 +32,8 @@ class CartController extends Controller
         $cart = session('cart', []);
         $current = $cart[$product->id] ?? 0;
         $currentQuantity = is_array($current) && ($current['variant_id'] ?? null) === $variant?->id ? (int) ($current['quantity'] ?? 0) : (is_int($current) ? $current : 0);
-        $quantity = min($available, $currentQuantity + ($data['quantity'] ?? 1));
+        $quantity = $currentQuantity + ($data['quantity'] ?? 1);
+        abort_if($quantity > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
         $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
         session(['cart' => $cart]);
 
@@ -45,17 +50,20 @@ class CartController extends Controller
 
         return back()->with('success', $message);
     }
+
     public function update(Request $request, Product $product)
     {
-        $data=$request->validate(['quantity'=>'required|integer|min:1|max:20']);
-        $cart=session('cart',[]);
-        if(isset($cart[$product->id])) {
+        $data = $request->validate(['quantity' => 'required|integer|min:1|max:20']);
+        $cart = session('cart', []);
+        if (isset($cart[$product->id])) {
             $current = $cart[$product->id];
-            $variant = is_array($current) && !empty($current['variant_id']) ? ProductVariant::where('product_id', $product->id)->find($current['variant_id']) : null;
-            $quantity = min($data['quantity'], $variant?->stock ?? $product->stock);
+            $variant = is_array($current) && ! empty($current['variant_id']) ? ProductVariant::where('product_id', $product->id)->find($current['variant_id']) : null;
+            $available = $variant?->stock ?? $product->stock;
+            abort_if($data['quantity'] > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
+            $quantity = $data['quantity'];
             $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
         }
-        session(['cart'=>$cart]);
+        session(['cart' => $cart]);
 
         if ($request->expectsJson()) {
             $details = $this->details();
@@ -73,23 +81,44 @@ class CartController extends Controller
             ]);
         }
 
-        return back()->with('success','Giỏ hàng đã được cập nhật.');
+        return back()->with('success', 'Giỏ hàng đã được cập nhật.');
     }
+
     public function destroy(Product $product)
     {
-        $cart=session('cart',[]); unset($cart[$product->id]); session(['cart'=>$cart]); return back()->with('success','Đã xóa sản phẩm khỏi giỏ.');
+        $cart = session('cart', []);
+        unset($cart[$product->id]);
+        session(['cart' => $cart]);
+
+        return back()->with('success', 'Đã xóa sản phẩm khỏi giỏ.');
     }
+
     public function details(): array
     {
-        $raw=session('cart',[]); $products=Product::whereIn('id',array_keys($raw))->get(); $items=[]; $subtotal=0;
-        foreach($products as $product){
+        $raw = session('cart', []);
+        $products = Product::whereIn('id', array_keys($raw))->get();
+        $items = [];
+        $subtotal = 0;
+        foreach ($products as $product) {
             $entry = $raw[$product->id];
             $requested = is_array($entry) ? (int) ($entry['quantity'] ?? 0) : (int) $entry;
-            $variant = is_array($entry) && !empty($entry['variant_id']) ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->find($entry['variant_id']) : null;
-            $qty=min($requested,$variant?->stock ?? $product->stock);
-            $unitPrice=(float)($variant?->price ?? $product->price);
-            $line=$unitPrice*$qty; $subtotal+=$line; $items[]=compact('product','variant','qty','unitPrice','line');
+            $variant = is_array($entry) && ! empty($entry['variant_id']) ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->find($entry['variant_id']) : null;
+            if ($requested < 1 || $product->status !== 'active') {
+                continue;
+            }
+            if (is_array($entry) && ! empty($entry['variant_id']) && ! $variant) {
+                continue;
+            }
+            $qty = min($requested, $variant?->stock ?? $product->stock);
+            if ($qty < 1) {
+                continue;
+            }
+            $unitPrice = (float) ($variant?->price ?? $product->price);
+            $line = $unitPrice * $qty;
+            $subtotal += $line;
+            $items[] = compact('product', 'variant', 'qty', 'unitPrice', 'line');
         }
-        return ['items'=>$items,'subtotal'=>$subtotal,'count'=>array_sum(array_column($items,'qty'))];
+
+        return ['items' => $items, 'subtotal' => $subtotal, 'count' => array_sum(array_column($items, 'qty'))];
     }
 }

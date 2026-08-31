@@ -14,7 +14,7 @@
         ? array_values(array_unique([$shipment->status, ...$shipment->allowedTransitions()]))
         : $order->initialShipmentStatuses();
     $pendingRefund = $order->payments->first(fn ($payment) => $payment->type === 'refund' && $payment->status === 'pending');
-    $paymentMethodLabels = ['cod' => 'Thanh toán khi nhận hàng', 'bank_transfer' => 'Chuyển khoản / SePay', 'sepay' => 'SePay', 'vnpay' => 'VNPay', 'zalopay' => 'ZaloPay', 'momo' => 'MoMo', 'onepay' => 'OnePay'];
+    $paymentMethodLabels = ['cod' => 'Thanh toán khi nhận hàng', 'bank_transfer' => 'Chuyển khoản / SePay', 'qr_demo' => 'QR Demo Pawora', 'sepay' => 'SePay', 'vnpay' => 'VNPay', 'zalopay' => 'ZaloPay', 'momo' => 'MoMo', 'onepay' => 'OnePay'];
     $paymentMethodLabel = $paymentMethodLabels[$order->payment_method] ?? strtoupper($order->payment_method);
     $nextAction = match (true) {
         $order->payment_status === 'refund_pending' => ['Tài chính', 'Xác nhận hoàn tiền demo', 'Đơn đã hủy. Kiểm tra đúng giao dịch rồi xác nhận hoàn tiền ảo cho khách.', '#payment-control', 'Mở phần hoàn tiền'],

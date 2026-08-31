@@ -1,4 +1,6 @@
 {
+    "name": "pawora-commerce",
+    "version": "1.0.0",
     "private": true,
     "type": "module",
     "scripts": {
@@ -14,6 +16,7 @@
     "dependencies": {
         "laravel-echo": "^2.4.0",
         "lottie-web": "^5.13.0",
-        "pusher-js": "^8.6.0"
+        "pusher-js": "^8.6.0",
+        "qrcode": "^1.5.4"
     }
 }

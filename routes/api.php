@@ -1,8 +1,9 @@
 <?php
 
+use App\Http\Controllers\DemoPaymentController;
+use App\Http\Controllers\SepayController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\SepayController;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,3 +20,4 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 Route::post('/webhooks/sepay', [SepayController::class, 'webhook'])->name('webhooks.sepay');
+Route::post('/webhooks/payment-demo', [DemoPaymentController::class, 'callback'])->name('webhooks.payment-demo');

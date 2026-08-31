@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\AccountController;
-use App\Http\Controllers\AdminContactController;
 use App\Http\Controllers\AdminChatController;
 use App\Http\Controllers\AdminChatRuleController;
+use App\Http\Controllers\AdminContactController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminReviewController;
 use App\Http\Controllers\AuthController;
@@ -11,6 +11,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CustomerChatController;
+use App\Http\Controllers\DemoPaymentController;
 use App\Http\Controllers\MomoController;
 use App\Http\Controllers\OnePayController;
 use App\Http\Controllers\ProductReviewController;
@@ -48,6 +49,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dia-chi/quan-huyen', [CheckoutController::class, 'districts'])->middleware('throttle:30,1')->name('address.districts');
     Route::get('/dia-chi/phuong-xa', [CheckoutController::class, 'wards'])->middleware('throttle:30,1')->name('address.wards');
     Route::post('/thanh-toan', [CheckoutController::class, 'store'])->middleware('throttle:10,1')->name('checkout.store');
+    Route::get('/thanh-toan/demo/{order}', [DemoPaymentController::class, 'payment'])->name('payments.demo.payment');
+    Route::post('/thanh-toan/demo/{order}/gia-lap', [DemoPaymentController::class, 'simulate'])->middleware('throttle:10,1')->name('payments.demo.simulate');
 });
 Route::get('/thanh-toan/vnpay/return', [VnPayController::class, 'return'])->name('payments.vnpay.return');
 Route::get('/thanh-toan/vnpay/ipn', [VnPayController::class, 'ipn'])->name('payments.vnpay.ipn');
