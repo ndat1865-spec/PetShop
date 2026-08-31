@@ -58,7 +58,7 @@
         <aside class="dashboard-attention" aria-labelledby="attention-title">
             <header class="dashboard-section-head">
                 <div><p class="dashboard-kicker">Ưu tiên hôm nay</p><h2 id="attention-title">Cần xử lý</h2></div>
-                <span class="dashboard-attention__total">{{ $pending + $lowStock + $pendingPayments->count() + $returnRequests->count() + $pendingReviewCount + $newContactCount + $unreadChatCount }}</span>
+                <span class="dashboard-attention__total">{{ $pending + $lowStock + $pendingPayments->count() + $returnRequests->count() + $unansweredReviewCount + $newContactCount + $unreadChatCount }}</span>
             </header>
             <div class="dashboard-action-list">
                 <a href="{{ route('admin.orders', ['status' => 'pending']) }}">
@@ -77,9 +77,9 @@
                     <span class="dashboard-action-icon"><x-admin-icon name="returns" /></span>
                     <span><strong>Yêu cầu đổi trả</strong><small>Phản hồi khách hàng</small></span><b>{{ $returnRequests->count() }}</b>
                 </a>
-                <a href="{{ route('admin.reviews', ['status' => 'pending']) }}">
+                <a href="{{ route('admin.reviews', ['unanswered' => 1]) }}">
                     <span class="dashboard-action-icon"><x-admin-icon name="reviews" /></span>
-                    <span><strong>Đánh giá chờ duyệt</strong><small>Kiểm tra phản hồi đã mua hàng</small></span><b>{{ $pendingReviewCount }}</b>
+                    <span><strong>Đánh giá chưa phản hồi</strong><small>Trả lời khách đã mua hàng</small></span><b>{{ $unansweredReviewCount }}</b>
                 </a>
                 <a href="{{ route('admin.contacts', ['status' => 'new']) }}">
                     <span class="dashboard-action-icon"><x-admin-icon name="contacts" /></span>
@@ -95,12 +95,12 @@
 
     <section class="dashboard-care-grid" aria-label="Hàng đợi chăm sóc khách hàng">
         <article class="admin-panel dashboard-care-card">
-            <header class="dashboard-section-head"><div><p class="dashboard-kicker">Kiểm duyệt nội dung</p><h2>Đánh giá chờ duyệt</h2></div><a class="dashboard-section-link" href="{{ route('admin.reviews', ['status' => 'pending']) }}">Mở danh sách <span aria-hidden="true">→</span></a></header>
+            <header class="dashboard-section-head"><div><p class="dashboard-kicker">Chăm sóc sau mua</p><h2>Đánh giá chưa phản hồi</h2></div><a class="dashboard-section-link" href="{{ route('admin.reviews', ['unanswered' => 1]) }}">Mở danh sách <span aria-hidden="true">→</span></a></header>
             <div class="dashboard-care-list">
-                @forelse($pendingReviews as $review)
+                @forelse($unansweredReviews as $review)
                     <a href="{{ route('admin.reviews', ['q' => $review->user?->email]) }}"><span><strong>{{ $review->product?->name }}</strong><small>{{ $review->user?->name }} · {{ $review->rating }}/5 sao</small></span><time>{{ $review->created_at->format('d/m') }}</time></a>
                 @empty
-                    <div class="dashboard-care-empty">Không có đánh giá chờ duyệt.</div>
+                    <div class="dashboard-care-empty">Mọi đánh giá đã được shop phản hồi.</div>
                 @endforelse
             </div>
         </article>

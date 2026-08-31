@@ -21,9 +21,7 @@
 
 <body class="storefront-body">
     @php
-        $headerCartCount = collect(session('cart', []))->sum(
-            fn ($entry) => is_array($entry) ? (int) ($entry['quantity'] ?? 0) : (int) $entry
-        );
+        $headerCartCount = app(\App\Services\CartService::class)->count();
     @endphp
     <a class="skip-link" href="#main">Đi đến nội dung chính</a>
     <div class="header-sentinel" aria-hidden="true" data-header-sentinel></div>
@@ -118,10 +116,11 @@
             </div>
             <div>
                 <h2>Hỗ trợ</h2><a href="{{ route('contact') }}">Liên hệ</a><a href="{{ route('about') }}">Về
-                    Pawora</a><span>Đổi trả trong 7 ngày</span>
+                    Pawora</a><a href="{{ route('legal.terms') }}">Điều khoản mua hàng</a><a
+                    href="{{ route('legal.privacy') }}">Chính sách bảo mật</a><span>Đổi trả trong 7 ngày</span>
             </div>
             <div>
-                <h2>Kết nối</h2><span>hello@pawora.vn</span><span>0909 000 001</span><span>TP. Hồ Chí Minh</span>
+                <h2>Kết nối</h2><span>hello@pawora.vn</span><span>0869 372 600</span><span>TP. Hà Nội</span>
             </div>
         </div>
         <div class="container legal">© {{ date('Y') }} Pawora. Mọi quyền được bảo lưu.</div>

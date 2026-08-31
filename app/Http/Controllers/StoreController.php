@@ -95,7 +95,7 @@ class StoreController extends Controller
 
     private function catalogPrice(mixed $value): ?int
     {
-        if ($value === null || $value === '' || !is_numeric($value)) {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
             return null;
         }
 
@@ -118,7 +118,7 @@ class StoreController extends Controller
             ->get();
 
         $reviews = $product->approvedReviews()
-            ->with('user')
+            ->with(['user', 'replier'])
             ->latest()
             ->paginate(6, ['*'], 'reviews_page')
             ->withQueryString();
@@ -134,9 +134,13 @@ class StoreController extends Controller
             $eligibleOrder = $request->user()->orders()
                 ->where('status', 'delivered')
                 ->whereHas('items', fn ($query) => $query->where('product_id', $product->id))
+                ->with(['items' => fn ($query) => $query->where('product_id', $product->id)->with('variant')])
                 ->latest('updated_at')
                 ->first();
         }
+
+        $purchasedVariant = $eligibleOrder?->items->first()?->variant?->name
+            ?? $existingReview?->purchased_variant;
 
         return view('store.product', compact(
             'product',
@@ -145,6 +149,7 @@ class StoreController extends Controller
             'ratingBreakdown',
             'existingReview',
             'eligibleOrder',
+            'purchasedVariant',
         ));
     }
 }

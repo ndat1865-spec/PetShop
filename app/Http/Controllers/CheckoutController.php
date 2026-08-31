@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\AddressDirectory;
+use App\Services\CartService;
 use App\Services\InventoryService;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
@@ -21,7 +22,7 @@ use Illuminate\Support\Str;
 
 class CheckoutController extends Controller
 {
-    public function create(Request $request, CartController $cart)
+    public function create(Request $request, CartService $cart)
     {
         $details = $cart->details();
         if (empty($details['items'])) {
@@ -73,7 +74,7 @@ class CheckoutController extends Controller
         return response()->json(['wards' => $directory->wards($data['province'])]);
     }
 
-    public function shippingQuote(Request $request, CartController $cart, ShippingCalculator $shipping)
+    public function shippingQuote(Request $request, CartService $cart, ShippingCalculator $shipping)
     {
         $data = $request->validate([
             'province' => ['required', 'string', 'in:'.implode(',', config('pawora.shipping.provinces', []))],
@@ -91,7 +92,7 @@ class CheckoutController extends Controller
         return response()->json([...$quote, 'discount' => $discount, 'total' => $discountedSubtotal + (float) $quote['fee']]);
     }
 
-    public function couponPreview(Request $request, CartController $cart)
+    public function couponPreview(Request $request, CartService $cart)
     {
         $data = $request->validate(['coupon_code' => ['required', 'string', 'max:30']]);
         $details = $cart->details();
@@ -106,7 +107,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, CartService $cart)
     {
         abort_unless($request->user(), 401);
         $data = $request->validate([
@@ -140,18 +141,26 @@ class CheckoutController extends Controller
         if ($data['payment_method'] === 'bank_transfer' && ! app(SepayGateway::class)->enabled()) {
             return back()->withInput()->withErrors(['payment_method' => 'SePay chưa được cấu hình thông tin tài khoản nhận tiền.']);
         }
-        $raw = session('cart', []);
-        abort_if(empty($raw), 422, 'Giỏ hàng đang trống.');
-        $order = DB::transaction(function () use ($raw, $data, $request) {
-            $products = Product::whereIn('id', array_keys($raw))->lockForUpdate()->get();
+        $cartLines = $cart->lines();
+        abort_if(empty($cartLines), 422, 'Giỏ hàng đang trống.');
+        $order = DB::transaction(function () use ($cartLines, $data, $request) {
+            $productIds = collect($cartLines)->pluck('product_id')->unique()->values();
+            $variantIds = collect($cartLines)->pluck('variant_id')->filter()->unique()->values();
+            $products = Product::whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
+            $variants = ProductVariant::whereIn('id', $variantIds)
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
             $subtotal = 0;
-            $lines = [];
-            foreach ($products as $product) {
-                $entry = $raw[$product->id];
-                $qty = is_array($entry) ? (int) ($entry['quantity'] ?? 0) : (int) $entry;
-                $variant = is_array($entry) && ! empty($entry['variant_id'])
-                    ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->lockForUpdate()->find($entry['variant_id'])
-                    : null;
+            $orderLines = [];
+            foreach ($cartLines as $entry) {
+                $product = $products->get((int) $entry['product_id']);
+                abort_unless($product, 422, 'Một sản phẩm trong giỏ không còn tồn tại.');
+                $qty = (int) $entry['quantity'];
+                abort_if($qty < 1, 422, 'Số lượng sản phẩm không hợp lệ.');
+                $variant = $entry['variant_id'] ? $variants->get((int) $entry['variant_id']) : null;
+                abort_if($entry['variant_id'] && (! $variant || (int) $variant->product_id !== (int) $product->id), 422, 'Một biến thể trong giỏ không còn khả dụng.');
                 $available = $variant?->stock ?? $product->stock;
                 if ($product->status !== 'active' || $available < $qty) {
                     abort(422, "{$product->name} không còn đủ số lượng.");
@@ -159,7 +168,7 @@ class CheckoutController extends Controller
                 $unitPrice = (float) ($variant?->price ?? $product->price);
                 $line = $unitPrice * $qty;
                 $subtotal += $line;
-                $lines[] = [$product, $variant, $qty, $unitPrice, $line];
+                $orderLines[] = [$product, $variant, $qty, $unitPrice, $line];
             }
             $coupon = null;
             $discount = 0;
@@ -173,7 +182,7 @@ class CheckoutController extends Controller
             $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
             $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
             $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
-            foreach ($lines as [$product, $variant, $qty, $unitPrice, $line]) {
+            foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
                 $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
                 app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
             }

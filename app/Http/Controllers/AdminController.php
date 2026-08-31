@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AdminAuditLog;
 use App\Models\Category;
-use App\Models\ContactMessage;
 use App\Models\ChatConversation;
+use App\Models\ContactMessage;
 use App\Models\Coupon;
 use App\Models\InventoryAdjustment;
 use App\Models\Order;
@@ -25,6 +25,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -116,8 +117,8 @@ class AdminController extends Controller
             'lowStockProducts' => Product::with('category')->where('stock', '<=', $lowStockThreshold)->orderBy('stock')->take(8)->get(),
             'pendingPayments' => PaymentTransaction::with('order')->where('status', 'pending')->latest()->take(6)->get(),
             'returnRequests' => ReturnRequest::with('order', 'user')->where('status', 'requested')->latest()->take(6)->get(),
-            'pendingReviewCount' => ProductReview::where('status', 'pending')->count(),
-            'pendingReviews' => ProductReview::with(['user', 'product'])->where('status', 'pending')->latest()->take(4)->get(),
+            'unansweredReviewCount' => ProductReview::approved()->whereNull('shop_reply')->count(),
+            'unansweredReviews' => ProductReview::with(['user', 'product'])->approved()->whereNull('shop_reply')->latest()->take(4)->get(),
             'newContactCount' => ContactMessage::where('status', 'new')->count(),
             'newContacts' => ContactMessage::where('status', 'new')->latest()->take(4)->get(),
             'unreadChatCount' => ChatConversation::where('admin_unread_count', '>', 0)->count(),
@@ -190,7 +191,7 @@ class AdminController extends Controller
 
     public function storeProduct(Request $request, InventoryService $inventory, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['name' => 'required|max:150', 'category_id' => 'required|exists:categories,id', 'sku' => 'required|max:50|unique:products', 'price' => 'required|numeric|min:0', 'compare_price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'short_description' => 'required|max:500', 'description' => 'nullable|string', 'image' => 'nullable|string|max:1000', 'pet_type' => 'required|in:dog,cat,all', 'status' => 'nullable|in:active,draft,archived', 'is_featured' => 'nullable|boolean']);
+        $data = $this->validatedProductData($request);
         $product = Product::create([...$data, 'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)), 'status' => $data['status'] ?? 'active', 'is_featured' => $request->boolean('is_featured')]);
         if ((int) $product->stock > 0) {
             $inventory->record($product, null, $request->user(), 'initial_stock', 0, (int) $product->stock, 'Tồn đầu khi tạo sản phẩm');
@@ -207,8 +208,9 @@ class AdminController extends Controller
 
     public function updateProduct(Request $request, Product $product, InventoryService $inventory, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['name' => 'required|max:150', 'category_id' => 'required|exists:categories,id', 'sku' => ['required', 'max:50', Rule::unique('products')->ignore($product)], 'price' => 'required|numeric|min:0', 'compare_price' => 'nullable|numeric|min:0', 'stock' => 'required|integer|min:0', 'stock_reason' => 'nullable|string|min:5|max:255', 'short_description' => 'required|max:500', 'description' => 'nullable|string', 'image' => 'nullable|string|max:1000', 'pet_type' => 'required|in:dog,cat,all', 'status' => 'required|in:active,draft,archived', 'is_featured' => 'nullable|boolean']);
-        $before = $product->only(['name', 'sku', 'price', 'compare_price', 'stock', 'status', 'is_featured']);
+        $data = $this->validatedProductData($request, $product);
+        $auditFields = ['name', 'sku', 'price', 'compare_price', 'stock', 'status', 'is_featured', 'short_description', 'description', 'detail_heading', 'highlights', 'specifications', 'care_instructions', 'size_guide', 'content_image'];
+        $before = $product->only($auditFields);
         if ((int) $data['stock'] !== (int) $product->stock) {
             if (blank($data['stock_reason'] ?? null)) {
                 throw ValidationException::withMessages(['stock_reason' => 'Vui lòng nhập lý do khi thay đổi tồn kho.']);
@@ -217,7 +219,7 @@ class AdminController extends Controller
         }
         unset($data['stock_reason'], $data['stock']);
         $product->update([...$data, 'is_featured' => $request->boolean('is_featured')]);
-        $audit->record($request, 'product.updated', 'Cập nhật sản phẩm', $product, $before, $product->fresh()->only(['name', 'sku', 'price', 'compare_price', 'stock', 'status', 'is_featured']));
+        $audit->record($request, 'product.updated', 'Cập nhật sản phẩm', $product, $before, $product->fresh()->only($auditFields));
 
         return back()->with('success', 'Đã cập nhật sản phẩm.');
     }
@@ -764,6 +766,89 @@ class AdminController extends Controller
         if ($product->variants()->exists()) {
             $product->update(['stock' => $product->variants()->where('is_active', true)->sum('stock')]);
         }
+    }
+
+    private function validatedProductData(Request $request, ?Product $product = null): array
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:150'],
+            'category_id' => ['required', 'exists:categories,id'],
+            'sku' => ['required', 'string', 'max:50', $product ? Rule::unique('products')->ignore($product) : Rule::unique('products')],
+            'price' => ['required', 'numeric', 'min:0'],
+            'compare_price' => ['nullable', 'numeric', 'min:0'],
+            'stock' => ['required', 'integer', 'min:0'],
+            'stock_reason' => ['nullable', 'string', 'min:5', 'max:255'],
+            'short_description' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:10000'],
+            'detail_heading' => ['nullable', 'string', 'max:160'],
+            'highlights' => ['nullable', 'array', 'max:5'],
+            'highlights.*' => ['nullable', 'string', 'max:200'],
+            'specifications' => ['nullable', 'array', 'max:20'],
+            'specifications.*.label' => ['nullable', 'string', 'max:100'],
+            'specifications.*.value' => ['nullable', 'string', 'max:500'],
+            'care_instructions' => ['nullable', 'string', 'max:3000'],
+            'size_guide' => ['nullable', 'array', 'max:20'],
+            'size_guide.*.size' => ['nullable', 'string', 'max:100'],
+            'size_guide.*.guidance' => ['nullable', 'string', 'max:500'],
+            'image' => ['nullable', 'string', 'max:1000'],
+            'content_image' => ['nullable', 'string', 'max:1000'],
+            'pet_type' => ['required', Rule::in(['dog', 'cat', 'all'])],
+            'status' => [$product ? 'required' : 'nullable', Rule::in(['active', 'draft', 'archived'])],
+            'is_featured' => ['nullable', 'boolean'],
+        ], [
+            'highlights.max' => 'Chỉ được nhập tối đa 5 điểm nổi bật.',
+            'specifications.max' => 'Chỉ được nhập tối đa 20 thông số.',
+            'size_guide.max' => 'Chỉ được nhập tối đa 20 dòng kích thước.',
+        ]);
+
+        $validator->after(function ($validator) use ($request) {
+            $this->validateCompletePairs($validator, $request->input('specifications', []), 'specifications', 'label', 'value', 'thông số');
+            $this->validateCompletePairs($validator, $request->input('size_guide', []), 'size_guide', 'size', 'guidance', 'kích thước');
+
+            $contentImage = trim((string) $request->input('content_image'));
+            if ($contentImage !== '' && ! preg_match('~^(https?://|/)~i', $contentImage)) {
+                $validator->errors()->add('content_image', 'Ảnh nội dung phải là URL http(s) hoặc đường dẫn bắt đầu bằng /.');
+            }
+        });
+
+        $data = $validator->validate();
+        $data['short_description'] = trim($data['short_description']);
+        foreach (['description', 'detail_heading', 'care_instructions', 'content_image'] as $field) {
+            $data[$field] = filled($data[$field] ?? null) ? trim($data[$field]) : null;
+        }
+        $data['highlights'] = collect($data['highlights'] ?? [])->map(fn ($value) => trim((string) $value))->filter()->values()->all() ?: null;
+        $data['specifications'] = $this->cleanPairs($data['specifications'] ?? [], 'label', 'value');
+        $data['size_guide'] = $this->cleanPairs($data['size_guide'] ?? [], 'size', 'guidance');
+
+        return $data;
+    }
+
+    private function validateCompletePairs($validator, mixed $rows, string $field, string $leftKey, string $rightKey, string $label): void
+    {
+        if (! is_array($rows)) {
+            return;
+        }
+
+        foreach ($rows as $index => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $left = trim((string) ($row[$leftKey] ?? ''));
+            $right = trim((string) ($row[$rightKey] ?? ''));
+            if (($left === '') xor ($right === '')) {
+                $validator->errors()->add("{$field}.{$index}.{$leftKey}", "Mỗi dòng {$label} cần nhập đủ hai trường.");
+            }
+        }
+    }
+
+    private function cleanPairs(array $rows, string $leftKey, string $rightKey): ?array
+    {
+        $clean = collect($rows)->map(fn ($row) => [
+            $leftKey => trim((string) ($row[$leftKey] ?? '')),
+            $rightKey => trim((string) ($row[$rightKey] ?? '')),
+        ])->filter(fn ($row) => $row[$leftKey] !== '' && $row[$rightKey] !== '')->values()->all();
+
+        return $clean ?: null;
     }
 
     private function restoreStock(Order $order, ?User $actor = null): void

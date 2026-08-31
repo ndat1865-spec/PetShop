@@ -23,7 +23,13 @@
 
             <div class="member-purchase-list">
                 @forelse($orders as $order)
-                    @php($shipment = $order->shipments->sortByDesc('created_at')->first())
+                    @php
+                        $shipment = $order->shipments->sortByDesc('created_at')->first();
+                        $reviewableItems = $order->items
+                            ->filter(fn ($item) => $item->product && $item->product->status === 'active')
+                            ->unique('product_id')
+                            ->values();
+                    @endphp
                     <article class="member-purchase-card">
                         <header>
                             <div><small>Đặt ngày {{ $order->created_at->format('d/m/Y') }}</small><h2>{{ $order->number }}</h2></div>
@@ -47,7 +53,29 @@
                             @if($order->canBeCancelledByCustomer())
                                 <details class="member-cancel-order"><summary>Huỷ đơn</summary><form method="post" action="{{ route('account.orders.cancel', $order) }}">@csrf @method('PATCH')<label>Chọn lý do<select name="reason" required><option value="">Chọn lý do huỷ</option><option value="ordered_by_mistake">Đặt nhầm sản phẩm</option><option value="change_address">Muốn thay đổi địa chỉ</option><option value="change_payment">Muốn đổi phương thức thanh toán</option><option value="no_longer_needed">Không còn nhu cầu</option><option value="other">Lý do khác</option></select></label><button type="submit">Xác nhận huỷ đơn</button></form></details>
                             @endif
-                            <a href="{{ route('account.orders.show', $order) }}">Xem chi tiết <span aria-hidden="true">›</span></a>
+                            @if($order->canUsePostPurchaseActions())
+                                <div class="member-post-purchase-actions" role="group" aria-label="Thao tác sau mua cho đơn {{ $order->number }}">
+                                    @if($reviewableItems->count() === 1)
+                                        <a class="member-order-action member-order-action--primary" href="{{ route('products.show', $reviewableItems->first()->product->slug) }}#danh-gia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>Đánh giá</a>
+                                    @elseif($reviewableItems->count() > 1)
+                                        <details class="member-review-picker">
+                                            <summary class="member-order-action member-order-action--primary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>Đánh giá <svg class="member-order-action__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></summary>
+                                            <div class="member-review-options" role="group" aria-label="Chọn sản phẩm để đánh giá">
+                                                <strong>Chọn sản phẩm</strong>
+                                                @foreach($reviewableItems as $item)
+                                                    <a href="{{ route('products.show', $item->product->slug) }}#danh-gia"><span>{{ $item->product_name }}</span><small>{{ $item->sku }}</small></a>
+                                                @endforeach
+                                            </div>
+                                        </details>
+                                    @endif
+                                    <a class="member-order-action" href="{{ route('contact', ['order' => $order->number]) }}#contact-form-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>Liên hệ shop</a>
+                                    <form method="post" action="{{ route('account.orders.reorder', $order) }}" data-submit-form>
+                                        @csrf
+                                        <button class="member-order-action" type="submit" data-submit-button data-loading-label="Đang thêm…"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6"/></svg>Mua lại</button>
+                                    </form>
+                                </div>
+                            @endif
+                            <a class="member-order-detail-link" href="{{ route('account.orders.show', $order) }}">Xem chi tiết <span aria-hidden="true">›</span></a>
                         </footer>
                     </article>
                 @empty

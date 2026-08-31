@@ -204,9 +204,56 @@
             <div><span>Phí giao hàng</span><strong data-shipping-fee>Chưa tính</strong></div>
             <div class="summary-total"><span>Tổng thanh toán</span><strong data-order-total>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</strong></div>
         </div>
-        <label class="check-row checkout-terms"><input type="checkbox" name="terms" value="1" required><span>Tôi đồng ý với điều khoản mua hàng và chính sách bảo mật.</span></label>
+        <div class="check-row checkout-terms">
+            <input id="checkout-terms" type="checkbox" name="terms" value="1" required>
+            <p><label for="checkout-terms">Tôi đồng ý với</label> <a href="{{ route('legal.terms') }}" target="_blank" rel="noopener">điều khoản mua hàng</a> và <a href="{{ route('legal.privacy') }}" target="_blank" rel="noopener">chính sách bảo mật</a>.</p>
+        </div>
         <button class="button primary wide checkout-submit" data-submit-button>Xác nhận đặt hàng</button>
         <p class="checkout-security">Thanh toán an toàn. Thông tin đơn hàng được bảo mật.</p>
     </aside>
+
+    <dialog class="checkout-review-dialog" aria-labelledby="checkout-review-title" aria-describedby="checkout-review-description" data-checkout-review-dialog>
+        <div class="checkout-review-dialog__shell">
+            <header class="checkout-review-dialog__header">
+                <div><p class="eyebrow">Bước cuối</p><h2 id="checkout-review-title">Kiểm tra lại đơn hàng</h2><p id="checkout-review-description">Đối chiếu thông tin trước khi Pawora tạo đơn.</p></div>
+                <button type="button" class="checkout-review-dialog__close" aria-label="Đóng bước kiểm tra đơn hàng" data-checkout-review-close>×</button>
+            </header>
+            <div class="checkout-review-dialog__body">
+                <section aria-labelledby="review-recipient-title">
+                    <h3 id="review-recipient-title">Người nhận</h3>
+                    <dl class="checkout-review-facts">
+                        <div><dt>Liên hệ</dt><dd data-review-contact>—</dd></div>
+                        <div><dt>Địa chỉ</dt><dd data-review-address>—</dd></div>
+                        <div><dt>Thanh toán</dt><dd data-review-payment>—</dd></div>
+                    </dl>
+                </section>
+                <section aria-labelledby="review-products-title">
+                    <div class="checkout-review-section-head"><h3 id="review-products-title">Sản phẩm</h3><span>{{ $cart['count'] }} sản phẩm</span></div>
+                    <div class="checkout-review-products">
+                        @foreach($cart['items'] as $item)
+                            <article>
+                                <img src="{{ $item['product']->image }}" alt="" width="52" height="52">
+                                <div><strong>{{ $item['product']->name }}</strong><span>@if($item['variant']){{ $item['variant']->name }} · @endif SL {{ $item['qty'] }}</span></div>
+                                <b>{{ number_format($item['line'], 0, ',', '.') }}đ</b>
+                            </article>
+                        @endforeach
+                    </div>
+                </section>
+                <section aria-labelledby="review-cost-title">
+                    <h3 id="review-cost-title">Thanh toán</h3>
+                    <dl class="checkout-review-totals">
+                        <div><dt>Tạm tính</dt><dd>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</dd></div>
+                        <div><dt>Mã giảm giá</dt><dd data-review-discount>0đ</dd></div>
+                        <div><dt>Phí giao hàng</dt><dd data-review-shipping>Chưa tính</dd></div>
+                        <div><dt>Tổng thanh toán</dt><dd data-review-total>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</dd></div>
+                    </dl>
+                </section>
+            </div>
+            <footer class="checkout-review-dialog__footer">
+                <button class="button secondary" type="button" data-checkout-review-edit>Quay lại chỉnh sửa</button>
+                <button class="button primary" type="button" data-checkout-review-confirm>Xác nhận và tạo đơn</button>
+            </footer>
+        </div>
+    </dialog>
 </form>
 @endsection

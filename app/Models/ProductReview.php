@@ -7,13 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductReview extends Model
 {
-    public const STATUSES = ['pending', 'approved', 'rejected', 'hidden'];
+    public const STATUSES = ['approved', 'hidden'];
 
     public const STATUS_LABELS = [
-        'pending' => 'Chờ duyệt',
-        'approved' => 'Đã duyệt',
-        'rejected' => 'Từ chối',
+        'approved' => 'Đang hiển thị',
         'hidden' => 'Đã ẩn',
+    ];
+
+    public const FITS = ['small', 'true_to_size', 'large'];
+
+    public const FIT_LABELS = [
+        'small' => 'Hơi chật',
+        'true_to_size' => 'Vừa vặn',
+        'large' => 'Hơi rộng',
     ];
 
     protected $fillable = [
@@ -21,16 +27,24 @@ class ProductReview extends Model
         'user_id',
         'order_id',
         'rating',
+        'fit',
+        'pet_weight',
+        'purchased_variant',
         'title',
         'comment',
         'status',
         'admin_note',
+        'shop_reply',
+        'replied_by',
+        'replied_at',
         'moderated_by',
         'moderated_at',
     ];
 
     protected $casts = [
         'rating' => 'integer',
+        'pet_weight' => 'decimal:2',
+        'replied_at' => 'datetime',
         'moderated_at' => 'datetime',
     ];
 
@@ -60,6 +74,11 @@ class ProductReview extends Model
         return $this->belongsTo(User::class, 'moderated_by');
     }
 
+    public function replier()
+    {
+        return $this->belongsTo(User::class, 'replied_by');
+    }
+
     public function scopeApproved(Builder $query): Builder
     {
         return $query->where('status', 'approved');
@@ -68,6 +87,11 @@ class ProductReview extends Model
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    public function fitLabel(): ?string
+    {
+        return self::FIT_LABELS[$this->fit] ?? null;
     }
 
     private function syncProductSummary(): void

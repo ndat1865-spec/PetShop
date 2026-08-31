@@ -9,6 +9,7 @@ use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
+use App\Services\CartService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -205,6 +206,195 @@ class CommerceTest extends TestCase
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock' => 1]);
     }
 
+    public function test_cart_keeps_multiple_variants_of_the_same_product_as_independent_lines(): void
+    {
+        $product = $this->product(10);
+        $orange = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Cam · Nhỏ',
+            'sku' => 'PAW-T01-ORANGE-S',
+            'color' => 'Cam',
+            'size' => 'Nhỏ',
+            'price' => 210000,
+            'stock' => 5,
+            'is_active' => true,
+        ]);
+        $blue = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Xanh · Lớn',
+            'sku' => 'PAW-T01-BLUE-L',
+            'color' => 'Xanh',
+            'size' => 'Lớn',
+            'price' => 260000,
+            'stock' => 4,
+            'is_active' => true,
+        ]);
+
+        $this->postJson(route('cart.store', $product), ['variant_id' => $orange->id, 'quantity' => 1])
+            ->assertOk()
+            ->assertJson(['cart_count' => 1]);
+
+        $this->postJson(route('cart.store', $product), ['variant_id' => $blue->id, 'quantity' => 1])
+            ->assertOk()
+            ->assertJson(['cart_count' => 2]);
+
+        $this->postJson(route('cart.store', $product), ['variant_id' => $orange->id, 'quantity' => 2])
+            ->assertOk()
+            ->assertJson(['cart_count' => 4]);
+
+        $this->get(route('cart.index'))
+            ->assertOk()
+            ->assertSee('Cam · Nhỏ')
+            ->assertSee('Xanh · Lớn')
+            ->assertSee('890.000đ');
+    }
+
+    public function test_cart_updates_and_removes_variant_lines_independently(): void
+    {
+        $product = $this->product(10);
+        $orange = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Cam · Nhỏ',
+            'sku' => 'PAW-T01-ORANGE-S',
+            'color' => 'Cam',
+            'size' => 'Nhỏ',
+            'price' => 210000,
+            'stock' => 5,
+            'is_active' => true,
+        ]);
+        $blue = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Xanh · Lớn',
+            'sku' => 'PAW-T01-BLUE-L',
+            'color' => 'Xanh',
+            'size' => 'Lớn',
+            'price' => 260000,
+            'stock' => 4,
+            'is_active' => true,
+        ]);
+        $cart = app(CartService::class);
+        $orangeLine = $cart->lineKey((int) $product->id, (int) $orange->id);
+        $blueLine = $cart->lineKey((int) $product->id, (int) $blue->id);
+
+        $this->post(route('cart.store', $product), ['variant_id' => $orange->id, 'quantity' => 1]);
+        $this->post(route('cart.store', $product), ['variant_id' => $blue->id, 'quantity' => 2]);
+
+        $this->patchJson(route('cart.update', ['product' => $product, 'lineKey' => $orangeLine]), ['quantity' => 3])
+            ->assertOk()
+            ->assertJson([
+                'quantity' => 3,
+                'line_total' => 630000,
+                'subtotal' => 1150000,
+                'cart_count' => 5,
+            ]);
+
+        $this->delete(route('cart.destroy', ['product' => $product, 'lineKey' => $blueLine]))
+            ->assertRedirect();
+
+        $this->get(route('cart.index'))
+            ->assertOk()
+            ->assertSee('Cam · Nhỏ')
+            ->assertDontSee('Xanh · Lớn')
+            ->assertSee('630.000đ');
+    }
+
+    public function test_checkout_creates_and_deducts_multiple_variant_lines_of_one_product(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product(10);
+        $orange = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Cam · Nhỏ',
+            'sku' => 'PAW-T01-ORANGE-S',
+            'color' => 'Cam',
+            'size' => 'Nhỏ',
+            'price' => 210000,
+            'stock' => 5,
+            'is_active' => true,
+        ]);
+        $blue = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Xanh · Lớn',
+            'sku' => 'PAW-T01-BLUE-L',
+            'color' => 'Xanh',
+            'size' => 'Lớn',
+            'price' => 260000,
+            'stock' => 4,
+            'is_active' => true,
+        ]);
+        $cart = app(CartService::class);
+        $sessionCart = [
+            $cart->lineKey((int) $product->id, (int) $orange->id) => [
+                'product_id' => $product->id,
+                'variant_id' => $orange->id,
+                'quantity' => 2,
+            ],
+            $cart->lineKey((int) $product->id, (int) $blue->id) => [
+                'product_id' => $product->id,
+                'variant_id' => $blue->id,
+                'quantity' => 1,
+            ],
+        ];
+
+        $this->actingAs($customer)->withSession(['cart' => $sessionCart])->post(route('checkout.store'), [
+            'customer_name' => 'Nguyễn An',
+            'email' => 'variants@example.com',
+            'phone' => '0909000000',
+            'province' => 'Thành phố Hồ Chí Minh',
+            'ward' => 'Phường Sài Gòn',
+            'address_line' => '01 Nguyễn Huệ',
+            'payment_method' => 'cod',
+            'terms' => '1',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('order_items', [
+            'product_variant_id' => $orange->id,
+            'sku' => $orange->sku,
+            'unit_price' => 210000,
+            'quantity' => 2,
+        ]);
+        $this->assertDatabaseHas('order_items', [
+            'product_variant_id' => $blue->id,
+            'sku' => $blue->sku,
+            'unit_price' => 260000,
+            'quantity' => 1,
+        ]);
+        $this->assertDatabaseHas('product_variants', ['id' => $orange->id, 'stock' => 3]);
+        $this->assertDatabaseHas('product_variants', ['id' => $blue->id, 'stock' => 3]);
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 7]);
+    }
+
+    public function test_legacy_cart_session_is_migrated_without_losing_the_selected_variant(): void
+    {
+        $product = $this->product(8);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Cam · Lớn',
+            'sku' => 'PAW-T01-ORANGE-L',
+            'color' => 'Cam',
+            'size' => 'Lớn',
+            'price' => 230000,
+            'stock' => 4,
+            'is_active' => true,
+        ]);
+
+        $this->withSession(['cart' => [
+            $product->id => ['quantity' => 2, 'variant_id' => $variant->id],
+        ]])->get(route('cart.index'))
+            ->assertOk()
+            ->assertSee('Cam · Lớn')
+            ->assertSee('460.000đ');
+
+        $lineKey = app(CartService::class)->lineKey((int) $product->id, (int) $variant->id);
+        $this->assertSame([
+            $lineKey => [
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'quantity' => 2,
+            ],
+        ], session('cart'));
+    }
+
     public function test_catalog_pet_filter_includes_universal_products_and_excludes_the_other_pet(): void
     {
         $dog = $this->product();
@@ -289,7 +479,33 @@ class CommerceTest extends TestCase
             ->assertSee('5.0')
             ->assertSee('1 đánh giá')
             ->assertSee('Chưa có đánh giá')
+            ->assertSee('data-catalog-card', false)
+            ->assertSee('data-catalog-filter-form', false)
             ->assertDontSee('Chọn tùy chọn');
+    }
+
+    public function test_checkout_exposes_public_policies_and_the_final_order_review(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product();
+
+        $this->get(route('legal.terms'))
+            ->assertOk()
+            ->assertSee('Điều khoản mua hàng');
+        $this->get(route('legal.privacy'))
+            ->assertOk()
+            ->assertSee('Chính sách bảo mật');
+
+        $this->actingAs($customer)
+            ->withSession(['cart' => [$product->id => 1]])
+            ->get(route('checkout.create'))
+            ->assertOk()
+            ->assertSee(route('legal.terms'), false)
+            ->assertSee(route('legal.privacy'), false)
+            ->assertSee('data-checkout-review-dialog', false)
+            ->assertSee('data-checkout-review-confirm', false)
+            ->assertSee($product->name)
+            ->assertSee('Kiểm tra lại đơn hàng');
     }
 
     public function test_catalog_validates_price_filters_preserves_query_and_uses_numbered_pagination(): void

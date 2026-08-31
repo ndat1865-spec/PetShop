@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
+use App\Services\CartService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -375,5 +379,117 @@ class OrderWorkflowTest extends TestCase
         $shipment = $newOrder->shipments()->firstOrFail();
         $this->assertMatchesRegularExpression('/^GHN-\d{6}-[A-Z0-9]{6}$/', $shipment->tracking_code);
         $this->assertNotSame('1222', $shipment->tracking_code);
+    }
+
+    public function test_completed_paid_order_exposes_review_shop_contact_and_reorder_actions(): void
+    {
+        $customer = User::factory()->create();
+        $category = Category::create([
+            'name' => 'Đồ chơi',
+            'slug' => 'do-choi-order-actions',
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'name' => 'Đồ chơi phát tiếng Nibble',
+            'slug' => 'do-choi-phat-tieng-nibble',
+            'sku' => 'PAW-REORDER-01',
+            'pet_type' => 'dog',
+            'short_description' => 'Đồ chơi dùng để kiểm thử thao tác sau mua.',
+            'price' => 200000,
+            'stock' => 3,
+            'status' => 'active',
+        ]);
+        $secondProduct = Product::create([
+            'category_id' => $category->id,
+            'name' => 'Bàn cào móng Cloud',
+            'slug' => 'ban-cao-mong-cloud',
+            'sku' => 'PAW-REORDER-02',
+            'pet_type' => 'cat',
+            'short_description' => 'Sản phẩm thứ hai để kiểm thử danh sách chọn đánh giá.',
+            'price' => 150000,
+            'stock' => 0,
+            'status' => 'active',
+        ]);
+        $secondVariant = ProductVariant::create([
+            'product_id' => $secondProduct->id,
+            'name' => 'Xanh dương · Nhỏ',
+            'sku' => 'PAW-REORDER-02-BLUE-S',
+            'color' => 'Xanh dương',
+            'size' => 'Nhỏ',
+            'price' => 150000,
+            'stock' => 2,
+            'is_active' => true,
+        ]);
+        $order = $this->order($customer, [
+            'number' => 'PAW-COMPLETED-ACTIONS',
+            'status' => 'delivered',
+            'payment_status' => 'paid',
+            'paid_at' => now(),
+        ]);
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'sku' => $product->sku,
+            'unit_price' => 200000,
+            'quantity' => 2,
+            'line_total' => 400000,
+        ]);
+        $order->items()->create([
+            'product_id' => $secondProduct->id,
+            'product_variant_id' => $secondVariant->id,
+            'product_name' => $secondProduct->name,
+            'sku' => $secondProduct->sku,
+            'unit_price' => 150000,
+            'quantity' => 1,
+            'line_total' => 150000,
+        ]);
+
+        $this->actingAs($customer)->get(route('account.orders.index'))
+            ->assertOk()
+            ->assertSee('Đánh giá')
+            ->assertSee('Chọn sản phẩm')
+            ->assertSee($secondProduct->name)
+            ->assertSee('Liên hệ shop')
+            ->assertSee('Mua lại')
+            ->assertSee(route('products.show', $product->slug).'#danh-gia', false)
+            ->assertSee(route('contact', ['order' => $order->number]).'#contact-form-title', false);
+
+        $lineKey = app(CartService::class)->lineKey((int) $product->id, null);
+        $secondLineKey = app(CartService::class)->lineKey((int) $secondProduct->id, (int) $secondVariant->id);
+        $this->actingAs($customer)
+            ->withSession(['cart' => [
+                $lineKey => ['product_id' => $product->id, 'variant_id' => null, 'quantity' => 1],
+            ]])
+            ->post(route('account.orders.reorder', $order))
+            ->assertRedirect(route('cart.index'))
+            ->assertSessionHas('success');
+
+        $this->assertSame([
+            $lineKey => ['product_id' => $product->id, 'variant_id' => null, 'quantity' => 3],
+            $secondLineKey => ['product_id' => $secondProduct->id, 'variant_id' => $secondVariant->id, 'quantity' => 1],
+        ], session('cart'));
+
+        $this->actingAs($customer)->get(route('contact', ['order' => $order->number]))
+            ->assertOk()
+            ->assertSee('value="'.$order->number.'"', false)
+            ->assertSee('value="order" selected', false);
+    }
+
+    public function test_post_purchase_actions_are_rejected_until_order_is_delivered_and_paid(): void
+    {
+        $customer = User::factory()->create();
+        $otherCustomer = User::factory()->create();
+        $order = $this->order($customer, [
+            'status' => 'processing',
+            'payment_status' => 'paid',
+        ]);
+
+        $this->actingAs($customer)->get(route('account.orders.index'))
+            ->assertOk()
+            ->assertDontSee('Liên hệ shop')
+            ->assertDontSee('Mua lại');
+        $this->actingAs($customer)->post(route('account.orders.reorder', $order))->assertStatus(422);
+        $this->actingAs($otherCustomer)->post(route('account.orders.reorder', $order))->assertForbidden();
     }
 }

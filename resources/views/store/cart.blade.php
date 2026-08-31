@@ -21,7 +21,7 @@
                 <div class="cart-list-heading"><h2>Sản phẩm đã chọn</h2><span><b data-cart-items-count>{{ $cart['count'] }}</b> món</span></div>
                 <div class="cart-items">
                     @foreach($cart['items'] as $item)
-                        <article class="cart-item cart-item--refined" data-cart-item="{{ $item['product']->id }}">
+                        <article class="cart-item cart-item--refined" data-cart-item="{{ $item['lineKey'] }}">
                             <a class="cart-item__image" href="{{ route('products.show', $item['product']->slug) }}">
                                 <img src="{{ $item['product']->image }}" alt="{{ $item['product']->name }}" width="180" height="180">
                             </a>
@@ -30,12 +30,12 @@
                                 <h3><a href="{{ route('products.show', $item['product']->slug) }}">{{ $item['product']->name }}</a></h3>
                                 @if($item['variant'])<p class="cart-variant"><span>{{ $item['variant']->name }}</span><small>{{ $item['variant']->sku }}</small></p>@endif
                                 <p class="cart-unit-price">{{ number_format($item['unitPrice'], 0, ',', '.') }}đ <span>/ sản phẩm</span></p>
-                                <form class="quantity-form cart-quantity-form" action="{{ route('cart.update', $item['product']) }}" method="post" data-cart-quantity-form data-unit-price="{{ $item['unitPrice'] }}">
+                                <form class="quantity-form cart-quantity-form" action="{{ route('cart.update', ['product' => $item['product'], 'lineKey' => $item['lineKey']]) }}" method="post" data-cart-quantity-form data-unit-price="{{ $item['unitPrice'] }}">
                                     @csrf @method('patch')
-                                    <label for="qty-{{ $item['product']->id }}">Số lượng</label>
+                                    <label for="qty-{{ str_replace(':', '-', $item['lineKey']) }}">Số lượng</label>
                                     <div class="cart-quantity-control">
                                         <button type="button" data-cart-qty-minus aria-label="Giảm số lượng {{ $item['product']->name }}">−</button>
-                                        <input id="qty-{{ $item['product']->id }}" name="quantity" type="number" value="{{ $item['qty'] }}" min="1" max="{{ min(20, $item['variant']?->stock ?? $item['product']->stock) }}" inputmode="numeric">
+                                        <input id="qty-{{ str_replace(':', '-', $item['lineKey']) }}" name="quantity" type="number" value="{{ $item['qty'] }}" min="1" max="{{ min(20, $item['variant']?->stock ?? $item['product']->stock) }}" inputmode="numeric">
                                         <button type="button" data-cart-qty-plus aria-label="Tăng số lượng {{ $item['product']->name }}">+</button>
                                     </div>
                                     <button class="sr-only" data-cart-quantity-submit>Cập nhật số lượng</button>
@@ -43,7 +43,7 @@
                             </div>
                             <div class="cart-item__aside">
                                 <strong data-cart-line-total>{{ number_format($item['line'], 0, ',', '.') }}đ</strong>
-                                <form action="{{ route('cart.destroy', $item['product']) }}" method="post">@csrf @method('delete')
+                                <form action="{{ route('cart.destroy', ['product' => $item['product'], 'lineKey' => $item['lineKey']]) }}" method="post">@csrf @method('delete')
                                     <button class="cart-remove" aria-label="Xóa {{ $item['product']->name }} khỏi giỏ hàng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>Xóa</button>
                                 </form>
                             </div>
