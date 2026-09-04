@@ -1,0 +1,16 @@
+No,Filename,Width,Height,AspectRatio,PixelAspectRatio,SourceDisplayRatio,RatioSource,Format,HasTransparentPixels,UsageCount,DisplayRatioVariants,AssetKind,SvgRenderable,PptxNativeSupported,SizeKB,Category
+1,admin-1440.png,1440,900,1.60,1.60,,native,PNG,False,1,,bitmap,True,True,144.3,Wide landscape
+2,admin-390-fixed.png,390,900,0.43,0.43,,native,PNG,False,1,,bitmap,True,True,28.2,Portrait
+3,cart-mobile.png,390,844,0.46,0.46,,native,PNG,False,1,,bitmap,True,True,60.6,Portrait
+4,catalog-mobile-products.png,390,844,0.46,0.46,,native,PNG,False,1,,bitmap,True,True,121.3,Portrait
+5,checkout-mobile.png,390,844,0.46,0.46,,native,PNG,False,1,,bitmap,True,True,41.3,Portrait
+6,checkout-tablet.png,1024,900,1.14,1.14,,native,PNG,False,1,,bitmap,True,True,111.6,Near square
+7,home-desktop-fold2.png,1440,900,1.60,1.60,,native,PNG,False,1,,bitmap,True,True,282.9,Wide landscape
+8,home-mobile-hero.png,390,844,0.46,0.46,,native,PNG,False,1,,bitmap,True,True,303.6,Portrait
+9,pawora-care-dog-poster.webp,1600,844,1.90,1.90,,native,WEBP,False,1,,bitmap,True,True,53.3,Wide landscape
+10,pawora-p-logo.png,1254,1254,1.00,1.00,,native,PNG,False,1,,bitmap,True,True,853.5,Near square
+11,pawora-product-0001.png,1254,1254,1.00,1.00,,native,PNG,False,1,,bitmap,True,True,1447.6,Near square
+12,pawora-product-0002.png,1254,1254,1.00,1.00,,native,PNG,False,1,,bitmap,True,True,1121.3,Near square
+13,pawora-product-0003.png,1254,1254,1.00,1.00,,native,PNG,False,1,,bitmap,True,True,1740.9,Near square
+14,pawora-product-0008.png,1254,1254,1.00,1.00,,native,PNG,False,1,,bitmap,True,True,1410.7,Near square
+15,product-mobile-buy.png,390,844,0.46,0.46,,native,PNG,False,1,,bitmap,True,True,46.8,Portrait

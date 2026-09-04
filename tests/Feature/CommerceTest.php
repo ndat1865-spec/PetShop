@@ -556,6 +556,60 @@ class CommerceTest extends TestCase
             ->assertSee('home-bento', false);
     }
 
+    public function test_bestsellers_ignore_cancelled_and_unpaid_orders(): void
+    {
+        $paidProduct = $this->product();
+        $unpaidProduct = Product::create([
+            'category_id' => $paidProduct->category_id,
+            'name' => 'Sản phẩm chưa thu tiền',
+            'slug' => 'san-pham-chua-thu-tien',
+            'sku' => 'PAW-UNPAID',
+            'pet_type' => 'dog',
+            'short_description' => 'Không được tính best seller.',
+            'price' => 300000,
+            'stock' => 100,
+            'status' => 'active',
+        ]);
+
+        $paidOrder = Order::create([
+            'number' => 'PAW-BEST-PAID',
+            'public_token' => (string) Str::uuid(),
+            'customer_name' => 'Khách đã thanh toán',
+            'email' => 'paid@example.com',
+            'phone' => '0909000001',
+            'shipping_address' => 'TP.HCM',
+            'subtotal' => 200000,
+            'total' => 200000,
+            'payment_method' => 'cod',
+            'payment_status' => 'paid',
+            'status' => 'delivered',
+        ]);
+        $paidOrder->items()->create(['product_id' => $paidProduct->id, 'product_name' => $paidProduct->name, 'sku' => $paidProduct->sku, 'unit_price' => 200000, 'quantity' => 2, 'line_total' => 400000]);
+
+        foreach ([['PAW-BEST-UNPAID', 'unpaid', 'pending'], ['PAW-BEST-CANCELLED', 'paid', 'cancelled']] as [$number, $paymentStatus, $status]) {
+            $order = Order::create([
+                'number' => $number,
+                'public_token' => (string) Str::uuid(),
+                'customer_name' => 'Đơn không hợp lệ',
+                'email' => strtolower($number).'@example.com',
+                'phone' => '0909000002',
+                'shipping_address' => 'TP.HCM',
+                'subtotal' => 15000000,
+                'total' => 15000000,
+                'payment_method' => 'cod',
+                'payment_status' => $paymentStatus,
+                'status' => $status,
+            ]);
+            $order->items()->create(['product_id' => $unpaidProduct->id, 'product_name' => $unpaidProduct->name, 'sku' => $unpaidProduct->sku, 'unit_price' => 300000, 'quantity' => 50, 'line_total' => 15000000]);
+        }
+
+        $bestSellers = $this->get(route('home'))->assertOk()->viewData('bestSellers');
+
+        $this->assertSame($paidProduct->id, $bestSellers->first()->id);
+        $this->assertSame(2, (int) $bestSellers->first()->sold_count);
+        $this->assertSame(0, (int) $bestSellers->firstWhere('id', $unpaidProduct->id)->sold_count);
+    }
+
     public function test_checkout_creates_order_and_deducts_inventory(): void
     {
         $customer = User::factory()->create();

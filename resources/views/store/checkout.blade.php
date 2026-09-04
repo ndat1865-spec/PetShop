@@ -11,6 +11,7 @@
     data-districts-url="{{ route('address.districts') }}" data-wards-url="{{ route('address.wards') }}"
     data-subtotal="{{ $cart['subtotal'] }}">
     @csrf
+    <input type="hidden" name="idempotency_key" value="{{ $checkoutIdempotencyKey }}">
     <div class="checkout-form">
         <fieldset>
             <legend>Thông tin người nhận</legend>

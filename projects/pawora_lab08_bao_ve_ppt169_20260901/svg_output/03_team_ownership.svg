@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" data-pptx-page-role="content" font-family="Segoe UI, Arial, sans-serif" font-size="28">
+  <rect id="background" data-pptx-role="background" x="0" y="0" width="1280" height="720" fill="#F6F4EF"/>
+  <g id="title" data-pptx-bounds="56 42 1100 82">
+    <text x="56" y="92" font-family="Georgia, Times New Roman, serif" font-size="54" font-weight="700" fill="#111827">Bốn phạm vi rõ; Đạt giữ lõi giao dịch</text>
+  </g>
+  <g id="team-ownership-table" data-pptx-bounds="56 154 1168 442" data-pptx-replace-with="table">
+    <metadata type="application/json"><![CDATA[
+      {"name":"team-ownership-table","x":56,"y":154,"width":1168,"height":442,"strict_grid":true,
+       "column_widths":[250,690,228],"row_heights":[66,94,94,94,94],"header_rows":1,
+       "style":{"font_family":"Segoe UI","font_size":22,"header_font_size":20,"header_fill":"#111827","header_text":"#FFFFFF","body_fill":"#FFFFFF","body_text":"#1D1D1F","band_row":false,"border_color":"#D8D4CC","border_width":1,"padding":{"left":18,"right":18,"top":10,"bottom":10},"valign":"middle"},
+       "columns":[{"text":"THÀNH VIÊN","bold":true},{"text":"PHẠM VI SỞ HỮU","bold":true},{"text":"TRỌNG TÂM","bold":true,"align":"ctr"}],
+       "rows":[
+        [{"text":"Tiến Đạt","bold":true,"color":"#0066CC"},{"text":"Checkout · Payment · Order · Stock · Refund","bold":true},{"text":"Lõi giao dịch","align":"ctr","bold":true,"color":"#0066CC"}],
+        [{"text":"Minh Thu","bold":true},{"text":"Catalog · Product · Review · Cart"},{"text":"Storefront","align":"ctr"}],
+        [{"text":"Bình Minh","bold":true},{"text":"Toàn bộ Admin · Permission · Dashboard · Audit"},{"text":"Vận hành","align":"ctr"}],
+        [{"text":"Mỹ Ngân","bold":true},{"text":"Account · UI · QA · Packaging"},{"text":"Trải nghiệm","align":"ctr"}]]}
+    ]]></metadata>
+    <rect x="56" y="154" width="1168" height="66" fill="#111827"/>
+    <rect x="56" y="220" width="1168" height="94" fill="#E9F3FF"/>
+    <rect x="56" y="314" width="1168" height="94" fill="#FFFFFF"/>
+    <rect x="56" y="408" width="1168" height="94" fill="#EFECE6"/>
+    <rect x="56" y="502" width="1168" height="94" fill="#FFFFFF"/>
+    <rect x="56" y="154" width="1168" height="442" fill="none" stroke="#D8D4CC" stroke-width="1"/>
+    <g stroke="#D8D4CC" stroke-width="1">
+      <line x1="306" y1="154" x2="306" y2="596"/><line x1="996" y1="154" x2="996" y2="596"/>
+      <line x1="56" y1="220" x2="1224" y2="220"/><line x1="56" y1="314" x2="1224" y2="314"/>
+      <line x1="56" y1="408" x2="1224" y2="408"/><line x1="56" y1="502" x2="1224" y2="502"/>
+    </g>
+    <g font-size="20" font-weight="700" fill="#FFFFFF">
+      <text x="78" y="196">THÀNH VIÊN</text><text x="328" y="196">PHẠM VI SỞ HỮU</text><text x="1110" y="196" text-anchor="middle">TRỌNG TÂM</text>
+    </g>
+    <g font-size="22" fill="#1D1D1F">
+      <text x="78" y="276" font-weight="700" fill="#0066CC">Tiến Đạt</text><text x="328" y="276" font-weight="700">Checkout · Payment · Order · Stock · Refund</text><text x="1110" y="276" text-anchor="middle" font-weight="700" fill="#0066CC">Lõi giao dịch</text>
+      <text x="78" y="370" font-weight="700">Minh Thu</text><text x="328" y="370">Catalog · Product · Review · Cart</text><text x="1110" y="370" text-anchor="middle">Storefront</text>
+      <text x="78" y="464" font-weight="700">Bình Minh</text><text x="328" y="464">Toàn bộ Admin · Permission · Dashboard · Audit</text><text x="1110" y="464" text-anchor="middle">Vận hành</text>
+      <text x="78" y="558" font-weight="700">Mỹ Ngân</text><text x="328" y="558">Account · UI · QA · Packaging</text><text x="1110" y="558" text-anchor="middle">Trải nghiệm</text>
+    </g>
+  </g>
+  <g id="ownership-takeaway" data-pptx-bounds="56 624 1030 42">
+    <text x="56" y="654" font-size="24" fill="#111827">Phần rủi ro cao nhất có owner rõ — mọi câu hỏi đều có đường về đúng người.</text>
+  </g>
+  <text id="page-number" data-pptx-role="page-number" x="1224" y="670" text-anchor="end" font-family="Consolas, Courier New, monospace" font-size="16" fill="#667085">03 / 32</text>
+</svg>

@@ -15,7 +15,14 @@ class StoreController extends Controller
         $bestSellers = Product::active()
             ->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])
             ->withReviewSummary()
-            ->withSum('orderItems as sold_count', 'quantity')
+            ->withSum([
+                'orderItems as sold_count' => fn ($query) => $query->whereHas(
+                    'order',
+                    fn ($order) => $order
+                        ->where('status', '!=', 'cancelled')
+                        ->whereIn('payment_status', ['paid', 'refund_pending', 'refunded'])
+                ),
+            ], 'quantity')
             ->orderByDesc('sold_count')
             ->orderByDesc('is_featured')
             ->orderByDesc('approved_rating')

@@ -1,0 +1,315 @@
+{
+  "info": {
+    "_postman_id": "84f53d55-56f8-4f59-98db-859718b11358",
+    "name": "Pawora - Đặt hàng & thanh toán cơ bản",
+    "description": "Luồng Postman tối giản cho localhost: lấy CSRF, đăng nhập khách demo, thêm một biến thể vào giỏ, mở checkout và tạo đơn COD.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Lấy CSRF đăng nhập",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/dang-nhap",
+          "host": ["{{base_url}}"],
+          "path": ["dang-nhap"]
+        },
+        "description": "Mở form đăng nhập để Laravel tạo session cookie và CSRF token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Trang đăng nhập trả về 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const match = pm.response.text().match(/name=\"_token\"[^>]*value=\"([^\"]+)\"/);",
+              "pm.expect(match, 'Không tìm thấy CSRF token').to.not.be.null;",
+              "pm.collectionVariables.set('csrf_token', match[1]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Đăng nhập khách demo",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "email",
+              "value": "{{customer_email}}",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "{{customer_password}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/dang-nhap",
+          "host": ["{{base_url}}"],
+          "path": ["dang-nhap"]
+        },
+        "description": "Đăng nhập bằng tài khoản khách demo. Postman tự giữ laravel_session trong Cookie Jar."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đăng nhập thành công', function () {",
+              "    pm.expect([200, 302]).to.include(pm.response.code);",
+              "});",
+              "",
+              "const match = pm.response.text().match(/name=\"_token\"[^>]*value=\"([^\"]+)\"/);",
+              "pm.expect(match, 'Không tìm thấy CSRF mới sau đăng nhập').to.not.be.null;",
+              "pm.collectionVariables.set('csrf_token', match[1]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Thêm sản phẩm vào giỏ",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "quantity",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "variant_id",
+              "value": "{{variant_id}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/gio-hang/{{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["gio-hang", "{{product_id}}"]
+        },
+        "description": "Thêm 1 sản phẩm demo (product 1, variant 1) vào giỏ session."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Thêm giỏ hàng trả về 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Giỏ có ít nhất 1 sản phẩm', function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json.cart_count).to.be.above(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Mở checkout",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/thanh-toan",
+          "host": ["{{base_url}}"],
+          "path": ["thanh-toan"]
+        },
+        "description": "Mở checkout, kiểm tra giỏ không rỗng và lấy idempotency key."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Trang checkout trả về 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const html = pm.response.text();",
+              "const csrf = html.match(/name=\"_token\"[^>]*value=\"([^\"]+)\"/);",
+              "const key = html.match(/name=\"idempotency_key\"[^>]*value=\"([^\"]+)\"/);",
+              "pm.expect(csrf, 'Không tìm thấy CSRF token').to.not.be.null;",
+              "pm.expect(key, 'Không tìm thấy idempotency key').to.not.be.null;",
+              "pm.collectionVariables.set('csrf_token', csrf[1]);",
+              "pm.collectionVariables.set('idempotency_key', key[1]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Đặt đơn COD",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "customer_name",
+              "value": "Nguyễn An",
+              "type": "text"
+            },
+            {
+              "key": "email",
+              "value": "{{customer_email}}",
+              "type": "text"
+            },
+            {
+              "key": "phone",
+              "value": "0909000002",
+              "type": "text"
+            },
+            {
+              "key": "province",
+              "value": "Thành phố Hà Nội",
+              "type": "text"
+            },
+            {
+              "key": "district",
+              "value": "Quận Bắc Từ Liêm",
+              "type": "text"
+            },
+            {
+              "key": "ward",
+              "value": "Phường Tây Tựu",
+              "type": "text"
+            },
+            {
+              "key": "address_line",
+              "value": "Số 18, ngõ 5 Ngọa Long",
+              "type": "text"
+            },
+            {
+              "key": "note",
+              "value": "Đơn kiểm thử cơ bản bằng Postman",
+              "type": "text"
+            },
+            {
+              "key": "payment_method",
+              "value": "cod",
+              "type": "text"
+            },
+            {
+              "key": "terms",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "idempotency_key",
+              "value": "{{idempotency_key}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/thanh-toan",
+          "host": ["{{base_url}}"],
+          "path": ["thanh-toan"]
+        },
+        "description": "Tạo một đơn hàng thanh toán khi nhận hàng. Postman mặc định đi theo redirect tới trang thành công."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Request đặt hàng thành công', function () {",
+              "    pm.expect([200, 302]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    pm.test('Hiển thị trang đặt hàng thành công', function () {",
+              "        pm.expect(pm.response.text()).to.include('Đặt hàng thành công');",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/PetShopnew/public",
+      "type": "string"
+    },
+    {
+      "key": "customer_email",
+      "value": "khach@pawora.vn",
+      "type": "string"
+    },
+    {
+      "key": "customer_password",
+      "value": "Pawora@2026",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "variant_id",
+      "value": "6",
+      "type": "string"
+    },
+    {
+      "key": "csrf_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idempotency_key",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
