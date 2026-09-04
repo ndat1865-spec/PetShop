@@ -16,9 +16,11 @@ use App\Services\SepayGateway;
 use App\Services\ShippingCalculator;
 use App\Services\VnPayGateway;
 use App\Services\ZaloPayGateway;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
 {
@@ -34,6 +36,11 @@ class CheckoutController extends Controller
             ->latest()
             ->get() ?? collect();
         $savedDefault = $savedAddresses->firstWhere('is_default', true) ?? $savedAddresses->first();
+        $checkoutIdempotencyKey = (string) $request->session()->get('checkout_idempotency_key', '');
+        if (! Str::isUuid($checkoutIdempotencyKey)) {
+            $checkoutIdempotencyKey = (string) Str::uuid();
+            $request->session()->put('checkout_idempotency_key', $checkoutIdempotencyKey);
+        }
 
         return view('store.checkout', [
             'cart' => $details,
@@ -43,6 +50,7 @@ class CheckoutController extends Controller
                 ->get(),
             'provinces' => config('pawora.shipping.provinces', []),
             'savedAddresses' => $savedAddresses,
+            'checkoutIdempotencyKey' => $checkoutIdempotencyKey,
             'defaultAddress' => [
                 'receiver_name' => $savedDefault?->receiver_name ?? $request->user()?->name,
                 'phone' => $savedDefault?->phone ?? $request->user()?->phone,
@@ -125,7 +133,25 @@ class CheckoutController extends Controller
             'coupon_code' => 'nullable|string|max:30',
             'payment_method' => 'required|in:cod,bank_transfer,vnpay,zalopay,momo,onepay',
             'terms' => 'accepted',
+            'idempotency_key' => 'nullable|uuid',
         ]);
+
+        $idempotencyKey = (string) ($data['idempotency_key'] ?? $request->session()->get('checkout_idempotency_key') ?? Str::uuid());
+        $existingOrder = Order::query()
+            ->where('idempotency_key', $idempotencyKey)
+            ->where('user_id', $request->user()->id)
+            ->first();
+        if ($existingOrder) {
+            return $this->idempotentReplayResponse($existingOrder);
+        }
+
+        $sessionKey = (string) $request->session()->get('checkout_idempotency_key', '');
+        if (isset($data['idempotency_key']) && $sessionKey !== '' && ! hash_equals($sessionKey, $idempotencyKey)) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'Phiên checkout đã thay đổi. Vui lòng kiểm tra lại giỏ hàng.',
+            ]);
+        }
+        $request->session()->put('checkout_idempotency_key', $idempotencyKey);
         if ($data['payment_method'] === 'vnpay' && ! app(VnPayGateway::class)->enabled()) {
             return back()->withInput()->withErrors(['payment_method' => 'VNPay chưa được cấu hình trong file .env.']);
         }
@@ -143,58 +169,71 @@ class CheckoutController extends Controller
         }
         $cartLines = $cart->lines();
         abort_if(empty($cartLines), 422, 'Giỏ hàng đang trống.');
-        $order = DB::transaction(function () use ($cartLines, $data, $request) {
-            $productIds = collect($cartLines)->pluck('product_id')->unique()->values();
-            $variantIds = collect($cartLines)->pluck('variant_id')->filter()->unique()->values();
-            $products = Product::whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
-            $variants = ProductVariant::whereIn('id', $variantIds)
-                ->where('is_active', true)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-            $subtotal = 0;
-            $orderLines = [];
-            foreach ($cartLines as $entry) {
-                $product = $products->get((int) $entry['product_id']);
-                abort_unless($product, 422, 'Một sản phẩm trong giỏ không còn tồn tại.');
-                $qty = (int) $entry['quantity'];
-                abort_if($qty < 1, 422, 'Số lượng sản phẩm không hợp lệ.');
-                $variant = $entry['variant_id'] ? $variants->get((int) $entry['variant_id']) : null;
-                abort_if($entry['variant_id'] && (! $variant || (int) $variant->product_id !== (int) $product->id), 422, 'Một biến thể trong giỏ không còn khả dụng.');
-                $available = $variant?->stock ?? $product->stock;
-                if ($product->status !== 'active' || $available < $qty) {
-                    abort(422, "{$product->name} không còn đủ số lượng.");
+        try {
+            $order = DB::transaction(function () use ($cartLines, $data, $request, $idempotencyKey) {
+                $productIds = collect($cartLines)->pluck('product_id')->unique()->values();
+                $variantIds = collect($cartLines)->pluck('variant_id')->filter()->unique()->values();
+                $products = Product::whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
+                $variants = ProductVariant::whereIn('id', $variantIds)
+                    ->where('is_active', true)
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+                $subtotal = 0;
+                $orderLines = [];
+                foreach ($cartLines as $entry) {
+                    $product = $products->get((int) $entry['product_id']);
+                    abort_unless($product, 422, 'Một sản phẩm trong giỏ không còn tồn tại.');
+                    $qty = (int) $entry['quantity'];
+                    abort_if($qty < 1, 422, 'Số lượng sản phẩm không hợp lệ.');
+                    $variant = $entry['variant_id'] ? $variants->get((int) $entry['variant_id']) : null;
+                    abort_if($entry['variant_id'] && (! $variant || (int) $variant->product_id !== (int) $product->id), 422, 'Một biến thể trong giỏ không còn khả dụng.');
+                    $available = $variant?->stock ?? $product->stock;
+                    if ($product->status !== 'active' || $available < $qty) {
+                        abort(422, "{$product->name} không còn đủ số lượng.");
+                    }
+                    $unitPrice = (float) ($variant?->price ?? $product->price);
+                    $line = $unitPrice * $qty;
+                    $subtotal += $line;
+                    $orderLines[] = [$product, $variant, $qty, $unitPrice, $line];
                 }
-                $unitPrice = (float) ($variant?->price ?? $product->price);
-                $line = $unitPrice * $qty;
-                $subtotal += $line;
-                $orderLines[] = [$product, $variant, $qty, $unitPrice, $line];
-            }
-            $coupon = null;
-            $discount = 0;
-            if (! empty($data['coupon_code'])) {
-                $coupon = Coupon::where('code', strtoupper($data['coupon_code']))->lockForUpdate()->first();
-                if (! $coupon || ! $coupon->isValidFor($subtotal)) {
-                    abort(422, 'Mã ưu đãi không hợp lệ hoặc chưa đủ điều kiện.');
+                $coupon = null;
+                $discount = 0;
+                if (! empty($data['coupon_code'])) {
+                    $coupon = Coupon::where('code', strtoupper($data['coupon_code']))->lockForUpdate()->first();
+                    if (! $coupon || ! $coupon->isValidFor($subtotal)) {
+                        abort(422, 'Mã ưu đãi không hợp lệ hoặc chưa đủ điều kiện.');
+                    }
+                    $discount = $coupon->discountFor($subtotal);
                 }
-                $discount = $coupon->discountFor($subtotal);
-            }
-            $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
-            $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
-            $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
-            foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
-                $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
-                app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
-            }
-            $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
-            if ($coupon) {
-                $coupon->increment('used_count');
+                $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
+                $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
+                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
+                foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
+                    $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
+                    app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
+                }
+                $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
+                if ($coupon) {
+                    $coupon->increment('used_count');
+                }
+
+                return $order;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            $order = Order::query()
+                ->where('idempotency_key', $idempotencyKey)
+                ->where('user_id', $request->user()->id)
+                ->first();
+            if (! $order) {
+                throw $exception;
             }
 
-            return $order;
-        });
+            return $this->idempotentReplayResponse($order);
+        }
         app(ResendMailer::class)->sendOrderConfirmation($order);
         session()->forget('cart');
+        session()->forget('checkout_idempotency_key');
         session()->put('last_order', $order->id);
         if ($order->payment_method === 'bank_transfer' && app(SepayGateway::class)->enabled()) {
             return redirect()->route('payments.sepay.payment', ['order' => $order, 'token' => $order->public_token]);
@@ -254,6 +293,19 @@ class CheckoutController extends Controller
         $request->session()->put('last_order', $order->id);
 
         return view('store.order', ['order' => $order->load('items', 'histories')]);
+    }
+
+    private function idempotentReplayResponse(Order $order)
+    {
+        $sessionKey = (string) session('checkout_idempotency_key', '');
+        if ($sessionKey !== '' && hash_equals($sessionKey, (string) $order->idempotency_key)) {
+            session()->forget('checkout_idempotency_key');
+        }
+        session()->put('last_order', $order->id);
+
+        return redirect()
+            ->route('orders.show', ['order' => $order])
+            ->with('success', 'Yêu cầu đặt hàng này đã được xử lý trước đó. Pawora không tạo đơn trùng.');
     }
 
     private function couponDiscount(?string $code, float $subtotal): float

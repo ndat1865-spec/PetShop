@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" data-pptx-page-role="content" font-family="Segoe UI, Arial, sans-serif" font-size="28">
+  <rect id="background" data-pptx-role="background" x="0" y="0" width="1280" height="720" fill="#F6F4EF"/>
+  <g id="title" data-pptx-bounds="56 42 1120 90">
+    <text x="56" y="92" font-family="Georgia, Times New Roman, serif" font-size="54" font-weight="700" fill="#111827">Cart giữ đúng cặp Product–Variant và không tin session</text>
+  </g>
+  <g id="session-contract" data-pptx-bounds="56 166 662 420">
+    <text x="56" y="202" font-size="20" font-weight="700" fill="#0066CC">SESSION CHỈ GIỮ Ý ĐỊNH</text>
+    <rect x="56" y="232" width="576" height="82" fill="#111827"/>
+    <text x="82" y="283" font-family="Consolas, Courier New, monospace" font-size="24" fill="#FFFFFF">line = product_id:variant_id · qty</text>
+    <line x1="56" y1="362" x2="632" y2="362" stroke="#B42318" stroke-width="4"/>
+    <text x="56" y="405" font-size="26" font-weight="700" fill="#B42318">KHÔNG tin giá / tồn / trạng thái từ client</text>
+    <g fill="#FFFFFF" stroke="#D8D4CC" stroke-width="1">
+      <rect x="56" y="444" width="172" height="116"/><rect x="258" y="444" width="172" height="116"/><rect x="460" y="444" width="172" height="116"/>
+    </g>
+    <g text-anchor="middle" fill="#111827">
+      <text x="142" y="488" font-size="24" font-weight="700">ACTIVE</text><text x="142" y="526" font-size="18" fill="#667085">Product</text>
+      <text x="344" y="488" font-size="24" font-weight="700">PRICE</text><text x="344" y="526" font-size="18" fill="#667085">Variant</text>
+      <text x="546" y="488" font-size="24" font-weight="700">STOCK</text><text x="546" y="526" font-size="18" fill="#667085">Database</text>
+    </g>
+  </g>
+  <g id="cart-evidence" data-pptx-bounds="804 154 360 482">
+    <rect x="804" y="154" width="360" height="458" fill="#FFFFFF" stroke="#D8D4CC" stroke-width="1"/>
+    <image href="../images/cart-mobile.png" x="818" y="168" width="332" height="430" preserveAspectRatio="xMidYMid meet"/>
+    <text x="984" y="636" text-anchor="middle" font-size="18" fill="#667085">Cart mobile · 390 px</text>
+  </g>
+  <g id="token-rule" data-pptx-bounds="56 620 670 44"><text x="56" y="652" font-size="24" font-weight="600" fill="#0066CC">Cart thay đổi → checkout token cũ bị hủy.</text></g>
+  <text id="page-number" data-pptx-role="page-number" x="1224" y="670" text-anchor="end" font-family="Consolas, Courier New, monospace" font-size="16" fill="#667085">09 / 32</text>
+</svg>

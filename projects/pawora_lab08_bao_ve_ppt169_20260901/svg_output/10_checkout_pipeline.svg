@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" data-pptx-page-role="content" font-family="Segoe UI, Arial, sans-serif" font-size="28">
+  <rect id="background" data-pptx-role="background" x="0" y="0" width="1280" height="720" fill="#F6F4EF"/>
+  <g id="title" data-pptx-bounds="56 42 1110 92">
+    <text x="56" y="92" font-family="Georgia, Times New Roman, serif" font-size="54" font-weight="700" fill="#111827">Checkout kiểm tra lại trước khi tạo đơn</text>
+  </g>
+  <g id="checkpoints" data-pptx-bounds="56 166 560 456">
+    <line x1="86" y1="200" x2="86" y2="574" stroke="#0066CC" stroke-width="4"/>
+    <g fill="#FFFFFF" stroke="#0066CC" stroke-width="3">
+      <circle cx="86" cy="208" r="15"/><circle cx="86" cy="266" r="15"/><circle cx="86" cy="324" r="15"/>
+      <circle cx="86" cy="382" r="15" fill="#0066CC"/><circle cx="86" cy="440" r="15"/><circle cx="86" cy="498" r="15"/><circle cx="86" cy="556" r="15"/>
+    </g>
+    <g font-size="24" fill="#111827">
+      <text x="124" y="216"><tspan font-weight="700">01</tspan> · validate request</text>
+      <text x="124" y="274"><tspan font-weight="700">02</tspan> · replay check</text>
+      <text x="124" y="332"><tspan font-weight="700">03</tspan> · normalize cart</text>
+      <text x="124" y="390" font-weight="700" fill="#0066CC">04 · quote shipping</text>
+      <text x="124" y="448"><tspan font-weight="700">05</tspan> · DB transaction</text>
+      <text x="124" y="506"><tspan font-weight="700">06</tspan> · order + items</text>
+      <text x="124" y="564"><tspan font-weight="700">07</tspan> · payment redirect</text>
+    </g>
+    <text x="56" y="620" font-size="24" font-weight="600" fill="#B42318">Không bước ghi nào xảy ra trước khi mọi guard đạt.</text>
+  </g>
+  <g id="checkout-evidence" data-pptx-bounds="666 154 558 484">
+    <rect x="666" y="154" width="558" height="452" fill="#FFFFFF" stroke="#D8D4CC" stroke-width="1"/>
+    <image href="../images/checkout-tablet.png" x="680" y="168" width="530" height="424" preserveAspectRatio="xMidYMid meet"/>
+    <text x="666" y="634" font-size="18" fill="#667085">Checkout tablet · form + summary cùng một màn hình</text>
+  </g>
+  <text id="page-number" data-pptx-role="page-number" x="1224" y="670" text-anchor="end" font-family="Consolas, Courier New, monospace" font-size="16" fill="#667085">10 / 32</text>
+</svg>

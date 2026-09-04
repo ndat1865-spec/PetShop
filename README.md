@@ -1,66 +1,174 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Pawora Commerce
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Pawora là website thương mại điện tử phụ kiện thú cưng xây dựng bằng Laravel 10, Blade, MySQL/MariaDB và Vite. Hệ thống bao phủ catalog, biến thể, giỏ session, checkout, coupon, vận chuyển, COD/QR/cổng thanh toán, vòng đời đơn hàng, đổi trả/hoàn tiền và khu vực Admin có 2FA, permission, inventory ledger và audit log.
 
-## About Laravel
+## Công nghệ
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.1+ (đã kiểm tra với PHP 8.2.32)
+- Laravel 10
+- MySQL hoặc MariaDB (đã kiểm tra với MariaDB 10.4.32/XAMPP)
+- Blade, CSS, JavaScript, Vite 8
+- PHPUnit 10
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Chức năng chính
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Trang chủ, danh mục, tìm kiếm, lọc, sắp xếp và phân trang.
+- Sản phẩm, biến thể theo size/màu, giá và tồn kho.
+- Review gắn với đơn đã giao.
+- Giỏ hàng session theo cặp product/variant.
+- Checkout tính lại giá từ database, coupon, shipping và transaction khóa tồn.
+- COD, QR SePay, VNPay, ZaloPay, MoMo và OnePay khi được cấu hình.
+- Order, OrderItem snapshot, payment transaction, shipment, hủy, đổi trả và refund.
+- Tài khoản, avatar, đổi mật khẩu và sổ địa chỉ.
+- Admin/Staff permission, 2FA, dashboard, catalog, tồn kho, đơn, vận chuyển, thanh toán, CSKH và audit.
 
-## Learning Laravel
+## Cài đặt sạch bằng XAMPP
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 1. Chuẩn bị
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+1. Bật Apache và MySQL trong XAMPP.
+2. Mở terminal tại thư mục dự án.
+3. Tạo database UTF-8:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```sql
+CREATE DATABASE pawora CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-## Laravel Sponsors
+### 2. Cài dependency và cấu hình
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+```powershell
+composer install
+Copy-Item .env.example .env
+php artisan key:generate
+npm install
+npm run build
+```
 
-### Premium Partners
+Giữ cấu hình local mặc định trong `.env.example` nếu XAMPP dùng MySQL `root` không mật khẩu. Nếu máy khác, cập nhật `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` trong `.env`.
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+Không commit `.env`, API key, secret thanh toán hoặc mật khẩu thật.
 
-## Contributing
+### 3. Tạo schema và dữ liệu demo
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Cách khuyến nghị:
 
-## Code of Conduct
+```powershell
+php artisan migrate --seed
+php artisan storage:link
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Hoặc import bản SQL demo đã làm sạch:
 
-## Security Vulnerabilities
+```powershell
+$paworaSql = (Resolve-Path database\pawora-demo.sql).Path.Replace('\', '/')
+& 'C:\xampp\mysql\bin\mysql.exe' -u root pawora --execute="source $paworaSql"
+php artisan storage:link
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`database/pawora-demo.sql` được tạo từ database tạm sau khi chạy đủ 24 migration và seed; bản hiện tại đã được import kiểm chứng gồm 25 bảng, 10 tài khoản demo, 32 sản phẩm và cột idempotency của checkout.
 
-## License
+### 4. Mở ứng dụng
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Với Apache/XAMPP: `http://localhost/PetShopnew/public`
+
+Hoặc dùng server Laravel:
+
+```powershell
+php artisan serve
+```
+
+Sau đó mở `http://127.0.0.1:8000`.
+
+Để bật cập nhật chat theo thời gian thực, mở thêm một terminal và chạy:
+
+```powershell
+php artisan reverb:start
+```
+
+Nếu chưa chạy Reverb, các trang mua sắm và quản trị vẫn hoạt động; trình duyệt chỉ không nhận tin nhắn chat theo thời gian thực.
+
+## Tài khoản demo
+
+| Vai trò | Email | Mật khẩu |
+|---|---|---|
+| Admin | `admin@pawora.vn` | `Pawora@2026` |
+| Customer | `khach@pawora.vn` | `Pawora@2026` |
+
+Các tài khoản này chỉ dành cho môi trường demo. Hãy đổi hoặc xóa chúng trước khi triển khai thật.
+
+Admin 2FA mặc định tắt ở local (`ADMIN_REQUIRE_TWO_FACTOR=false`). Khi bật, hệ thống gửi mã xác thực ngắn hạn qua cấu hình mail.
+
+## Cấu hình tích hợp tùy chọn
+
+Các gateway chỉ hoạt động khi biến môi trường tương ứng được cấu hình. Không cần bật gateway online để demo luồng COD.
+
+- SePay: tài khoản nhận tiền và `SEPAY_WEBHOOK_API_KEY`.
+- VNPay: merchant code, hash secret và URL sandbox.
+- ZaloPay: app id, key1, key2 và URL sandbox.
+- MoMo: partner/access/secret key và callback URL.
+- OnePay: merchant/access/secure secret và URL sandbox.
+- GHN: `GHN_ENABLED=true`, token, shop id và địa chỉ API.
+
+Không ghi giá trị secret vào README, ảnh chụp hoặc slide bảo vệ.
+
+## Kiểm thử
+
+Tạo database test riêng:
+
+```sql
+CREATE DATABASE pawora_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Sau đó chạy:
+
+```powershell
+php artisan test
+```
+
+Receipt gần nhất ngày 01/09/2026:
+
+```text
+Tests: 111 passed (1460 assertions)
+Duration: 19.36s
+```
+
+`phpunit.xml` dùng database `pawora_testing`; không trỏ test suite vào database chứa dữ liệu thật.
+
+## Kiểm tra trước khi đóng gói
+
+```powershell
+php artisan route:list
+php artisan migrate:status
+php artisan test
+npm run build
+php artisan optimize:clear
+```
+
+Checklist:
+
+- Không có `.env`, token, API key, secret hay dữ liệu cá nhân thật trong gói nộp.
+- `database/pawora-demo.sql` được tạo từ database tạm chỉ chứa dữ liệu seeder.
+- `public/storage` hoạt động sau `php artisan storage:link`.
+- Có thể cài lại bằng `migrate --seed` hoặc SQL export.
+- Kiểm tra responsive tại 390, 640, 767, 1024px và desktop.
+
+## Cấu trúc quan trọng
+
+```text
+app/Http/Controllers   Điều phối request
+app/Services           Cart, shipping, inventory, gateway, refund
+app/Models             Eloquent và state rules
+database/migrations    Schema
+database/seeders       Dữ liệu demo an toàn
+resources/views        Blade storefront/Admin
+resources/js           Tương tác giao diện
+resources/css          Responsive và reduced motion
+tests/Feature          Kiểm thử nghiệp vụ
+```
+
+## Ghi chú bảo vệ Lab 08
+
+- Best seller chỉ được tính từ đơn đã thanh toán và không bị hủy.
+- Checkout dùng idempotency key để cùng một lần submit không tạo hai Order.
+- Return URL là luồng trình duyệt; callback/IPN/webhook là server-to-server và phải kiểm tra chữ ký/secret, order, amount và xử lý lặp.
+- Không sửa trực tiếp database để giả trạng thái thanh toán.

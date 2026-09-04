@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" data-pptx-page-role="content" font-family="Segoe UI, Arial, sans-serif" font-size="28">
+  <rect id="background" data-pptx-role="background" x="0" y="0" width="1280" height="720" fill="#F6F4EF"/>
+  <g id="title" data-pptx-bounds="56 42 620 164">
+    <text x="56" y="92" font-family="Georgia, Times New Roman, serif" font-size="54" font-weight="700" fill="#111827"><tspan x="56" dy="0">Catalog chỉ đưa sản phẩm</tspan><tspan x="56" dy="64">active vào hành trình mua</tspan></text>
+  </g>
+  <g id="query-proof" data-pptx-bounds="56 250 440 246">
+    <text x="56" y="278" font-family="Consolas, Courier New, monospace" font-size="22" font-weight="700" fill="#0066CC">GET /san-pham</text>
+    <line x1="56" y1="310" x2="410" y2="310" stroke="#0066CC" stroke-width="3"/>
+    <text x="56" y="354" font-family="Consolas, Courier New, monospace" font-size="22" fill="#111827">Product::active()</text>
+    <text x="56" y="400" font-size="26" fill="#1D1D1F">category + active variants + rating</text>
+    <text x="56" y="454" font-size="32" font-weight="700" fill="#111827">12 sản phẩm / trang</text>
+  </g>
+  <g id="product-evidence" data-pptx-bounds="548 176 676 416">
+    <line x1="548" y1="548" x2="1224" y2="548" stroke="#D8D4CC" stroke-width="2"/>
+    <image href="../images/pawora-product-0001.png" x="548" y="198" width="204" height="310" preserveAspectRatio="xMidYMid meet"/>
+    <image href="../images/pawora-product-0002.png" x="780" y="198" width="204" height="310" preserveAspectRatio="xMidYMid meet"/>
+    <image href="../images/pawora-product-0003.png" x="1012" y="198" width="204" height="310" preserveAspectRatio="xMidYMid meet"/>
+    <text x="548" y="582" font-size="18" fill="#667085">Ảnh sản phẩm thật · contain nguyên asset · đồng cấp để so sánh</text>
+  </g>
+  <g id="takeaway" data-pptx-bounds="56 624 1080 42">
+    <text x="56" y="654" font-size="26" font-weight="600" fill="#0066CC">StoreController kiểm soát đầu vào của toàn bộ funnel.</text>
+  </g>
+  <text id="page-number" data-pptx-role="page-number" x="1224" y="670" text-anchor="end" font-family="Consolas, Courier New, monospace" font-size="16" fill="#667085">06 / 32</text>
+</svg>

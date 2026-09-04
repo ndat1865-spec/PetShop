@@ -186,6 +186,40 @@ class CheckoutEnhancementTest extends TestCase
         $this->assertDatabaseHas('admin_audit_logs', ['event' => 'shipment.created_automatically']);
     }
 
+    public function test_replaying_the_same_checkout_idempotency_key_does_not_create_or_deduct_twice(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product();
+
+        $this->actingAs($customer)
+            ->withSession(['cart' => [$product->id => 1]])
+            ->get(route('checkout.create'))
+            ->assertOk();
+
+        $idempotencyKey = session('checkout_idempotency_key');
+        $payload = [...$this->checkoutData(), 'idempotency_key' => $idempotencyKey];
+
+        $this->post(route('checkout.store'), $payload)->assertRedirect();
+        $order = Order::query()->sole();
+
+        $this->post(route('checkout.store'), $payload)
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('order_items', 1);
+        $this->assertSame(9, $product->fresh()->stock);
+        $this->assertSame($idempotencyKey, $order->idempotency_key);
+
+        $newCheckoutKey = (string) Str::uuid();
+        $this->withSession([
+            'cart' => [$product->id => 2],
+            'checkout_idempotency_key' => $newCheckoutKey,
+        ])->post(route('checkout.store'), $payload)
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHas('cart', [$product->id => 2])
+            ->assertSessionHas('checkout_idempotency_key', $newCheckoutKey);
+    }
+
     private function product(): Product
     {
         $category = Category::create(['name' => 'Checkout', 'slug' => 'checkout', 'is_active' => true]);

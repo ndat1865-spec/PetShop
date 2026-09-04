@@ -70,6 +70,7 @@ class CartService
 
         if ($raw !== $normalized) {
             session(['cart' => $normalized]);
+            session()->forget('checkout_idempotency_key');
         }
 
         return $normalized;
@@ -78,6 +79,7 @@ class CartService
     public function put(array $lines): void
     {
         session(['cart' => $this->normalize($lines)]);
+        session()->forget('checkout_idempotency_key');
     }
 
     public function count(): int
