@@ -20,7 +20,8 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 const reverbKey = import.meta.env.VITE_REVERB_APP_KEY;
-if (reverbKey) {
+const realtimeEnabled = import.meta.env.VITE_REALTIME_ENABLED === 'true';
+if (realtimeEnabled && reverbKey) {
     const appUrl = document.querySelector('meta[name="app-url"]')?.content?.replace(/\/$/, '') || '';
     window.Echo = new Echo({
         broadcaster: 'reverb',

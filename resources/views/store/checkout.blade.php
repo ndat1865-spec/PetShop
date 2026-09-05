@@ -11,6 +11,7 @@
     data-districts-url="{{ route('address.districts') }}" data-wards-url="{{ route('address.wards') }}"
     data-subtotal="{{ $cart['subtotal'] }}">
     @csrf
+    <input type="hidden" name="checkout_token" value="{{ $checkoutToken }}">
     <input type="hidden" name="idempotency_key" value="{{ $checkoutIdempotencyKey }}">
     <div class="checkout-form">
         <fieldset>
@@ -97,6 +98,10 @@
                             <path d="M5 10v8M9 10v8M15 10v8M19 10v8M4 18h16" />
                         </svg></span><span><strong>Chuyển khoản ngân hàng</strong><small>Thông tin chuyển khoản hiển thị
                             sau khi đặt đơn.</small></span></label>
+                @if($paymentDemoEnabled)
+                    <label class="payment-option bank"><input type="radio" name="payment_method" value="qr_demo"><span
+                            class="pay-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM15 14h2v2h-2zM18 14h2v5h-2zM14 18h3v2h-3z" /></svg></span><span><strong>QR Demo Pawora</strong><small>Quét QR và giả lập thành công/thất bại, không cần tài khoản cổng thanh toán.</small></span></label>
+                @endif
                 <label class="payment-option vnpay"><input type="radio" name="payment_method" value="vnpay"><span
                         class="pay-logo"><img src="{{ asset('media/payments/vnpay.webp') }}" alt="" width="74"
                             height="44"></span><span><strong>Thanh toán VNPay</strong><small>Chuyển sang cổng VNPay

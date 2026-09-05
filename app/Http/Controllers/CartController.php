@@ -33,7 +33,8 @@ class CartController extends Controller
         $lines = $cart->lines();
         $lineKey = $cart->lineKey((int) $product->id, $variant?->id);
         $currentQuantity = (int) ($lines[$lineKey]['quantity'] ?? 0);
-        $quantity = min($available, $currentQuantity + ($data['quantity'] ?? 1));
+        $quantity = $currentQuantity + ($data['quantity'] ?? 1);
+        abort_if($quantity > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
         $lines[$lineKey] = [
             'product_id' => (int) $product->id,
             'variant_id' => $variant?->id,
@@ -70,7 +71,8 @@ class CartController extends Controller
 
         $available = (int) ($variant?->stock ?? $product->stock);
         abort_if($available < 1, 422, 'Lựa chọn này hiện đã hết hàng.');
-        $quantity = min((int) $data['quantity'], $available);
+        abort_if($data['quantity'] > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
+        $quantity = (int) $data['quantity'];
         $lines[$lineKey]['quantity'] = $quantity;
         $cart->put($lines);
 

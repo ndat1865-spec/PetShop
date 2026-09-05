@@ -24,3 +24,8 @@ __pycache__/
 /.fleet
 /.idea
 /.vscode
+__pycache__/
+*.py[cod]
+/.playwright-cli/
+/output/
+/database/export/*_local.sql

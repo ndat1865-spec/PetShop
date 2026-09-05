@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Services\AddressDirectory;
 use App\Services\CartService;
 use App\Services\CouponService;
+use App\Services\DemoPaymentGateway;
 use App\Services\InventoryService;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
@@ -49,6 +50,8 @@ class CheckoutController extends Controller
             'provinces' => config('pawora.shipping.provinces', []),
             'savedAddresses' => $savedAddresses,
             'checkoutIdempotencyKey' => $checkoutIdempotencyKey,
+            'checkoutToken' => $checkoutIdempotencyKey,
+            'paymentDemoEnabled' => app(DemoPaymentGateway::class)->enabled(),
             'defaultAddress' => [
                 'receiver_name' => $savedDefault?->receiver_name ?? $request->user()?->name,
                 'phone' => $savedDefault?->phone ?? $request->user()?->phone,
@@ -129,17 +132,21 @@ class CheckoutController extends Controller
             'address_line' => 'required|string|max:255',
             'note' => 'nullable|string|max:500',
             'coupon_code' => 'nullable|string|max:30',
-            'payment_method' => 'required|in:cod,bank_transfer,vnpay,zalopay,momo,onepay',
+            'payment_method' => 'required|in:cod,bank_transfer,qr_demo,vnpay,zalopay,momo,onepay',
             'terms' => 'accepted',
             'idempotency_key' => 'nullable|uuid',
+            'checkout_token' => 'nullable|uuid',
         ]);
 
-        $idempotencyKey = (string) ($data['idempotency_key'] ?? $request->session()->get('checkout_idempotency_key') ?? Str::uuid());
+        $idempotencyKey = (string) ($data['idempotency_key'] ?? $data['checkout_token'] ?? $request->session()->get('checkout_idempotency_key') ?? Str::uuid());
+        $data['checkout_token'] ??= $idempotencyKey;
         $existingOrder = Order::query()
             ->where('idempotency_key', $idempotencyKey)
-            ->where('user_id', $request->user()->id)
+            ->orWhere('checkout_token', $data['checkout_token'])
             ->first();
         if ($existingOrder) {
+            abort_unless($existingOrder->user_id === $request->user()->id, 409, 'Phiên đặt hàng đã được sử dụng.');
+
             return $this->idempotentReplayResponse($existingOrder);
         }
 
@@ -150,6 +157,9 @@ class CheckoutController extends Controller
             ]);
         }
         $request->session()->put('checkout_idempotency_key', $idempotencyKey);
+        if ($data['payment_method'] === 'qr_demo' && ! app(DemoPaymentGateway::class)->enabled()) {
+            return back()->withInput()->withErrors(['payment_method' => 'QR demo chỉ hoạt động khi PAYMENT_DEMO_MODE được bật trong môi trường local/testing.']);
+        }
         if ($data['payment_method'] === 'vnpay' && ! app(VnPayGateway::class)->enabled()) {
             return back()->withInput()->withErrors(['payment_method' => 'VNPay chưa được cấu hình trong file .env.']);
         }
@@ -210,7 +220,7 @@ class CheckoutController extends Controller
                 }
                 $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
                 $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
-                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
+                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['qr_demo', 'vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
                 foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
                     $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
                     app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
@@ -224,7 +234,10 @@ class CheckoutController extends Controller
             });
         } catch (UniqueConstraintViolationException $exception) {
             $order = Order::query()
-                ->where('idempotency_key', $idempotencyKey)
+                ->where(function ($query) use ($idempotencyKey, $data) {
+                    $query->where('idempotency_key', $idempotencyKey)
+                        ->orWhere('checkout_token', $data['checkout_token']);
+                })
                 ->where('user_id', $request->user()->id)
                 ->first();
             if (! $order) {
@@ -237,6 +250,9 @@ class CheckoutController extends Controller
         session()->forget('cart');
         session()->forget('checkout_idempotency_key');
         session()->put('last_order', $order->id);
+        if ($order->payment_method === 'qr_demo') {
+            return redirect()->route('payments.demo.payment', ['order' => $order, 'token' => $order->public_token]);
+        }
         if ($order->payment_method === 'bank_transfer' && app(SepayGateway::class)->enabled()) {
             return redirect()->route('payments.sepay.payment', ['order' => $order, 'token' => $order->public_token]);
         }
@@ -304,6 +320,13 @@ class CheckoutController extends Controller
             session()->forget('checkout_idempotency_key');
         }
         session()->put('last_order', $order->id);
+
+        if ($order->payment_method === 'qr_demo' && app(DemoPaymentGateway::class)->enabled()) {
+            return redirect()->route('payments.demo.payment', ['order' => $order, 'token' => $order->public_token]);
+        }
+        if ($order->payment_method === 'bank_transfer' && app(SepayGateway::class)->enabled()) {
+            return redirect()->route('payments.sepay.payment', ['order' => $order, 'token' => $order->public_token]);
+        }
 
         return redirect()
             ->route('orders.show', ['order' => $order])

@@ -1,125 +1,178 @@
 # Pawora Commerce
 
-Website thương mại điện tử phụ kiện thú cưng, xây dựng bằng Laravel, Blade và Vite. Project tập trung vào luồng mua hàng và xử lý đơn: từ lựa chọn biến thể, đặt hàng, thanh toán đến giao nhận, đổi trả và hoàn tiền.
+Pawora là website thương mại điện tử dành cho cửa hàng thú cưng. Dự án bao gồm cửa hàng cho khách, giỏ hàng, checkout, quản lý tồn kho, đơn hàng, vận chuyển, đổi trả/hoàn tiền, đánh giá, liên hệ, chat hỗ trợ và khu vực quản trị có phân quyền/audit log.
 
-## Chức năng
+## Chức năng chính
 
-- Catalog: tìm kiếm, lọc, phân trang, biến thể theo màu/size, giá và tồn kho.
-- Giỏ hàng session; checkout tính lại giá từ database, áp dụng voucher, phí vận chuyển và khóa tồn trong transaction.
-- Chống tạo đơn trùng bằng idempotency key; lưu snapshot sản phẩm và giá tại thời điểm đặt hàng.
-- COD và tích hợp SePay, VNPay, ZaloPay, MoMo, OnePay khi có cấu hình phù hợp.
-- Theo dõi đơn, xác nhận nhận hàng, hủy đơn, đổi trả/hoàn tiền và đánh giá sau giao hàng.
-- Tài khoản, sổ địa chỉ, ví voucher, giới hạn sử dụng voucher và lịch sử sử dụng.
-- Admin/Staff: phân quyền, 2FA tùy chọn, quản lý sản phẩm, tồn kho, đơn, vận chuyển, thanh toán và audit log.
-- CSKH: chat theo quy tắc, chuyển bot sang nhân viên, hộp thư có phân công và cập nhật qua Reverb/polling.
+- Danh mục và chi tiết sản phẩm, biến thể màu/kích thước, tìm kiếm và bộ lọc theo thú cưng.
+- Giỏ hàng lưu trong session; giá, coupon, phí giao hàng và tồn kho được tính lại ở server.
+- Checkout COD, chuyển khoản SePay và các tích hợp sandbox VNPay, ZaloPay, MoMo, OnePay.
+- QR Demo Pawora chạy hoàn toàn ở local/testing, có giả lập thành công/thất bại và callback HMAC idempotent.
+- Lịch sử đơn, huỷ đơn, xác nhận nhận hàng, đổi trả, hoàn tiền và quản lý vận chuyển.
+- Quản trị sản phẩm, tồn kho, coupon, khách hàng, đơn hàng, thanh toán, đánh giá, liên hệ, chat và cấu hình vận hành.
 
-## Yêu cầu môi trường
+## Công nghệ và phiên bản đã kiểm tra
 
-- PHP **8.2+** và Composer 2. Laravel dùng bản 10; dependency Reverb trong `composer.lock` yêu cầu PHP 8.2.
-- MySQL hoặc MariaDB, extension PHP `pdo_mysql`.
-- Node.js **20.19+ thuộc dòng 20, hoặc 22.12+** theo yêu cầu của Vite 8; npm.
-- Môi trường kiểm tra tại repo: PHP 8.2.32, Node.js 24.19.0, MySQL/MariaDB qua XAMPP.
+| Thành phần | Phiên bản / yêu cầu |
+| --- | --- |
+| PHP | `^8.2`; đã kiểm tra với PHP `8.2.32` |
+| Laravel | `12.68.0` đã cài đặt (ràng buộc Composer: `^12.61.1`) |
+| Composer | đã kiểm tra với `2.10.2` |
+| Database | MySQL/MariaDB; đã kiểm tra với MariaDB `10.4.32` của XAMPP |
+| Node.js / npm | đã kiểm tra với Node `24.19.0`, npm `12.0.2` |
+| Frontend | Vite `8.2.1`, Axios, Laravel Echo, Lottie, QRCode |
 
-Giữ `composer.lock` và `package-lock.json` để cài đúng bộ dependency. `composer check-platform-reqs` kiểm tra các extension PHP cần thiết trên máy.
+PHP cần các extension thông dụng của Laravel và driver `pdo_mysql` (OpenSSL, Mbstring, Tokenizer, XML, Ctype, JSON, Fileinfo). Máy phải có Composer, Node.js/npm và MySQL hoặc MariaDB đang chạy.
 
-## Cài đặt local
+## Cài mới trên Windows/XAMPP
 
-Các lệnh dưới đây dùng PowerShell, chạy tại thư mục dự án. Khởi động MySQL trong XAMPP và tạo database riêng cho ứng dụng:
-
-```sql
-CREATE DATABASE pawora CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+1. Đặt mã nguồn tại `C:\xampp\htdocs\PetShopnew`, bật Apache và MySQL trong XAMPP Control Panel.
+2. Mở PowerShell tại thư mục dự án và cài dependency:
 
 ```powershell
-composer install
-composer check-platform-reqs
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate
+composer install --no-interaction
 npm ci
-npm run build
+Copy-Item .env.example .env
+php artisan key:generate
 ```
 
-Đây là hướng dẫn cho lần cài mới; không tạo lại `APP_KEY` của ứng dụng đang có dữ liệu. Sửa `DB_*` trong `.env` theo database vừa tạo. Cấu hình mẫu dùng MySQL local với tài khoản `root` không mật khẩu.
-
-Chọn địa chỉ chạy và đặt **cả** `APP_URL`, `ASSET_URL` trong `.env` tương ứng:
-
-- Apache/XAMPP: `http://localhost/PetShopnew/public` (điều chỉnh tên thư mục nếu khác).
-- Laravel dev server: `http://127.0.0.1:8000`.
-
-Tạo schema, dữ liệu demo và liên kết ảnh upload:
+3. Tạo database UTF-8:
 
 ```powershell
+C:\xampp\mysql\bin\mysql.exe -u root --execute="CREATE DATABASE pawora CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+4. Cập nhật nhóm `DB_*` trong `.env`. Cấu hình XAMPP mặc định:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=pawora
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+5. Chọn **một** trong hai cách khởi tạo dữ liệu:
+
+```powershell
+# Khuyến nghị: migration + seeder
+php artisan migrate --seed
+
+# Hoặc import đúng snapshot dùng để nộp bài (không chạy migrate --seed lần nữa)
+C:\xampp\mysql\bin\mysql.exe -u root --database=pawora --execute="source C:/xampp/htdocs/PetShopnew/database/export/pawora_demo.sql"
+```
+
+Có thể import `database/export/pawora_demo.sql` qua phpMyAdmin nếu không dùng CLI.
+
+6. Tạo liên kết storage, build frontend và xoá cache cũ:
+
+```powershell
+php artisan storage:link
+npm run build
+php artisan optimize:clear
+```
+
+Nếu `public/storage` đã tồn tại đúng và `storage:link` báo lỗi, không cần tạo lại. Trên Windows, hãy mở terminal với quyền cho phép tạo symbolic link/junction khi cần.
+
+7. Truy cập `http://localhost/PetShopnew/public`. `APP_URL` và `ASSET_URL` mặc định trong `.env.example` đã khớp đường dẫn này.
+
+## Cài trên macOS/Linux hoặc web server khác
+
+```bash
+composer install --no-interaction
+npm ci
+cp .env.example .env
+php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
+npm run build
+php artisan optimize:clear
+```
+
+Đặt document root của Apache/Nginx vào thư mục `public/`, sửa `APP_URL`, `ASSET_URL` và `DB_*` theo máy. Thư mục `storage/` và `bootstrap/cache/` phải cho user chạy web server ghi được. Để chạy tạm bằng server tích hợp:
+
+```bash
 php artisan serve
 ```
 
-Nếu dùng Apache thì không cần `php artisan serve`. Khi phát triển frontend, chạy `npm run dev` ở terminal khác; khi dùng bản build, chạy lại `npm run build` sau khi sửa frontend hoặc các biến `VITE_*`.
-
-`database/pawora-demo.sql` là snapshot demo cũ, được giữ để tham khảo. Nên cài bằng migrations và seeders hiện tại; nếu import snapshot vào database trống, cần chạy `php artisan migrate --seed` để cập nhật schema và voucher mới.
+Sau đó mở `http://127.0.0.1:8000` và đặt `APP_URL=http://127.0.0.1:8000`, `ASSET_URL=http://127.0.0.1:8000`.
 
 ## Tài khoản demo
 
+Seeder và SQL export cùng tạo hai tài khoản sau:
+
 | Vai trò | Email | Mật khẩu |
-|---|---|---|
-| Admin | `admin@pawora.vn` | `Pawora@2026` |
-| Customer | `khach@pawora.vn` | `Pawora@2026` |
+| --- | --- | --- |
+| Quản trị | `admin@pawora.vn` | `Pawora@2026` |
+| Khách hàng | `khach@pawora.vn` | `Pawora@2026` |
 
-Seeder tạo các tài khoản này cho local/demo. Không dùng tài khoản và mật khẩu mẫu trong môi trường thật. Admin 2FA mặc định tắt (`ADMIN_REQUIRE_TWO_FACTOR=false`); cần cấu hình mail trước khi bật.
+Đây chỉ là tài khoản học tập. Phải thay mật khẩu và tắt/xoá tài khoản demo trước khi triển khai thực tế. Có thể tự tạo khách hàng tại `/dang-ky`.
 
-## Tích hợp và giới hạn demo
+## Trình diễn COD
 
-Có thể demo luồng COD mà không bật cổng thanh toán online. Các tích hợp cần tài khoản nhà cung cấp, thông tin xác thực và callback URL phù hợp; việc có code tích hợp không đồng nghĩa đã được kiểm chứng với giao dịch thật.
+1. Đăng nhập `khach@pawora.vn`, thêm một sản phẩm còn hàng vào giỏ.
+2. Mở checkout, nhập/chọn địa chỉ hợp lệ và chọn **Thanh toán khi nhận hàng**.
+3. Nhấn **Xác nhận đặt hàng**. Hệ thống chỉ tạo một đơn ngay cả khi form bị gửi lại với cùng checkout token; F5 trang xác nhận không tạo thêm đơn.
+4. Trong admin, xác nhận và xử lý vận chuyển. COD chỉ chuyển sang đã thanh toán khi khách đã xác nhận nhận hàng và admin hoàn tất giao hàng.
 
-- **Thanh toán:** điền các nhóm biến tương ứng trong `.env.example`. SePay cần thông tin tài khoản nhận tiền và webhook key; các cổng còn lại cần merchant/app credentials. Xem [hướng dẫn OnePay sandbox](docs/onepay-sandbox-demo.md).
-- **Hoàn tiền:** `REFUND_DEMO_MODE=true` mặc định không gửi yêu cầu hoàn tiền đến cổng; hệ thống ghi nhận luồng xử lý thủ công/demo. Muốn tích hợp thật phải cấu hình và kiểm thử riêng.
-- **Vận chuyển:** GHN mặc định tắt; có thể tính phí theo vùng Pawora. GHN cần token/shop id; tra cứu phường/xã công khai phụ thuộc dịch vụ bên ngoài và có fallback giới hạn khi dịch vụ lỗi.
-- **Mail/OAuth:** cấu hình SMTP hoặc Resend để gửi mail, Google/Facebook để đăng nhập mạng xã hội. `.env.example` dùng SMTP Mailpit local; cần chạy Mailpit hoặc đổi sang cấu hình mail của bạn.
-- **Chat realtime:** điền cùng bộ `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` cho server/client, build lại frontend và chạy `php artisan reverb:start` ở terminal khác. Khi Reverb chưa kết nối, chat vẫn cập nhật bằng polling (khoảng 3,5–4 giây).
+## Trình diễn QR Demo không cần cổng thật
 
-Không đưa `.env`, secret thanh toán hoặc dữ liệu khách hàng thật lên Git. Cấu hình mẫu bật kiểm tra TLS; cấu hình CA certificate của PHP nếu máy local gặp lỗi chứng chỉ.
+Trong `.env` local, đặt:
 
-Hướng dẫn thao tác voucher và dữ liệu mẫu: [docs/voucher-demo.md](docs/voucher-demo.md).
-
-Demo chat, chuyển nhân viên và cập nhật bộ quy tắc: [docs/chat-support-demo.md](docs/chat-support-demo.md).
-
-## Kiểm thử
-
-Tạo database **chỉ dành cho test**:
-
-```sql
-CREATE DATABASE pawora_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```dotenv
+APP_ENV=local
+PAYMENT_DEMO_MODE=true
+PAYMENT_DEMO_SECRET=replace-with-a-long-random-local-secret
+PAYMENT_DEMO_CALLBACK_TOLERANCE=300
 ```
 
-`phpunit.xml` cấu hình MySQL local, database `pawora_testing`, `root` không mật khẩu. Điều chỉnh thông tin kết nối test nếu máy khác. Bộ test dùng `RefreshDatabase`, có thể tạo lại toàn bộ schema của database test.
+Sau khi đổi `.env`, chạy `php artisan config:clear`. Tại checkout, chọn **QR Demo Pawora**. Trang thanh toán sinh QR chứa đúng mã đơn, số tiền và URL trạng thái. Dùng nút **Giả lập thanh toán thành công** hoặc **thất bại** để trình diễn. Thành công cập nhật đơn đúng một lần; callback lặp trả kết quả idempotent.
 
-Trước khi chạy, bảo đảm không có config cache hoặc biến môi trường của terminal (`DB_*`, `DATABASE_URL`) trỏ test về database demo/thật. Nếu có `.env.testing`, nó cũng phải dùng database test riêng.
+`PAYMENT_DEMO_MODE` mặc định là `false` và code luôn vô hiệu hoá demo khi `APP_ENV=production`, kể cả nếu biến này bị đặt nhầm thành `true`. `PAYMENT_DEMO_SECRET` chỉ là secret local cho callback demo, không commit giá trị thật.
+
+Callback demo kỹ thuật dùng `POST /api/webhooks/payment-demo` với JSON gồm `event_id`, `order_number`, `amount`, `status`, `timestamp` và header `X-Pawora-Demo-Signature`. Chữ ký là HMAC-SHA256 do server tạo từ payload; callback sai chữ ký, quá hạn, sai đơn hoặc sai số tiền bị từ chối.
+
+## Biến môi trường thanh toán
+
+`.env.example` liệt kê đầy đủ tên biến. Các nhóm chính:
+
+- Demo: `PAYMENT_DEMO_MODE`, `PAYMENT_DEMO_SECRET`, `PAYMENT_DEMO_CALLBACK_TOLERANCE`.
+- SePay: `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_NAME`, `SEPAY_WEBHOOK_API_KEY`.
+- VNPay: `VNPAY_ENABLED`, `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_PAYMENT_URL`, `VNPAY_RETURN_URL`.
+- ZaloPay: `ZALOPAY_ENABLED`, `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, các URL callback/return.
+- MoMo: `MOMO_ENABLED`, `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`, các URL create/IPN/return.
+- OnePay: `ONEPAY_ENABLED`, `ONEPAY_MERCHANT_ID`, `ONEPAY_ACCESS_CODE`, `ONEPAY_SECURE_SECRET`, các URL callback/return.
+
+Giữ `*_SSL_VERIFY=true` ngoài môi trường XAMPP cục bộ. Không đưa credential sandbox/production vào README, SQL, log hoặc Git.
+
+## Chạy test
+
+Test dùng database MySQL riêng `pawora_testing` theo `phpunit.xml`. Tạo database trước, tuyệt đối không trỏ test vào database đang dùng:
 
 ```powershell
-php artisan config:clear
+C:\xampp\mysql\bin\mysql.exe -u root --execute="CREATE DATABASE IF NOT EXISTS pawora_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 php artisan test
-php artisan test --filter=CartNormalizationLegacyTest
 npm run build
+composer validate --strict
 ```
 
-`tests/Feature` kiểm tra nghiệp vụ và HTTP; `tests/Unit` kiểm tra logic độc lập. Các test có tên `LegacyTest` bảo vệ hành vi hiện có khi refactor. Giữ test trong repo; cache và kết quả chạy test không cần commit. Postman và Katalon được giữ làm công cụ kiểm tra bổ sung.
+Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`/`DB_PASSWORD` trước lệnh test hoặc điều chỉnh bản local của `phpunit.xml`. Báo cáo lần kiểm thử gần nhất nằm tại `docs/testing-report.md`; checklist đóng gói ở `docs/submission-checklist.md`.
 
-Kiểm tra style bằng `php vendor/bin/pint --test`. Repo còn lỗi style có sẵn ở một số file; chỉ format các file đang sửa, tránh tạo diff toàn project.
+## Database export
 
-## Cấu trúc
+`database/export/pawora_demo.sql` được tạo từ migration + `DatabaseSeeder`, gồm schema và dữ liệu demo tối thiểu (10 user demo, 32 sản phẩm, biến thể, coupon, đơn mẫu, đánh giá, liên hệ và chat). File không chứa `DEFINER`, đường dẫn máy cá nhân hoặc API key/secret. Snapshot đã được import thử vào database sạch; migration/seeder vẫn là nguồn chuẩn nên được ưu tiên khi phát triển.
 
-```text
-app/Http/Controllers   Nhận request, validation và điều phối nghiệp vụ
-app/Services           Giỏ hàng, địa chỉ, vận chuyển, thanh toán, hoàn tiền, chat
-app/Models             Eloquent, quan hệ và quy tắc trạng thái
-config                 Cấu hình ứng dụng và tích hợp
-routes                 HTTP routes và broadcast channels
-database/migrations    Schema theo phiên bản
-database/seeders       Dữ liệu demo
-resources/views        Blade storefront và Admin
-resources/js           Tương tác frontend
-resources/css          Giao diện và responsive
-tests                  Unit, feature và regression tests
-```
+## Giới hạn và lưu ý
 
-Thuật ngữ nghiệp vụ nằm trong [CONTEXT.md](CONTEXT.md). Tài liệu demo và ảnh kiểm tra giao diện nằm trong `docs/`, `output/playwright/`; tài liệu thuyết trình nằm trong `projects/`. Các thư mục này phục vụ giải thích và kiểm chứng project, không phải file rác của ứng dụng.
+- Các cổng VNPay/ZaloPay/MoMo/OnePay, SePay webhook, GHN, social login, email và Reverb cần credential/dịch vụ riêng; mặc định đều không cần cho COD và QR Demo.
+- Chat mặc định tự polling. Muốn bật realtime, cấu hình Reverb, đặt `BROADCAST_DRIVER=reverb`, `VITE_REALTIME_ENABLED=true`, rồi chạy `php artisan reverb:start` và build lại frontend.
+- QR Demo mô phỏng trạng thái, không chuyển tiền thật và không được dùng trong production.
+- Responsive đã kiểm tra bằng viewport trình duyệt; thiết bị điện thoại vật lý vẫn cần người nộp xác nhận theo checklist.
+- SQL export chứa dữ liệu giả và hash mật khẩu demo, không chứa dữ liệu khách hàng thật. Không dùng snapshot demo cho production.
+
+## Tài liệu chức năng bổ sung
+
+- Luồng chat hỗ trợ: [docs/chat-support-demo.md](docs/chat-support-demo.md).
+- Voucher, giới hạn sử dụng và lịch sử áp dụng được kiểm tra ở server.
+- Giỏ hàng phân biệt từng biến thể; checkout hỗ trợ `idempotency_key` và `checkout_token` để chống tạo đơn trùng.

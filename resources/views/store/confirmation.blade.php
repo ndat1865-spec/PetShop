@@ -6,6 +6,7 @@
     $paymentMethods = [
         'cod' => 'Thanh toán khi nhận hàng',
         'bank_transfer' => 'Chuyển khoản SePay',
+        'qr_demo' => 'QR Demo Pawora',
         'vnpay' => 'VNPay',
         'zalopay' => 'ZaloPay',
         'momo' => 'MoMo',

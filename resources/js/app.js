@@ -1,6 +1,22 @@
 import './bootstrap';
 import './chat-widget';
 import './admin-chat';
+import QRCode from 'qrcode';
+
+const demoQrCanvas = document.querySelector('[data-demo-qr]');
+if (demoQrCanvas) {
+    const status = document.querySelector('[data-demo-qr-status]');
+    QRCode.toCanvas(demoQrCanvas, demoQrCanvas.dataset.qrPayload, {
+        width: 320,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#17211b', light: '#ffffff' },
+    }).then(() => {
+        if (status) status.textContent = 'QR demo đã sẵn sàng để quét.';
+    }).catch(() => {
+        if (status) status.textContent = 'Không thể tạo QR. Hãy tải lại trang hoặc dùng nút giả lập bên dưới.';
+    });
+}
 import './product-content-admin';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
