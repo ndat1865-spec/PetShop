@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContactMessage;
+use App\Models\Order;
 use App\Models\ShopSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,8 +14,17 @@ class ContactController extends Controller
 {
     public function create(Request $request): View
     {
+        $contactOrder = null;
+        if ($request->user() && $request->filled('order')) {
+            $contactOrder = Order::query()
+                ->where('user_id', $request->user()->id)
+                ->where('number', $request->string('order')->trim()->toString())
+                ->first();
+        }
+
         return view('pages.contact', [
             'contactUser' => $request->user(),
+            'contactOrder' => $contactOrder,
             'supportEmail' => ShopSetting::get('support_email', 'hello@pawora.vn'),
             'topics' => ContactMessage::TOPIC_LABELS,
         ]);

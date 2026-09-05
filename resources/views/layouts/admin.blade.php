@@ -61,7 +61,7 @@
                         <p id="admin-nav-{{ Str::slug($group) }}" class="admin-nav-heading">{{ $group }}</p>
                         @foreach($visibleItems as $item)
                             @php([$route,$label,$icon,$permission] = $item)
-                            @php($badge = ($item[4] ?? null) === 'reviews' ? $adminPendingReviewCount : (($item[4] ?? null) === 'contacts' ? $adminNewContactCount : (($item[4] ?? null) === 'chats' ? $adminUnreadChatCount : 0)))
+                            @php($badge = ($item[4] ?? null) === 'reviews' ? $adminUnansweredReviewCount : (($item[4] ?? null) === 'contacts' ? $adminNewContactCount : (($item[4] ?? null) === 'chats' ? $adminUnreadChatCount : 0)))
                             <a @class(['active'=>request()->routeIs($route) || request()->routeIs($route.'.*')]) href="{{ route($route) }}" @if(request()->routeIs($route) || request()->routeIs($route.'.*')) aria-current="page" @endif><span class="admin-nav-icon"><x-admin-icon :name="$icon" /></span><span class="admin-nav-label">{{ $label }}</span>@if($badge)<span class="admin-nav-count" aria-label="{{ $badge }} mục mới">{{ $badge }}</span>@endif</a>
                         @endforeach
                     </section>

@@ -1,6 +1,7 @@
 import './bootstrap';
 import './chat-widget';
 import './admin-chat';
+<<<<<<< HEAD
 import QRCode from 'qrcode';
 
 const demoQrCanvas = document.querySelector('[data-demo-qr]');
@@ -17,6 +18,13 @@ if (demoQrCanvas) {
         if (status) status.textContent = 'Không thể tạo QR. Hãy tải lại trang hoặc dùng nút giả lập bên dưới.';
     });
 }
+=======
+import './product-content-admin';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
 const menuButton = document.querySelector('[data-menu-button]');
 const mobilePanel = document.querySelector('[data-mobile-panel]');
@@ -112,6 +120,198 @@ if (toast) {
     const closeToast = () => toast.remove();
     toast.querySelector('button')?.addEventListener('click', closeToast);
     window.setTimeout(closeToast, 5000);
+}
+
+const homeHero = document.querySelector('[data-home-hero]');
+if (homeHero) {
+    const root = document.documentElement;
+    root.classList.add('gsap-ready');
+
+    const heroVideo = homeHero.querySelector('[data-home-hero-media] video');
+    const heroCopy = homeHero.querySelector('[data-home-hero-copy]');
+    const heroKicker = homeHero.querySelector('[data-hero-kicker]');
+    const heroLines = homeHero.querySelectorAll('[data-hero-line]');
+    const heroDescription = homeHero.querySelector('[data-hero-description]');
+    const heroActions = homeHero.querySelector('[data-hero-actions]');
+    const heroPetNav = homeHero.querySelector('[data-hero-pet-nav]');
+    const homeBridge = document.querySelector('[data-home-bridge]');
+    const homeBridgeInner = homeBridge?.querySelector('.home-bridge__inner');
+    const homeMetrics = [...(homeBridge?.querySelectorAll('dt') ?? [])];
+    const homeNumberFormatter = new Intl.NumberFormat('vi-VN');
+    homeMetrics.forEach((metric) => { metric.dataset.originalValue = metric.textContent.trim(); });
+    const homeMotion = gsap.matchMedia();
+    let heroIntroPlayed = false;
+
+    homeMotion.add(
+        {
+            isDesktop: '(min-width: 768px)',
+            isMobile: '(max-width: 767px)',
+            reduceMotion: '(prefers-reduced-motion: reduce)',
+        },
+        (context) => {
+            const { isDesktop, isMobile, reduceMotion } = context.conditions;
+            const heroEntranceTargets = [heroKicker, ...heroLines, heroDescription, heroActions, heroPetNav].filter(Boolean);
+
+            if (reduceMotion) {
+                root.classList.remove('home-motion-pending');
+                homeHero.classList.remove('is-intro-animating');
+                gsap.set([heroVideo, heroCopy, homeBridgeInner, ...heroEntranceTargets].filter(Boolean), { clearProps: 'all' });
+                homeMetrics.forEach((metric) => { metric.textContent = metric.dataset.originalValue; });
+                return undefined;
+            }
+
+            if (!heroIntroPlayed) {
+                homeHero.classList.add('is-intro-animating');
+                gsap.set(heroKicker, { autoAlpha: 0, y: 14 });
+                gsap.set(heroLines, { yPercent: 112 });
+                gsap.set([heroDescription, heroActions], { autoAlpha: 0, y: 20 });
+                gsap.set(heroPetNav, { autoAlpha: 0, y: 18 });
+                root.classList.remove('home-motion-pending');
+
+                const intro = gsap.timeline({
+                    defaults: { duration: isMobile ? 0.44 : 0.5, ease: 'power2.out' },
+                    onComplete: () => homeHero.classList.remove('is-intro-animating'),
+                });
+                intro
+                    .addLabel('start', 0)
+                    .to(heroKicker, { autoAlpha: 1, y: 0 }, 'start+=0.04')
+                    .to(heroLines, { yPercent: 0, stagger: 0.07 }, 'start+=0.1')
+                    .to(heroDescription, { autoAlpha: 1, y: 0 }, 'start+=0.34')
+                    .to(heroActions, { autoAlpha: 1, y: 0 }, 'start+=0.46')
+                    .to(heroPetNav, { autoAlpha: 1, y: 0, duration: 0.46 }, 'start+=0.58')
+                    .set([heroKicker, ...heroLines, heroDescription, heroActions, heroPetNav], { clearProps: 'opacity,visibility,transform' });
+                heroIntroPlayed = true;
+            } else {
+                homeHero.classList.remove('is-intro-animating');
+                gsap.set(heroEntranceTargets, { clearProps: 'opacity,visibility,transform' });
+                gsap.set(heroVideo, { clearProps: 'transform' });
+            }
+
+            if (isDesktop) {
+                const heroExit = gsap.timeline({
+                    scrollTrigger: {
+                        trigger: homeHero,
+                        start: 'top top',
+                        end: 'bottom top',
+                        scrub: 0.8,
+                    },
+                });
+                heroExit
+                    .to(heroVideo, { yPercent: 8, scale: 1.04, ease: 'none' }, 0)
+                    .to(heroCopy, { y: -64, autoAlpha: 0.34, ease: 'none' }, 0);
+                if (homeBridgeInner) {
+                    heroExit.fromTo(homeBridgeInner, { y: 48 }, { y: 0, ease: 'none' }, 0);
+                }
+            }
+
+            const headings = [...document.querySelectorAll('[data-home-reveal]')];
+            const featuredProducts = [...document.querySelectorAll('[data-home-product-card]:not([hidden])')];
+            const newProducts = [...document.querySelectorAll('[data-home-product-group] > .product-card')];
+            const productCards = [...featuredProducts, ...newProducts];
+            const categoryCards = [...document.querySelectorAll('[data-home-category-card]')];
+            const categoryImages = categoryCards.map((card) => card.querySelector('img')).filter(Boolean);
+            const promises = [...document.querySelectorAll('[data-home-promise]')];
+
+            gsap.set(headings, { autoAlpha: 0, y: 30 });
+            gsap.set(productCards, { autoAlpha: 0, y: 24 });
+            gsap.set(categoryCards, { autoAlpha: 0, y: 28, clipPath: 'inset(8% 0% 8% 0%)' });
+            gsap.set(categoryImages, { scale: 1.055 });
+            gsap.set(promises, { autoAlpha: 0, y: 20 });
+
+            const revealAnimations = [];
+            const revealTypes = new Map([
+                ...headings.map((element) => [element, 'heading']),
+                ...productCards.map((element) => [element, 'product']),
+                ...categoryCards.map((element) => [element, 'category']),
+                ...promises.map((element) => [element, 'promise']),
+                ...homeMetrics.map((element) => [element, 'metric']),
+            ]);
+
+            const animateBatch = (targets, vars = {}) => {
+                if (!targets.length) return;
+                const animation = gsap.to(targets, {
+                    autoAlpha: 1,
+                    y: 0,
+                    clipPath: 'inset(0% 0% 0% 0%)',
+                    duration: 0.7,
+                    ease: 'power3.out',
+                    stagger: 0.08,
+                    overwrite: 'auto',
+                    ...vars,
+                    onComplete: () => gsap.set(targets, { clearProps: 'opacity,visibility,transform,clipPath' }),
+                });
+                revealAnimations.push(animation);
+            };
+
+            const revealObserver = 'IntersectionObserver' in window
+                ? new IntersectionObserver((entries, observer) => {
+                    const groups = { heading: [], product: [], category: [], promise: [], metric: [] };
+                    entries.forEach((entry) => {
+                        if (!entry.isIntersecting) return;
+                        groups[revealTypes.get(entry.target)]?.push(entry.target);
+                        observer.unobserve(entry.target);
+                    });
+
+                    animateBatch(groups.heading, { duration: 0.72 });
+                    animateBatch(groups.product);
+                    animateBatch(groups.category);
+                    animateBatch(groups.promise, { duration: 0.58, stagger: 0.07 });
+
+                    const visibleCategoryImages = groups.category.map((card) => card.querySelector('img')).filter(Boolean);
+                    if (visibleCategoryImages.length) {
+                        revealAnimations.push(gsap.to(visibleCategoryImages, {
+                            scale: 1,
+                            duration: 0.95,
+                            ease: 'power2.out',
+                            stagger: 0.06,
+                            onComplete: () => gsap.set(visibleCategoryImages, { clearProps: 'transform' }),
+                        }));
+                    }
+
+                    groups.metric.forEach((metric) => {
+                        if (metric.dataset.counted === 'true') return;
+                        const rawValue = metric.dataset.originalValue;
+                        const match = rawValue.match(/^([\d.,]+)(.*)$/);
+                        if (!match) return;
+                        const target = Number(match[1].replace(/[^\d]/g, ''));
+                        const suffix = match[2];
+                        const counter = { value: 0 };
+                        revealAnimations.push(gsap.to(counter, {
+                            value: target,
+                            duration: 1.05,
+                            ease: 'power2.out',
+                            snap: { value: 1 },
+                            onUpdate: () => {
+                                metric.textContent = `${homeNumberFormatter.format(counter.value)}${suffix}`;
+                            },
+                            onComplete: () => {
+                                metric.dataset.counted = 'true';
+                                metric.textContent = rawValue;
+                            },
+                        }));
+                    });
+                }, { threshold: 0.01, rootMargin: '0px 0px -12%' })
+                : null;
+
+            if (revealObserver) {
+                revealTypes.forEach((type, element) => revealObserver.observe(element));
+            } else {
+                gsap.set([...headings, ...productCards, ...categoryCards, ...promises], { clearProps: 'opacity,visibility,transform,clipPath' });
+                gsap.set(categoryImages, { clearProps: 'transform' });
+            }
+
+            return () => {
+                revealObserver?.disconnect();
+                revealAnimations.forEach((animation) => animation.kill());
+            };
+        },
+    );
+
+    window.addEventListener('pagehide', () => {
+        root.classList.remove('home-motion-pending');
+        homeHero.classList.remove('is-intro-animating');
+        homeMotion.revert();
+    }, { once: true });
 }
 
 const revealItems = document.querySelectorAll('[data-reveal]');
@@ -376,13 +576,93 @@ document.addEventListener('visibilitychange', () => {
     });
 });
 
+document.querySelectorAll('[data-checkout-review-dialog]').forEach((dialog) => {
+    const form = dialog.closest('form');
+    const closeButton = dialog.querySelector('[data-checkout-review-close]');
+    const editButton = dialog.querySelector('[data-checkout-review-edit]');
+    const confirmButton = dialog.querySelector('[data-checkout-review-confirm]');
+    let opener = null;
+
+    if (!form || typeof dialog.showModal !== 'function') return;
+
+    const fieldValue = (name) => form.elements.namedItem(name)?.value?.trim() || '—';
+    const selectedText = (selector) => {
+        const field = form.querySelector(selector);
+        return field?.selectedOptions?.[0]?.textContent?.trim() || field?.value?.trim() || '—';
+    };
+    const outputText = (selector, fallback = '—') => form.querySelector(selector)?.textContent?.trim() || fallback;
+    const fillReview = () => {
+        const name = fieldValue('customer_name');
+        const phone = fieldValue('phone');
+        const email = fieldValue('email');
+        const address = [fieldValue('address_line'), selectedText('[data-ward]'), selectedText('[data-district]'), selectedText('[data-province]')]
+            .filter((value) => value !== '—')
+            .join(', ');
+        const payment = form.querySelector('[name="payment_method"]:checked')?.closest('.payment-option')?.querySelector('strong')?.textContent?.trim() || '—';
+
+        dialog.querySelector('[data-review-contact]').textContent = `${name} · ${phone} · ${email}`;
+        dialog.querySelector('[data-review-address]').textContent = address || '—';
+        dialog.querySelector('[data-review-payment]').textContent = payment;
+        dialog.querySelector('[data-review-discount]').textContent = outputText('[data-discount-amount]', '0đ');
+        dialog.querySelector('[data-review-shipping]').textContent = outputText('[data-shipping-fee]', 'Chưa tính');
+        dialog.querySelector('[data-review-total]').textContent = outputText('[data-order-total]');
+    };
+    const closeReview = () => {
+        if (dialog.open) dialog.close();
+    };
+
+    form.addEventListener('submit', (event) => {
+        if (form.dataset.checkoutConfirmed === 'true') return;
+        event.preventDefault();
+        fillReview();
+        opener = form.querySelector('[data-submit-button]');
+        dialog.showModal();
+        document.body.classList.add('checkout-review-open');
+        requestAnimationFrame(() => editButton?.focus());
+    });
+    closeButton?.addEventListener('click', closeReview);
+    editButton?.addEventListener('click', closeReview);
+    dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeReview();
+    });
+    dialog.addEventListener('close', () => {
+        document.body.classList.remove('checkout-review-open');
+        opener?.focus();
+        opener = null;
+    });
+    dialog.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return;
+        const focusable = [...dialog.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+            .filter((element) => element.offsetParent !== null);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    });
+    confirmButton?.addEventListener('click', () => {
+        if (form.dataset.checkoutConfirmed === 'true') return;
+        form.dataset.checkoutConfirmed = 'true';
+        confirmButton.disabled = true;
+        confirmButton.setAttribute('aria-busy', 'true');
+        confirmButton.textContent = 'Đang tạo đơn…';
+        form.requestSubmit();
+    });
+});
+
 document.querySelectorAll('[data-submit-form]').forEach((form) => {
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', (event) => {
+        if (event.defaultPrevented) return;
         const button = form.querySelector('[data-submit-button]');
         if (button) {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
-            button.textContent = 'Đang tạo đơn…';
+            button.textContent = button.dataset.loadingLabel || 'Đang xử lý…';
         }
     });
 });
@@ -826,7 +1106,6 @@ if (petCatalog) {
     const products = [...petCatalog.querySelectorAll('[data-pet-product]')];
     const status = petCatalog.querySelector('[data-pet-filter-status]');
     const catalogLink = petCatalog.querySelector('[data-pet-catalog-link]');
-
     const applyPetFilter = (petType) => {
         buttons.forEach((button) => {
             const active = button.dataset.petFilter === petType;
@@ -1064,18 +1343,113 @@ document.querySelectorAll('[data-copy-value]').forEach((button) => {
     });
 });
 
-document.querySelectorAll('[data-catalog-filter-form]').forEach((form) => {
-    const toggle = form.querySelector('[data-catalog-filter-toggle]');
-    const fields = form.querySelector('.catalog-filter-fields');
-    if (!toggle || !fields) return;
+const catalogHero = document.querySelector('[data-catalog-hero]');
+if (catalogHero) {
+    const catalogMotion = gsap.matchMedia();
+    const categories = document.querySelector('[data-catalog-categories]');
+    const toolbar = document.querySelector('[data-catalog-toolbar]');
+    const activeFilters = document.querySelector('[data-catalog-active-filters]');
+    const resultsMeta = document.querySelector('[data-catalog-results-meta]');
+    const notice = document.querySelector('[data-catalog-notice]');
+    const cards = gsap.utils.toArray('[data-catalog-card]');
+    const pagination = document.querySelector('[data-catalog-pagination]');
+    const emptyState = document.querySelector('[data-catalog-empty]');
 
-    toggle.addEventListener('click', () => {
-        const isOpen = fields.dataset.open === 'true';
-        if (isOpen) {
-            delete fields.dataset.open;
-        } else {
-            fields.dataset.open = 'true';
-        }
-        toggle.setAttribute('aria-expanded', String(!isOpen));
+    catalogMotion.add(
+        {
+            isMobile: '(max-width: 767px)',
+            reduceMotion: '(prefers-reduced-motion: reduce)',
+        },
+        (context) => {
+            const { isMobile, reduceMotion } = context.conditions;
+            const form = document.querySelector('[data-catalog-filter-form]');
+            const toggle = form?.querySelector('[data-catalog-filter-toggle]');
+            const fields = form?.querySelector('.catalog-filter-fields');
+            let removeFilterListener = null;
+
+            if (reduceMotion) {
+                gsap.set([catalogHero, categories, toolbar, activeFilters, resultsMeta, notice, cards, pagination, emptyState].flat().filter(Boolean), { clearProps: 'all' });
+            } else {
+                gsap.timeline({ defaults: { ease: 'power3.out' } })
+                    .fromTo('[data-catalog-hero-kicker]', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45 })
+                    .fromTo('[data-catalog-hero-title]', { autoAlpha: 0, y: 28 }, { autoAlpha: 1, y: 0, duration: 0.7 }, '-=0.2')
+                    .fromTo('[data-catalog-hero-copy]', { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.55 }, '-=0.4')
+                    .fromTo(categories, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.5 }, '-=0.3');
+
+                [toolbar, activeFilters, resultsMeta, notice, pagination, emptyState].filter(Boolean).forEach((element) => {
+                    gsap.fromTo(element, { autoAlpha: 0, y: 20 }, {
+                        autoAlpha: 1,
+                        y: 0,
+                        duration: 0.55,
+                        ease: 'power2.out',
+                        clearProps: 'transform,opacity,visibility',
+                        scrollTrigger: { trigger: element, start: 'top 90%', once: true },
+                    });
+                });
+
+                if (cards.length) {
+                    gsap.set(cards, { autoAlpha: 0, y: 22, willChange: 'transform,opacity' });
+                    ScrollTrigger.batch(cards, {
+                        start: 'top 91%',
+                        once: true,
+                        interval: 0.08,
+                        batchMax: isMobile ? 2 : 4,
+                        onEnter: (batch) => gsap.to(batch, {
+                            autoAlpha: 1,
+                            y: 0,
+                            duration: 0.58,
+                            stagger: 0.07,
+                            ease: 'power3.out',
+                            clearProps: 'transform,opacity,visibility,willChange',
+                            overwrite: true,
+                        }),
+                    });
+                }
+            }
+
+            if (isMobile && toggle && fields) {
+                form.dataset.motionReady = 'true';
+                const startsOpen = fields.dataset.open === 'true';
+                const filterTimeline = gsap.timeline({
+                    paused: true,
+                    defaults: { duration: reduceMotion ? 0.01 : 0.28, ease: 'power2.out' },
+                    onReverseComplete: () => gsap.set(fields, { display: 'none' }),
+                })
+                    .set(fields, { display: 'grid', transformOrigin: 'top center' })
+                    .fromTo(fields, { autoAlpha: 0, y: -8, scaleY: 0.985 }, { autoAlpha: 1, y: 0, scaleY: 1 });
+
+                if (startsOpen) filterTimeline.progress(1).pause();
+                else gsap.set(fields, { display: 'none', autoAlpha: 0 });
+
+                const onFilterToggle = () => {
+                    const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
+                    toggle.setAttribute('aria-expanded', String(willOpen));
+                    if (willOpen) {
+                        fields.dataset.open = 'true';
+                        gsap.set(fields, { display: 'grid' });
+                        filterTimeline.play();
+                    } else {
+                        delete fields.dataset.open;
+                        filterTimeline.reverse();
+                    }
+                };
+                toggle.addEventListener('click', onFilterToggle);
+                removeFilterListener = () => toggle.removeEventListener('click', onFilterToggle);
+            }
+
+            return () => removeFilterListener?.();
+        },
+    );
+
+    let refreshCall;
+    const refreshCatalog = () => {
+        refreshCall?.kill();
+        refreshCall = gsap.delayedCall(0.12, () => ScrollTrigger.refresh());
+    };
+    document.fonts?.ready.then(refreshCatalog);
+    document.querySelectorAll('[data-catalog-card] img').forEach((image) => {
+        if (!image.complete) image.addEventListener('load', refreshCatalog, { once: true });
     });
-});
+    window.addEventListener('load', refreshCatalog, { once: true });
+    window.addEventListener('pagehide', () => catalogMotion.revert(), { once: true });
+}

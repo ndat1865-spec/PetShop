@@ -23,17 +23,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(['email'=>'admin@pawora.vn'], ['name'=>'Pawora Admin','phone'=>'0909000001','role'=>'admin','password'=>Hash::make('Pawora@2026')]);
-        User::updateOrCreate(['email'=>'khach@pawora.vn'], ['name'=>'Nguyễn An','phone'=>'0909000002','role'=>'customer','password'=>Hash::make('Pawora@2026'),'province'=>'Thành phố Hà Nội','ward'=>'Phường Tây Tựu','address_line'=>'Số 18, ngõ 5 Ngọa Long']);
+        User::updateOrCreate(['email' => 'admin@pawora.vn'], ['name' => 'Pawora Admin', 'phone' => '0909000001', 'role' => 'admin', 'password' => Hash::make('Pawora@2026')]);
+        User::updateOrCreate(['email' => 'khach@pawora.vn'], ['name' => 'Nguyễn An', 'phone' => '0909000002', 'role' => 'customer', 'password' => Hash::make('Pawora@2026'), 'province' => 'Thành phố Hà Nội', 'ward' => 'Phường Tây Tựu', 'address_line' => 'Số 18, ngõ 5 Ngọa Long']);
+        $productContent = require database_path('seeders/data/pawora_product_content.php');
         $catalog = [
-            'Đồ chơi cho chó' => ['dog', ['Bóng cao su Pounce','Dây thừng Tug & Joy','Đĩa bay Flexi Disc','Đồ chơi phát tiếng Nibble']],
-            'Đồ chơi cho mèo' => ['cat', ['Cần câu lông vũ Miso','Bóng len Moon Ball','Bàn cào móng Cloud','Đường hầm Hide & Seek']],
-            'Vòng cổ & dây dắt' => ['all', ['Vòng cổ AirTag Linen','Dây dắt Urban Walk','Yếm ngực Comfort Pro','Bộ dây dắt Weekend']],
-            'Giường & chăn' => ['all', ['Giường ngủ Cocoon','Nệm mây Soft Nest','Chăn cotton Calm','Nhà vải Hideaway']],
-            'Bát ăn & bình nước' => ['all', ['Bát sứ Slow Dining','Bình nước Travel Sip','Bát đôi Oak Stand','Máy nước Fresh Flow']],
-            'Grooming' => ['all', ['Lược chải Easy Coat','Kềm cắt móng Safe Trim','Găng tay Gentle Groom','Khăn tắm Quick Dry']],
-            'Quần áo thú cưng' => ['all', ['Áo thun Everyday','Áo mưa City Walk','Khăn choàng Pawora','Áo len Warm Hug']],
-            'Phụ kiện du lịch' => ['all', ['Túi vận chuyển Go Together','Đệm xe Road Trip','Túi đựng snack Walkie','Bình nước Pocket Sip']],
+            'Đồ chơi cho chó' => ['dog', ['Bóng cao su Pounce', 'Dây thừng Tug & Joy', 'Đĩa bay Flexi Disc', 'Đồ chơi phát tiếng Nibble']],
+            'Đồ chơi cho mèo' => ['cat', ['Cần câu lông vũ Miso', 'Bóng len Moon Ball', 'Bàn cào móng Cloud', 'Đường hầm Hide & Seek']],
+            'Vòng cổ & dây dắt' => ['all', ['Vòng cổ AirTag Linen', 'Dây dắt Urban Walk', 'Yếm ngực Comfort Pro', 'Bộ dây dắt Weekend']],
+            'Giường & chăn' => ['all', ['Giường ngủ Cocoon', 'Nệm mây Soft Nest', 'Chăn cotton Calm', 'Nhà vải Hideaway']],
+            'Bát ăn & bình nước' => ['all', ['Bát sứ Slow Dining', 'Bình nước Travel Sip', 'Bát đôi Oak Stand', 'Máy nước Fresh Flow']],
+            'Grooming' => ['all', ['Lược chải Easy Coat', 'Kềm cắt móng Safe Trim', 'Găng tay Gentle Groom', 'Khăn tắm Quick Dry']],
+            'Quần áo thú cưng' => ['all', ['Áo thun Everyday', 'Áo mưa City Walk', 'Khăn choàng Pawora', 'Áo len Warm Hug']],
+            'Phụ kiện du lịch' => ['all', ['Túi vận chuyển Go Together', 'Đệm xe Road Trip', 'Túi đựng snack Walkie', 'Bình nước Pocket Sip']],
         ];
         $images = array_map(
             fn (int $number) => sprintf(
@@ -53,20 +54,25 @@ class DatabaseSeeder extends Seeder
             'Quần áo thú cưng' => [['Kem', 'Xanh navy', 'Đỏ'], ['S', 'M']],
             'Phụ kiện du lịch' => [['Be', 'Đen', 'Xanh rêu'], ['Tiêu chuẩn', 'Lớn']],
         ];
+        $productSizeOptions = [
+            'PAW-0020' => ['1,3 lít', '2 lít'],
+        ];
         $i = 0;
         foreach ($catalog as $categoryName => [$petType, $names]) {
-            $category = Category::updateOrCreate(['slug'=>Str::slug($categoryName)], ['name'=>$categoryName,'description'=>'Phụ kiện được Pawora tuyển chọn cho những khoảnh khắc gần gũi mỗi ngày.','is_active'=>true]);
+            $category = Category::updateOrCreate(['slug' => Str::slug($categoryName)], ['name' => $categoryName, 'description' => 'Phụ kiện được Pawora tuyển chọn cho những khoảnh khắc gần gũi mỗi ngày.', 'is_active' => true]);
             foreach ($names as $name) {
                 $price = 129000 + ($i * 27000);
-                $product = Product::updateOrCreate(['sku'=>'PAW-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT)], [
-                    'category_id'=>$category->id,'name'=>$name,'slug'=>Str::slug($name),'pet_type'=>$petType,
-                    'short_description'=>'Thiết kế tinh gọn, chất liệu an toàn và thoải mái cho bé trong nhịp sống hằng ngày.',
-                    'description'=>'Pawora chọn từng chi tiết với ưu tiên an toàn, độ bền và trải nghiệm sử dụng. Sản phẩm dễ vệ sinh, phù hợp dùng hằng ngày và có hướng dẫn bảo quản rõ ràng.',
-                    'price'=>$price,'compare_price'=>$i % 3 === 0 ? $price + 80000 : null,'stock'=>5 + ($i % 18),
-                    'image'=>$images[$i % count($images)],
-                    'is_featured'=>$i < 8,'status'=>'active',
+                $sku = 'PAW-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT);
+                $content = $productContent[$sku] ?? throw new \RuntimeException("Thiếu nội dung seed cho {$sku}.");
+                $product = Product::updateOrCreate(['sku' => $sku], [
+                    'category_id' => $category->id, 'name' => $name, 'slug' => Str::slug($name), 'pet_type' => $petType,
+                    ...$content,
+                    'price' => $price, 'compare_price' => $i % 3 === 0 ? $price + 80000 : null, 'stock' => 5 + ($i % 18),
+                    'image' => $images[$i % count($images)],
+                    'is_featured' => $i < 8, 'status' => 'active',
                 ]);
                 [$colors, $sizes] = $optionSets[$categoryName];
+                $sizes = $productSizeOptions[$sku] ?? $sizes;
                 foreach ($colors as $colorIndex => $color) {
                     foreach ($sizes as $sizeIndex => $size) {
                         ProductVariant::updateOrCreate(
@@ -164,20 +170,23 @@ class DatabaseSeeder extends Seeder
             $order->forceFill(['created_at' => now()->subDays(124 + $customerIndex), 'updated_at' => now()->subDays(118 + $customerIndex)])->saveQuietly();
 
             foreach ($selectedProducts as $offset => $product) {
+                $variant = $product->variants()->where('is_active', true)->orderBy('id')->first();
                 $order->items()->updateOrCreate(['product_id' => $product->id], [
+                    'product_variant_id' => $variant?->id,
                     'product_name' => $product->name,
-                    'sku' => $product->sku,
-                    'unit_price' => $product->price,
+                    'sku' => $variant?->sku ?? $product->sku,
+                    'unit_price' => $variant?->price ?? $product->price,
                     'quantity' => 1,
-                    'line_total' => $product->price,
+                    'line_total' => $variant?->price ?? $product->price,
                 ]);
                 $reviewIndex = ($customerIndex * 3) + $offset;
                 $status = match ($reviewIndex) {
-                    5, 17, 21 => 'pending',
-                    11, 19 => 'hidden',
-                    23 => 'rejected',
+                    11, 19, 23 => 'hidden',
                     default => 'approved',
                 };
+                $shopReply = $status === 'approved' && $reviewIndex % 4 === 0
+                    ? 'Cảm ơn bạn đã chia sẻ trải nghiệm. Pawora rất vui khi sản phẩm phù hợp với bé!'
+                    : null;
                 $contentIndex = ($customerIndex + $offset) % count($comments);
                 $review = ProductReview::updateOrCreate([
                     'product_id' => $product->id,
@@ -185,12 +194,18 @@ class DatabaseSeeder extends Seeder
                 ], [
                     'order_id' => $order->id,
                     'rating' => $ratings[$contentIndex],
+                    'fit' => filled($variant?->size) ? ['small', 'true_to_size', 'large'][$contentIndex % 3] : null,
+                    'pet_weight' => 3.5 + (($customerIndex + $offset) * 0.8),
+                    'purchased_variant' => $variant?->name,
                     'title' => $titles[$contentIndex],
                     'comment' => $comments[$contentIndex],
                     'status' => $status,
-                    'admin_note' => $status === 'hidden' ? 'Tạm ẩn để kiểm tra thông tin mô tả.' : ($status === 'rejected' ? 'Nội dung chưa đủ thông tin về trải nghiệm sản phẩm.' : null),
-                    'moderated_by' => $status === 'pending' ? null : $admin->id,
-                    'moderated_at' => $status === 'pending' ? null : now()->subDays(60 + $reviewIndex),
+                    'admin_note' => $status === 'hidden' ? 'Tạm ẩn để kiểm tra thông tin mô tả.' : null,
+                    'shop_reply' => $shopReply,
+                    'replied_by' => $shopReply ? $admin->id : null,
+                    'replied_at' => $shopReply ? now()->subDays(60 + $reviewIndex) : null,
+                    'moderated_by' => $admin->id,
+                    'moderated_at' => now()->subDays(60 + $reviewIndex),
                 ]);
                 $review->forceFill(['created_at' => now()->subDays(85 - $reviewIndex), 'updated_at' => now()->subDays(84 - $reviewIndex)])->saveQuietly();
             }

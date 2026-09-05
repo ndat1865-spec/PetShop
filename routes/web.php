@@ -39,8 +39,8 @@ Route::get('/san-pham', [StoreController::class, 'index'])->name('products.index
 Route::get('/san-pham/{slug}', [StoreController::class, 'show'])->name('products.show');
 Route::get('/gio-hang', [CartController::class, 'index'])->name('cart.index');
 Route::post('/gio-hang/{product}', [CartController::class, 'store'])->name('cart.store');
-Route::patch('/gio-hang/{product}', [CartController::class, 'update'])->name('cart.update');
-Route::delete('/gio-hang/{product}', [CartController::class, 'destroy'])->name('cart.destroy');
+Route::patch('/gio-hang/{product}/{lineKey?}', [CartController::class, 'update'])->name('cart.update');
+Route::delete('/gio-hang/{product}/{lineKey?}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::middleware('auth')->group(function () {
     Route::post('/san-pham/{product:slug}/danh-gia', [ProductReviewController::class, 'store'])->middleware('throttle:5,1')->name('products.reviews.store');
     Route::get('/thanh-toan', [CheckoutController::class, 'create'])->name('checkout.create');
@@ -79,6 +79,7 @@ Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function
     Route::get('/don-hang/{order}', [AccountController::class, 'showOrder'])->name('orders.show');
     Route::patch('/don-hang/{order}/huy', [AccountController::class, 'cancelOrder'])->name('orders.cancel');
     Route::patch('/don-hang/{order}/da-nhan-hang', [AccountController::class, 'confirmOrderReceived'])->name('orders.received');
+    Route::post('/don-hang/{order}/mua-lai', [AccountController::class, 'reorder'])->name('orders.reorder');
     Route::get('/doi-tra', [AccountController::class, 'returns'])->name('returns.index');
     Route::post('/don-hang/{order}/doi-tra', [AccountController::class, 'requestReturn'])->name('returns.store');
 });
@@ -160,6 +161,8 @@ Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.
     Route::patch('/cai-dat', [AdminController::class, 'updateSettings'])->middleware('permission:settings.manage')->name('settings.update');
 });
 Route::view('/ve-pawora', 'pages.about')->name('about');
+Route::view('/dieu-khoan-mua-hang', 'pages.terms')->name('legal.terms');
+Route::view('/chinh-sach-bao-mat', 'pages.privacy')->name('legal.privacy');
 Route::get('/lien-he', [ContactController::class, 'create'])->name('contact');
 Route::post('/lien-he', [ContactController::class, 'store'])->middleware('throttle:5,1')->name('contact.store');
 Route::get('/sitemap.xml', function () {

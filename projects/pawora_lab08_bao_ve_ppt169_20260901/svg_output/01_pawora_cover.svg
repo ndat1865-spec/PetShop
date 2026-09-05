@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"
+     data-pptx-page-role="cover"
+     font-family="Segoe UI, Arial, sans-serif" font-size="28">
+  <defs>
+    <linearGradient id="cover-scrim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F6F4EF" stop-opacity="1"/>
+      <stop offset="0.48" stop-color="#F6F4EF" stop-opacity="0.96"/>
+      <stop offset="0.72" stop-color="#F6F4EF" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#F6F4EF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <image id="cover-photo" data-pptx-role="background"
+         href="../images/pawora-care-dog-poster.webp"
+         x="0" y="0" width="1280" height="720"
+         preserveAspectRatio="xMidYMid slice"/>
+  <rect id="cover-scrim-field" data-pptx-role="decoration"
+        x="0" y="0" width="990" height="720" fill="url(#cover-scrim)"/>
+
+  <g id="brand-kicker" data-pptx-bounds="56 42 310 72">
+    <image href="../images/pawora-p-logo.png" x="56" y="42" width="54" height="54"
+           preserveAspectRatio="xMidYMid meet"/>
+    <text x="126" y="77" font-family="Consolas, Courier New, monospace"
+          font-size="22" font-weight="700" letter-spacing="2" fill="#0066CC">PAWORA</text>
+  </g>
+
+  <g id="cover-title" data-pptx-bounds="56 142 690 260">
+    <text x="56" y="192" font-family="Georgia, Times New Roman, serif"
+          font-size="56" font-weight="700" fill="#111827"><tspan x="56" dy="0">Từ phụ kiện thú cưng</tspan>
+      <tspan x="56" dy="68">đến đơn hàng an toàn</tspan>
+    </text>
+    <text x="58" y="355" font-size="30" font-weight="600" fill="#1D1D1F">Website TMĐT phụ kiện thú cưng · Laravel</text>
+  </g>
+
+  <g id="transaction-hook" data-pptx-bounds="56 430 665 98">
+    <line x1="58" y1="462" x2="505" y2="462" stroke="#0066CC" stroke-width="4"/>
+    <circle cx="58" cy="462" r="7" fill="#0066CC"/>
+    <circle cx="505" cy="462" r="13" fill="#F6F4EF" stroke="#0066CC" stroke-width="4"/>
+    <text x="58" y="510" font-size="28" fill="#1D1D1F">Một chuỗi mua hàng có thể demo và kiểm chứng.</text>
+  </g>
+
+  <g id="lab-badge" data-pptx-bounds="56 554 246 56">
+    <rect x="56" y="554" width="246" height="56" fill="#111827"/>
+    <text x="179" y="591" text-anchor="middle" font-family="Consolas, Courier New, monospace"
+          font-size="22" font-weight="700" letter-spacing="1" fill="#FFFFFF">LAB 08 · 2026</text>
+  </g>
+
+  <g id="team-strip" data-pptx-bounds="56 638 910 40">
+    <text x="56" y="665" font-size="18" font-weight="700" fill="#111827">TIẾN ĐẠT</text>
+    <text x="218" y="665" font-size="18" fill="#667085">MINH THU</text>
+    <text x="365" y="665" font-size="18" fill="#667085">BÌNH MINH</text>
+    <text x="526" y="665" font-size="18" fill="#667085">MỸ NGÂN</text>
+    <text x="912" y="665" text-anchor="end" font-family="Consolas, Courier New, monospace"
+          font-size="16" fill="#667085">01 / 32</text>
+  </g>
+</svg>

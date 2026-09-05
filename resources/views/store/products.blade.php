@@ -24,15 +24,15 @@
     ];
 @endphp
 
-<section class="page-hero catalog-hero catalog-hero--minimal container">
-    <p class="eyebrow">Pawora Collection</p>
+<section class="page-hero catalog-hero catalog-hero--minimal container" data-catalog-hero>
+    <p class="eyebrow" data-catalog-hero-kicker>Pawora Collection</p>
     <div class="catalog-hero__row">
-        <h1>Phụ kiện cho từng nhịp sống.</h1>
-        <p>Chọn đúng món cho bé bằng tìm kiếm và bộ lọc rõ ràng, nhanh gọn.</p>
+        <h1 data-catalog-hero-title>Phụ kiện cho từng nhịp sống.</h1>
+        <p data-catalog-hero-copy>Chọn đúng món cho bé bằng tìm kiếm và bộ lọc rõ ràng, nhanh gọn.</p>
     </div>
 </section>
 
-<div class="category-pills-wrap">
+<div class="category-pills-wrap" data-catalog-categories>
     <nav class="category-pills container" aria-label="Danh mục sản phẩm">
         <a href="{{ route('products.index', $categoryQuery) }}" @class(['category-pill', 'is-active' => !$selectedCategory]) @if(!$selectedCategory) aria-current="page" @endif><span aria-hidden="true"></span>Tất cả</a>
         @foreach($categories as $category)
@@ -42,7 +42,7 @@
 </div>
 
 <section class="catalog catalog--minimal catalog-v2 container" aria-labelledby="product-results-title">
-    <form class="catalog-toolbar" method="get" action="{{ route('products.index') }}" data-catalog-filter-form>
+    <form class="catalog-toolbar" method="get" action="{{ route('products.index') }}" data-catalog-filter-form data-catalog-toolbar>
         @if($selectedCategory)<input type="hidden" name="category" value="{{ $selectedCategory->slug }}">@endif
         <div class="catalog-search">
             <label class="sr-only" for="q">Tìm sản phẩm</label>
@@ -62,7 +62,7 @@
     </form>
 
     @if($activeFilterCount)
-        <div class="active-filters" aria-label="Bộ lọc đang áp dụng">
+        <div class="active-filters" aria-label="Bộ lọc đang áp dụng" data-catalog-active-filters>
             <span class="active-filters__label">Đang lọc</span>
             @foreach($chipLabels as $key => $label)
                 @if($label)<a href="{{ route('products.index', Illuminate\Support\Arr::except($filters, [$key, 'page'])) }}" class="filter-chip" aria-label="Bỏ bộ lọc {{ $label }}">{{ $label }} <span aria-hidden="true">×</span></a>@endif
@@ -72,17 +72,17 @@
     @endif
 
     <div class="results results--minimal">
-        <div class="results-meta">
+        <div class="results-meta" data-catalog-results-meta>
             <div><p class="eyebrow">Bộ sưu tập Pawora</p><h2 id="product-results-title">{{ $resultTitle }}</h2><p>{{ $products->total() }} sản phẩm phù hợp</p></div>
             @unless($activeFilterCount)<span class="results-meta__hint">Được chọn cho những ngày bên nhau.</span>@endunless
         </div>
         @if($products->count())
             @if($products->every(fn ($product) => $product->stock < 1))
-                <div class="catalog-notice" role="status"><strong>Các sản phẩm trong kết quả này đang tạm hết hàng.</strong><span>Bạn vẫn có thể xem chi tiết để kiểm tra thông tin và quay lại sau.</span></div>
+                <div class="catalog-notice" role="status" data-catalog-notice><strong>Các sản phẩm trong kết quả này đang tạm hết hàng.</strong><span>Bạn vẫn có thể xem chi tiết để kiểm tra thông tin và quay lại sau.</span></div>
             @endif
-            <div class="product-grid light">@foreach($products as $product)<x-product-card :product="$product" />@endforeach</div>
+            <div class="product-grid light" data-catalog-grid>@foreach($products as $product)<x-product-card :product="$product" :motion="false" :catalog-motion="true" />@endforeach</div>
             @if($products->hasPages())
-                <nav class="catalog-pagination" aria-label="Phân trang sản phẩm">
+                <nav class="catalog-pagination" aria-label="Phân trang sản phẩm" data-catalog-pagination>
                     @if($products->onFirstPage())<span class="pagination-arrow is-disabled" aria-hidden="true">←</span>@else<a class="pagination-arrow" href="{{ $products->previousPageUrl() }}" rel="prev" aria-label="Trang trước">←</a>@endif
                     @foreach($products->getUrlRange(max(1, $products->currentPage() - 2), min($products->lastPage(), $products->currentPage() + 2)) as $page => $url)
                         @if($page === $products->currentPage())<span class="is-current" aria-current="page">{{ $page }}</span>@else<a href="{{ $url }}" aria-label="Đến trang {{ $page }}">{{ $page }}</a>@endif
@@ -91,7 +91,7 @@
                 </nav>
             @endif
         @else
-            <div class="empty-state catalog-empty-state"><span aria-hidden="true">0</span><h2>Chưa tìm thấy món phù hợp.</h2><p>Thử một từ khóa ngắn hơn, điều chỉnh khoảng giá hoặc bỏ bớt bộ lọc.</p><a class="button primary" href="{{ route('products.index') }}">Xem tất cả sản phẩm</a></div>
+            <div class="empty-state catalog-empty-state" data-catalog-empty><span aria-hidden="true">0</span><h2>Chưa tìm thấy món phù hợp.</h2><p>Thử một từ khóa ngắn hơn, điều chỉnh khoảng giá hoặc bỏ bớt bộ lọc.</p><a class="button primary" href="{{ route('products.index') }}">Xem tất cả sản phẩm</a></div>
         @endif
     </div>
 </section>

@@ -4,22 +4,32 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\CartService;
 use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
+<<<<<<< HEAD
     public function index()
     {
         return view('store.cart', ['cart' => $this->details()]);
     }
 
     public function store(Request $request, Product $product)
+=======
+    public function index(CartService $cart)
+    {
+        return view('store.cart', ['cart' => $cart->details()]);
+    }
+
+    public function store(Request $request, Product $product, CartService $cart)
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
     {
         $data = $request->validate([
             'quantity' => 'nullable|integer|min:1|max:20',
             'variant_id' => 'nullable|integer',
         ]);
-        abort_if($product->status !== 'active' || $product->stock < 1, 422, 'Sản phẩm hiện đã hết hàng.');
+        abort_if($product->status !== 'active', 422, 'Sản phẩm hiện không còn được bán.');
 
         $variant = null;
         if ($product->variants()->where('is_active', true)->exists()) {
@@ -29,6 +39,7 @@ class CartController extends Controller
 
         $available = $variant?->stock ?? $product->stock;
         abort_if($available < 1, 422, 'Lựa chọn này hiện đã hết hàng.');
+<<<<<<< HEAD
         $cart = session('cart', []);
         $current = $cart[$product->id] ?? 0;
         $currentQuantity = is_array($current) && ($current['variant_id'] ?? null) === $variant?->id ? (int) ($current['quantity'] ?? 0) : (is_int($current) ? $current : 0);
@@ -36,13 +47,25 @@ class CartController extends Controller
         abort_if($quantity > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
         $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
         session(['cart' => $cart]);
+=======
+        $lines = $cart->lines();
+        $lineKey = $cart->lineKey((int) $product->id, $variant?->id);
+        $currentQuantity = (int) ($lines[$lineKey]['quantity'] ?? 0);
+        $quantity = min($available, $currentQuantity + ($data['quantity'] ?? 1));
+        $lines[$lineKey] = [
+            'product_id' => (int) $product->id,
+            'variant_id' => $variant?->id,
+            'quantity' => $quantity,
+        ];
+        $cart->put($lines);
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
         $message = 'Đã thêm '.$product->name.($variant ? ' · '.$variant->name : '').' vào giỏ hàng.';
 
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => $message,
-                'cart_count' => $this->details()['count'],
+                'cart_count' => $cart->details()['count'],
                 'product_name' => $product->name,
                 'image' => $product->image,
             ]);
@@ -51,6 +74,7 @@ class CartController extends Controller
         return back()->with('success', $message);
     }
 
+<<<<<<< HEAD
     public function update(Request $request, Product $product)
     {
         $data = $request->validate(['quantity' => 'required|integer|min:1|max:20']);
@@ -64,10 +88,30 @@ class CartController extends Controller
             $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
         }
         session(['cart' => $cart]);
+=======
+    public function update(Request $request, Product $product, CartService $cart, ?string $lineKey = null)
+    {
+        $data = $request->validate(['quantity' => 'required|integer|min:1|max:20']);
+        $lines = $cart->lines();
+        $lineKey ??= $cart->firstLineKeyForProduct((int) $product->id);
+        $identity = $lineKey ? $cart->parseLineKey($lineKey) : null;
+        abort_unless($identity && (int) $identity['product_id'] === (int) $product->id && isset($lines[$lineKey]), 404);
+
+        $variant = $identity['variant_id']
+            ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->find($identity['variant_id'])
+            : null;
+        abort_if($identity['variant_id'] && ! $variant, 422, 'Biến thể này hiện không còn khả dụng.');
+
+        $available = (int) ($variant?->stock ?? $product->stock);
+        abort_if($available < 1, 422, 'Lựa chọn này hiện đã hết hàng.');
+        $quantity = min((int) $data['quantity'], $available);
+        $lines[$lineKey]['quantity'] = $quantity;
+        $cart->put($lines);
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
         if ($request->expectsJson()) {
-            $details = $this->details();
-            $item = collect($details['items'])->first(fn ($entry) => $entry['product']->is($product));
+            $details = $cart->details();
+            $item = collect($details['items'])->first(fn ($entry) => $entry['lineKey'] === $lineKey);
             $remaining = max(0, 700000 - $details['subtotal']);
 
             return response()->json([
@@ -84,6 +128,7 @@ class CartController extends Controller
         return back()->with('success', 'Giỏ hàng đã được cập nhật.');
     }
 
+<<<<<<< HEAD
     public function destroy(Product $product)
     {
         $cart = session('cart', []);
@@ -120,5 +165,17 @@ class CartController extends Controller
         }
 
         return ['items' => $items, 'subtotal' => $subtotal, 'count' => array_sum(array_column($items, 'qty'))];
+=======
+    public function destroy(Product $product, CartService $cart, ?string $lineKey = null)
+    {
+        $lines = $cart->lines();
+        $lineKey ??= $cart->firstLineKeyForProduct((int) $product->id);
+        $identity = $lineKey ? $cart->parseLineKey($lineKey) : null;
+        abort_unless($identity && (int) $identity['product_id'] === (int) $product->id && isset($lines[$lineKey]), 404);
+        unset($lines[$lineKey]);
+        $cart->put($lines);
+
+        return back()->with('success', 'Đã xóa sản phẩm khỏi giỏ.');
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
     }
 }

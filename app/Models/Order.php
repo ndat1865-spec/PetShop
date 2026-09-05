@@ -43,7 +43,11 @@ class Order extends Model
         'refund_pending' => 'Đang hoàn tiền',
     ];
 
+<<<<<<< HEAD
     protected $fillable = ['number', 'public_token', 'checkout_token', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
+=======
+    protected $fillable = ['number', 'public_token', 'idempotency_key', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
+>>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
     protected $casts = ['subtotal' => 'decimal:0', 'discount' => 'decimal:0', 'shipping_fee' => 'decimal:0', 'total' => 'decimal:0', 'refunded_amount' => 'decimal:0', 'paid_at' => 'datetime'];
 
@@ -147,6 +151,11 @@ class Order extends Model
     {
         return in_array($this->status, ['pending', 'confirmed'], true)
             && ! in_array($this->payment_status, ['refunded', 'refund_pending'], true);
+    }
+
+    public function canUsePostPurchaseActions(): bool
+    {
+        return $this->status === 'delivered' && $this->payment_status === 'paid';
     }
 
     public function deliveredAt(): ?Carbon

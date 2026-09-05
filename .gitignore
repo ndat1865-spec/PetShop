@@ -1,6 +1,7 @@
 /.phpunit.cache
 /.phpunit.result.cache
 /.npm-cache
+/.playwright-cli/
 /node_modules
 /.tmp/
 /tmp/
