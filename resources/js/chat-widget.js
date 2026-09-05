@@ -1,3 +1,5 @@
+import { setupChatComposer } from './chat-composer';
+
 const widget = document.querySelector('[data-chat-widget]');
 
 if (widget) {
@@ -13,7 +15,6 @@ if (widget) {
     const startSubmit = widget.querySelector('[data-chat-start-submit]');
     const messageForm = widget.querySelector('[data-chat-message-form]');
     const messageInput = widget.querySelector('[data-chat-input]');
-    const sendButton = widget.querySelector('[data-chat-send]');
     const messagesBox = widget.querySelector('[data-chat-messages]');
     const emptyState = widget.querySelector('[data-chat-empty]');
     const errors = widget.querySelector('[data-chat-errors]');
@@ -23,7 +24,17 @@ if (widget) {
     const imagePreview = widget.querySelector('[data-chat-image-preview]');
     const imageRemove = widget.querySelector('[data-chat-image-remove]');
     const newButton = widget.querySelector('[data-chat-new]');
-    const storageKey = 'pawora_chat_session_v1';
+    const storageKey = `pawora_chat_session_v2_${widget.dataset.userId}`;
+    const composer = setupChatComposer(messageForm, `pawora_customer_draft_${widget.dataset.userId}`);
+    const handoffButton = widget.querySelector('[data-chat-handoff]');
+    const newMessagesButton = widget.querySelector('[data-chat-new-messages]');
+    let supportMode = 'bot';
+    let startPending = null;
+    let loading = false;
+    let lastSync = null;
+    let firstLoad = true;
+    try { startPending = JSON.parse(sessionStorage.getItem(`${storageKey}_start`)); } catch { /* Use an in-memory retry key. */ }
+
     const soundKey = 'pawora_chat_sound';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     let session = null;
@@ -57,7 +68,14 @@ if (widget) {
         widget.classList.toggle('is-open', open);
         if (open) {
             window.setTimeout(() => (session ? messageInput : startForm.querySelector('input:not([type="hidden"]), textarea'))?.focus(), 60);
-            if (session) markRead();
+            if (session) {
+                requestAnimationFrame(() => {
+                    composer.save();
+                    messagesBox.scrollTop = messagesBox.scrollHeight;
+                    newMessagesButton.hidden = true;
+                });
+                markRead();
+            }
         } else {
             launcher.focus();
         }
@@ -75,16 +93,14 @@ if (widget) {
 
     const renderMessage = (message, { announce = false } = {}) => {
         if (!message?.id || messagesBox.querySelector(`[data-message-id="${message.id}"]`)) return;
-        if (message.deliver_at && new Date(message.deliver_at).getTime() > Date.now()) {
-            window.setTimeout(() => loadMessages(), Math.max(250, new Date(message.deliver_at).getTime() - Date.now() + 100));
-            return;
-        }
+        const atBottom = firstLoad || message.sender_type === 'customer' || messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 64;
         emptyState.hidden = true;
+        if (message.suggest_topics) widget.querySelector('.support-chat__help details').open = true;
         const article = document.createElement('article');
         article.className = `support-chat__message support-chat__message--${message.sender_type}`;
         article.dataset.messageId = message.id;
         const sender = document.createElement('span');
-        sender.textContent = message.sender_name || (message.sender_type === 'customer' ? 'Bạn' : 'Pawora');
+        sender.textContent = message.sender_type === 'customer' ? 'Bạn' : (message.sender_name || 'Pawora');
         article.append(sender);
         if (message.attachment_url) {
             const link = document.createElement('a');
@@ -108,26 +124,46 @@ if (widget) {
         article.append(time);
         messagesBox.append(article);
         lastMessageId = Math.max(lastMessageId, Number(message.id));
-        messagesBox.scrollTop = messagesBox.scrollHeight;
+        if (atBottom) {
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+            newMessagesButton.hidden = true;
+        } else { newMessagesButton.hidden = false; }
         if (announce && message.sender_type !== 'customer') {
             setLive(`Tin nhắn mới từ ${message.sender_name || 'Pawora'}`);
             if (soundEnabled) playSound();
         }
     };
 
+    const updateSupport = (conversation) => {
+        if (!conversation) return;
+        supportMode = conversation.support_mode || (conversation.bot_enabled ? 'bot' : 'waiting');
+        const label = conversation.support_label || 'Pawora hỗ trợ';
+        widget.querySelector('[data-chat-support-label]').textContent = label;
+        const closed = ['closed', 'spam'].includes(conversation.status);
+        handoffButton.disabled = closed || supportMode !== 'bot';
+        handoffButton.textContent = closed ? 'Hội thoại đã đóng' : (supportMode === 'bot' ? 'Yêu cầu nhân viên' : label);
+        const connected = window.Echo?.connector?.pusher?.connection?.state === 'connected';
+        if (!composer.busy) composerStatus.textContent = connected ? 'Đã kết nối realtime' : 'Cập nhật định kỳ';
+    };
+
     const renderPayload = (payload, announce = false) => {
         session.channelKey = payload.conversation?.channel_key || session.channelKey;
         payload.messages?.forEach((message) => renderMessage(message, { announce }));
         setBadge(payload.conversation?.customer_unread_count || 0);
-        composerStatus.textContent = `${payload.conversation?.status_label || 'Đang hỗ trợ'} · ${window.Echo ? 'Realtime' : 'Tự động cập nhật'}`;
+        if (payload.sync_at) lastSync = payload.sync_at;
+        updateSupport(payload.conversation);
+        firstLoad = false;
         if (!panel.hidden && payload.conversation?.customer_unread_count) markRead();
     };
 
     const loadMessages = async ({ announce = false } = {}) => {
-        if (!session?.uuid) return;
+        if (!session?.uuid || loading) return;
+        loading = true;
+        const requestedUuid = session.uuid;
         try {
             const url = new URL(endpoint(widget.dataset.showTemplate, session.uuid));
             if (lastMessageId) url.searchParams.set('since_id', lastMessageId);
+            if (lastSync) url.searchParams.set('since_delivered_at', lastSync);
             const response = await fetch(url, { headers: requestHeaders(false), credentials: 'same-origin' });
             if (response.status === 403 || response.status === 404) {
                 clearSession();
@@ -135,12 +171,13 @@ if (widget) {
             }
             if (!response.ok) throw new Error('load_failed');
             const payload = await response.json();
+            if (session?.uuid !== requestedUuid) return;
             connection.hidden = true;
             renderPayload(payload, announce);
         } catch {
             connection.hidden = false;
             composerStatus.textContent = 'Mất kết nối · đang thử lại';
-        }
+        } finally { loading = false; }
     };
 
     const startPolling = () => {
@@ -155,13 +192,13 @@ if (widget) {
         window.Echo.channel(`chat.conversation.${session.channelKey}`)
             .listen('.chat.message', (event) => {
                 if (event.conversation_uuid !== session.uuid) return;
-                renderMessage(event.message, { announce: true });
+                loadMessages({ announce: true });
                 if (!panel.hidden && event.message?.sender_type !== 'customer') markRead();
             })
             .listen('.chat.conversation.updated', (event) => {
                 if (event.conversation?.uuid !== session.uuid) return;
                 setBadge(event.conversation.customer_unread_count || 0);
-                composerStatus.textContent = `${event.conversation.status_label} · Realtime`;
+                updateSupport(event.conversation);
             });
         const wsConnection = window.Echo.connector?.pusher?.connection;
         wsConnection?.bind('connected', () => { connection.hidden = true; composerStatus.textContent = 'Đã kết nối realtime'; });
@@ -174,7 +211,14 @@ if (widget) {
         if (subscribedChannel && window.Echo) window.Echo.leave(`chat.conversation.${subscribedChannel}`);
         subscribedChannel = null;
         session = null;
+        startPending = null;
+        try { sessionStorage.removeItem(`${storageKey}_start`); } catch { /* No stored retry state. */ }
         lastMessageId = 0;
+        lastSync = null;
+        firstLoad = true;
+        composer.clear();
+        window.clearInterval(pollingTimer);
+        widget.querySelector('[data-chat-support-label]').textContent = 'Hỗ trợ mua hàng & đơn hàng';
         localStorage.removeItem(storageKey);
         messagesBox.querySelectorAll('[data-message-id]').forEach((element) => element.remove());
         emptyState.hidden = false;
@@ -184,6 +228,10 @@ if (widget) {
 
     const restoreSession = async () => {
         try { session = JSON.parse(localStorage.getItem(storageKey)); } catch { session = null; }
+        if (!session?.uuid && widget.dataset.userId === 'guest') {
+            try { session = JSON.parse(localStorage.getItem('pawora_chat_session_v1')); } catch { /* No legacy session. */ }
+            if (session?.uuid) { saveSession(); localStorage.removeItem('pawora_chat_session_v1'); }
+        }
         if (!session?.uuid) {
             const response = await fetch(widget.dataset.currentUrl, { headers: requestHeaders(false), credentials: 'same-origin' }).catch(() => null);
             const payload = response?.ok ? await response.json() : null;
@@ -243,16 +291,22 @@ if (widget) {
             errors.hidden = false;
             return;
         }
+        if (startSubmit.disabled) return;
+        const fingerprint = JSON.stringify(values);
+        if (startPending?.fingerprint !== fingerprint) startPending = { fingerprint, id: crypto.randomUUID() };
+        try { sessionStorage.setItem(`${storageKey}_start`, JSON.stringify(startPending)); } catch { /* Retry key remains in memory. */ }
         startSubmit.disabled = true;
         startSubmit.setAttribute('aria-busy', 'true');
         startSubmit.querySelector('span').textContent = 'Đang kết nối...';
         try {
             const response = await fetch(widget.dataset.createUrl, {
                 method: 'POST', headers: requestHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ ...values, client_message_id: crypto.randomUUID() }),
+                body: JSON.stringify({ ...values, client_message_id: startPending.id }),
             });
             if (!response.ok) throw new Error(await parseErrors(response));
             const payload = await response.json();
+            startPending = null;
+            try { sessionStorage.removeItem(`${storageKey}_start`); } catch { /* Retry state remains in memory. */ }
             session = { uuid: payload.conversation.uuid, token: payload.access_token, channelKey: payload.conversation.channel_key };
             saveSession();
             setConversationView(true);
@@ -273,10 +327,10 @@ if (widget) {
 
     messageForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!messageInput.value.trim() && !imageInput.files?.length) return;
+        if (composer.busy || !session?.uuid || (!messageInput.value.trim() && !imageInput.files?.length)) return;
         const data = new FormData(messageForm);
-        data.set('client_message_id', crypto.randomUUID());
-        sendButton.disabled = true;
+        data.set('client_message_id', composer.id());
+        composer.setBusy(true);
         composerStatus.textContent = 'Đang gửi...';
         try {
             const response = await fetch(endpoint(widget.dataset.messageTemplate, session.uuid), {
@@ -286,22 +340,62 @@ if (widget) {
             const payload = await response.json();
             renderMessage(payload.message);
             messageForm.reset();
+            composer.clear();
             removePreview();
             messageInput.style.height = '';
-            composerStatus.textContent = 'Đã gửi · đang chờ Pawora phản hồi';
+            composerStatus.textContent = 'Đã gửi';
+            await loadMessages();
             messageInput.focus();
         } catch (error) {
             composerStatus.textContent = `${error.message || 'Gửi thất bại.'} Nội dung vẫn được giữ, hãy nhấn Gửi lại.`;
             setLive('Không gửi được tin nhắn. Bạn có thể thử lại.');
         } finally {
-            sendButton.disabled = false;
+            composer.setBusy(false);
         }
     });
 
-    messageInput.addEventListener('input', () => {
-        messageInput.style.height = 'auto';
-        messageInput.style.height = `${Math.min(messageInput.scrollHeight, 104)}px`;
+    handoffButton.addEventListener('click', async () => {
+        if (!session?.uuid || handoffButton.disabled) return;
+        handoffButton.disabled = true;
+        try {
+            const response = await fetch(endpoint(widget.dataset.handoffTemplate, session.uuid), {
+                method: 'POST', headers: requestHeaders(), credentials: 'same-origin', body: '{}',
+            });
+            if (!response.ok) throw new Error(await parseErrors(response));
+            const payload = await response.json();
+            updateSupport(payload.conversation);
+            await loadMessages();
+            setLive('Yêu cầu đã được ghi nhận. Bạn đang chờ nhân viên.');
+        } catch (error) {
+            handoffButton.disabled = false;
+            composerStatus.textContent = error.message;
+        }
     });
+    widget.querySelectorAll('[data-chat-topic]').forEach((button) => button.addEventListener('click', () => {
+        if (composer.busy) return;
+        messageInput.value = button.dataset.chatTopic;
+        composer.save();
+        button.closest('details').open = false;
+        messageForm.requestSubmit();
+    }));
+    widget.querySelector('[data-chat-request-start]')?.addEventListener('click', () => {
+        startForm.elements.message.value = 'Tôi muốn gặp nhân viên';
+        startForm.querySelector('input:not([type=hidden]), textarea').focus();
+    });
+    newMessagesButton.addEventListener('click', () => {
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+        newMessagesButton.hidden = true;
+    });
+    const fitKeyboard = () => {
+        const viewport = window.visualViewport;
+        if (!viewport || window.innerWidth > 760) return;
+        widget.style.setProperty('--chat-visible-height', `${viewport.height}px`);
+        widget.style.setProperty('--chat-keyboard-offset', `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
+    };
+    window.visualViewport?.addEventListener('resize', fitKeyboard);
+    window.visualViewport?.addEventListener('scroll', fitKeyboard);
+    fitKeyboard();
+
     const removePreview = () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;

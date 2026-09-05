@@ -10,39 +10,37 @@ class AddressDirectory
 {
     private const API = 'https://provinces.open-api.vn/api/v2';
 
-    public function __construct(private readonly GhnShippingClient $ghn)
-    {
-    }
+    public function __construct(private readonly GhnShippingClient $ghn) {}
 
     public function districts(string $province): array
     {
-        if ($this->ghn->enabled()) {
-            try {
-                $provinceId = $this->ghn->provinceId($province);
-                if (!$provinceId) {
-                    return [];
-                }
-
-                return $this->ghn->districts($provinceId);
-            } catch (\Throwable) {
-                return [];
-            }
+        if (! $this->ghn->enabled()) {
+            return [];
         }
 
-        return [];
+        try {
+            $provinceId = $this->ghn->provinceId($province);
+            if (! $provinceId) {
+                return [];
+            }
+
+            return $this->ghn->districts($provinceId);
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     public function ghnWards(int $districtId): array
     {
-        if ($this->ghn->enabled()) {
-            try {
-                return $this->ghn->wards($districtId);
-            } catch (\Throwable) {
-                return [];
-            }
+        if (! $this->ghn->enabled()) {
+            return [];
         }
 
-        return [];
+        try {
+            return $this->ghn->wards($districtId);
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     public function wards(string $province): array
@@ -54,21 +52,24 @@ class AddressDirectory
         }
 
         try {
-                $provinces = Http::acceptJson()->timeout(8)->retry(2, 200)->get(self::API.'/p/')->throw()->json();
-                $match = collect($provinces)->first(
-                    fn (array $item) => $this->normalize($item['name'] ?? '') === $this->normalize($province)
-                );
+            $provinces = Http::acceptJson()->timeout(8)->retry(2, 200)->get(self::API.'/p/')->throw()->json();
+            $matchingProvince = collect($provinces)->first(
+                fn (array $item) => $this->normalize($item['name'] ?? '') === $this->normalize($province)
+            );
 
-                if ($match && isset($match['code'])) {
-                    $details = Http::acceptJson()->timeout(8)->retry(2, 200)
-                        ->get(self::API.'/p/'.$match['code'], ['depth' => 2])->throw()->json();
+            if (! isset($matchingProvince['code'])) {
+                return $this->fallback($province);
+            }
 
-                    $wards = collect($details['wards'] ?? [])->pluck('name')->filter()->values()->all();
-                    if ($wards !== []) {
-                        Cache::put($cacheKey, $wards, now()->addDay());
-                        return $wards;
-                    }
-                }
+            $details = Http::acceptJson()->timeout(8)->retry(2, 200)
+                ->get(self::API.'/p/'.$matchingProvince['code'], ['depth' => 2])->throw()->json();
+
+            $wards = collect($details['wards'] ?? [])->pluck('name')->filter()->values()->all();
+            if ($wards !== []) {
+                Cache::put($cacheKey, $wards, now()->addDay());
+
+                return $wards;
+            }
         } catch (\Throwable) {
             // Checkout remains usable when the public directory is temporarily unavailable.
         }

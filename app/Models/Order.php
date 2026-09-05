@@ -43,11 +43,7 @@ class Order extends Model
         'refund_pending' => 'Đang hoàn tiền',
     ];
 
-<<<<<<< HEAD
-    protected $fillable = ['number', 'public_token', 'checkout_token', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
-=======
-    protected $fillable = ['number', 'public_token', 'idempotency_key', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
+    protected $fillable = ['number', 'public_token', 'checkout_token', 'idempotency_key', 'user_id', 'customer_name', 'email', 'phone', 'province', 'district', 'ward', 'address_line', 'shipping_address', 'note', 'coupon_code', 'subtotal', 'discount', 'shipping_fee', 'shipping_zone', 'estimated_delivery', 'total', 'currency', 'payment_method', 'payment_status', 'paid_at', 'refunded_amount', 'status'];
 
     protected $casts = ['subtotal' => 'decimal:0', 'discount' => 'decimal:0', 'shipping_fee' => 'decimal:0', 'total' => 'decimal:0', 'refunded_amount' => 'decimal:0', 'paid_at' => 'datetime'];
 
@@ -69,6 +65,11 @@ class Order extends Model
     public function payments()
     {
         return $this->hasMany(PaymentTransaction::class);
+    }
+
+    public function couponUsage()
+    {
+        return $this->hasOne(CouponUsage::class);
     }
 
     public function shipments()

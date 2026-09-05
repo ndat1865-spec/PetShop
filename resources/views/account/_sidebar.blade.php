@@ -41,6 +41,9 @@
         <a href="{{ route('account.orders.index') }}" @class(['is-active' => $activeAccountSection === 'orders']) @if($activeAccountSection === 'orders') aria-current="page" @endif>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg><span>Đơn hàng của tôi</span>
         </a>
+        <a href="{{ route('account.profile') }}#my-vouchers">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2.5 2.5 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2.5 2.5 0 0 0 0-4V7Z"/><path d="M12 8v1M12 12v1M12 16v1"/></svg><span>Voucher của tôi</span>
+        </a>
         <a href="{{ route('account.returns.index') }}" @class(['is-active' => $activeAccountSection === 'returns']) @if($activeAccountSection === 'returns') aria-current="page" @endif>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v4M5 11a7 7 0 1 0 2-5"/><path d="m5 11 4-4"/></svg><span>Đổi trả &amp; hoàn tiền</span>
         </a>

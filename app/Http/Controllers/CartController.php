@@ -9,21 +9,12 @@ use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
-<<<<<<< HEAD
-    public function index()
-    {
-        return view('store.cart', ['cart' => $this->details()]);
-    }
-
-    public function store(Request $request, Product $product)
-=======
     public function index(CartService $cart)
     {
         return view('store.cart', ['cart' => $cart->details()]);
     }
 
     public function store(Request $request, Product $product, CartService $cart)
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
     {
         $data = $request->validate([
             'quantity' => 'nullable|integer|min:1|max:20',
@@ -39,26 +30,17 @@ class CartController extends Controller
 
         $available = $variant?->stock ?? $product->stock;
         abort_if($available < 1, 422, 'Lựa chọn này hiện đã hết hàng.');
-<<<<<<< HEAD
-        $cart = session('cart', []);
-        $current = $cart[$product->id] ?? 0;
-        $currentQuantity = is_array($current) && ($current['variant_id'] ?? null) === $variant?->id ? (int) ($current['quantity'] ?? 0) : (is_int($current) ? $current : 0);
-        $quantity = $currentQuantity + ($data['quantity'] ?? 1);
-        abort_if($quantity > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
-        $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
-        session(['cart' => $cart]);
-=======
         $lines = $cart->lines();
         $lineKey = $cart->lineKey((int) $product->id, $variant?->id);
         $currentQuantity = (int) ($lines[$lineKey]['quantity'] ?? 0);
-        $quantity = min($available, $currentQuantity + ($data['quantity'] ?? 1));
+        $quantity = $currentQuantity + ($data['quantity'] ?? 1);
+        abort_if($quantity > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
         $lines[$lineKey] = [
             'product_id' => (int) $product->id,
             'variant_id' => $variant?->id,
             'quantity' => $quantity,
         ];
         $cart->put($lines);
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
         $message = 'Đã thêm '.$product->name.($variant ? ' · '.$variant->name : '').' vào giỏ hàng.';
 
@@ -74,21 +56,6 @@ class CartController extends Controller
         return back()->with('success', $message);
     }
 
-<<<<<<< HEAD
-    public function update(Request $request, Product $product)
-    {
-        $data = $request->validate(['quantity' => 'required|integer|min:1|max:20']);
-        $cart = session('cart', []);
-        if (isset($cart[$product->id])) {
-            $current = $cart[$product->id];
-            $variant = is_array($current) && ! empty($current['variant_id']) ? ProductVariant::where('product_id', $product->id)->find($current['variant_id']) : null;
-            $available = $variant?->stock ?? $product->stock;
-            abort_if($data['quantity'] > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
-            $quantity = $data['quantity'];
-            $cart[$product->id] = ['quantity' => $quantity, 'variant_id' => $variant?->id];
-        }
-        session(['cart' => $cart]);
-=======
     public function update(Request $request, Product $product, CartService $cart, ?string $lineKey = null)
     {
         $data = $request->validate(['quantity' => 'required|integer|min:1|max:20']);
@@ -104,10 +71,10 @@ class CartController extends Controller
 
         $available = (int) ($variant?->stock ?? $product->stock);
         abort_if($available < 1, 422, 'Lựa chọn này hiện đã hết hàng.');
-        $quantity = min((int) $data['quantity'], $available);
+        abort_if($data['quantity'] > $available, 422, 'Số lượng yêu cầu vượt quá tồn kho hiện có.');
+        $quantity = (int) $data['quantity'];
         $lines[$lineKey]['quantity'] = $quantity;
         $cart->put($lines);
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
         if ($request->expectsJson()) {
             $details = $cart->details();
@@ -128,44 +95,6 @@ class CartController extends Controller
         return back()->with('success', 'Giỏ hàng đã được cập nhật.');
     }
 
-<<<<<<< HEAD
-    public function destroy(Product $product)
-    {
-        $cart = session('cart', []);
-        unset($cart[$product->id]);
-        session(['cart' => $cart]);
-
-        return back()->with('success', 'Đã xóa sản phẩm khỏi giỏ.');
-    }
-
-    public function details(): array
-    {
-        $raw = session('cart', []);
-        $products = Product::whereIn('id', array_keys($raw))->get();
-        $items = [];
-        $subtotal = 0;
-        foreach ($products as $product) {
-            $entry = $raw[$product->id];
-            $requested = is_array($entry) ? (int) ($entry['quantity'] ?? 0) : (int) $entry;
-            $variant = is_array($entry) && ! empty($entry['variant_id']) ? ProductVariant::where('product_id', $product->id)->where('is_active', true)->find($entry['variant_id']) : null;
-            if ($requested < 1 || $product->status !== 'active') {
-                continue;
-            }
-            if (is_array($entry) && ! empty($entry['variant_id']) && ! $variant) {
-                continue;
-            }
-            $qty = min($requested, $variant?->stock ?? $product->stock);
-            if ($qty < 1) {
-                continue;
-            }
-            $unitPrice = (float) ($variant?->price ?? $product->price);
-            $line = $unitPrice * $qty;
-            $subtotal += $line;
-            $items[] = compact('product', 'variant', 'qty', 'unitPrice', 'line');
-        }
-
-        return ['items' => $items, 'subtotal' => $subtotal, 'count' => array_sum(array_column($items, 'qty'))];
-=======
     public function destroy(Product $product, CartService $cart, ?string $lineKey = null)
     {
         $lines = $cart->lines();
@@ -176,6 +105,5 @@ class CartController extends Controller
         $cart->put($lines);
 
         return back()->with('success', 'Đã xóa sản phẩm khỏi giỏ.');
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
     }
 }

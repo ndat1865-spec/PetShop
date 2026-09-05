@@ -1,7 +1,6 @@
 import './bootstrap';
 import './chat-widget';
 import './admin-chat';
-<<<<<<< HEAD
 import QRCode from 'qrcode';
 
 const demoQrCanvas = document.querySelector('[data-demo-qr]');
@@ -18,13 +17,11 @@ if (demoQrCanvas) {
         if (status) status.textContent = 'Không thể tạo QR. Hãy tải lại trang hoặc dùng nút giả lập bên dưới.';
     });
 }
-=======
 import './product-content-admin';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
->>>>>>> ad71e7ac1ffc0ae0f23ee8f7f2d929ea6bd21c27
 
 const menuButton = document.querySelector('[data-menu-button]');
 const mobilePanel = document.querySelector('[data-mobile-panel]');

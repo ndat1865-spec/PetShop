@@ -15,6 +15,7 @@ class ChatMessage extends Model
         'conversation_id', 'client_message_id', 'sender_type', 'sender_id', 'auto_reply_rule_id',
         'message_type', 'content', 'attachment_path', 'attachment_name', 'attachment_mime',
         'attachment_size', 'deliver_at', 'read_at',
+        'delivered_at', 'cancelled_at', 'auto_reply_processed_at',
     ];
 
     protected $hidden = ['attachment_path'];
@@ -22,6 +23,8 @@ class ChatMessage extends Model
     protected $casts = [
         'deliver_at' => 'datetime',
         'read_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function conversation()
@@ -41,6 +44,7 @@ class ChatMessage extends Model
 
     public function scopeDelivered(Builder $query): Builder
     {
-        return $query->where(fn (Builder $nested) => $nested->whereNull('deliver_at')->orWhere('deliver_at', '<=', now()));
+        return $query->whereNull('cancelled_at')->where(fn (Builder $nested) => $nested
+            ->whereNull('deliver_at')->orWhereNotNull('delivered_at'));
     }
 }

@@ -30,22 +30,15 @@ class CartService
 
         foreach ($raw as $key => $entry) {
             $parsedKey = $this->parseLineKey((string) $key);
-            $productId = null;
-            $variantId = null;
-
-            if (is_array($entry)) {
-                $productId = isset($entry['product_id'])
-                    ? (int) $entry['product_id']
-                    : ($parsedKey['product_id'] ?? (is_numeric($key) ? (int) $key : null));
-                $variantId = array_key_exists('variant_id', $entry)
-                    ? ($entry['variant_id'] ? (int) $entry['variant_id'] : null)
-                    : ($parsedKey['variant_id'] ?? null);
-                $quantity = (int) ($entry['quantity'] ?? 0);
-            } else {
-                $productId = $parsedKey['product_id'] ?? (is_numeric($key) ? (int) $key : null);
-                $variantId = $parsedKey['variant_id'] ?? null;
-                $quantity = (int) $entry;
-            }
+            // Older sessions store only a quantity under the product or variant key.
+            $entry = is_array($entry) ? $entry : ['quantity' => $entry];
+            $productId = isset($entry['product_id'])
+                ? (int) $entry['product_id']
+                : ($parsedKey['product_id'] ?? (is_numeric($key) ? (int) $key : null));
+            $variantId = array_key_exists('variant_id', $entry)
+                ? ($entry['variant_id'] ? (int) $entry['variant_id'] : null)
+                : ($parsedKey['variant_id'] ?? null);
+            $quantity = (int) ($entry['quantity'] ?? 0);
 
             if (! $productId || $quantity < 1) {
                 continue;

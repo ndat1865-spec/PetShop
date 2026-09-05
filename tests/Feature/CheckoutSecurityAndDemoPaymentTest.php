@@ -83,6 +83,46 @@ class CheckoutSecurityAndDemoPaymentTest extends TestCase
         $this->assertDatabaseCount('orders', 1);
     }
 
+    public function test_checkout_form_tokens_replay_without_clearing_a_new_cart_and_cannot_be_reused_by_another_customer(): void
+    {
+        $product = $this->product();
+        $owner = User::factory()->create(['role' => 'customer']);
+        $other = User::factory()->create(['role' => 'customer']);
+
+        $response = $this->actingAs($owner)->withSession(['cart' => [$product->id => 1]])
+            ->get(route('checkout.create'))->assertOk();
+        $token = $response->viewData('checkoutToken');
+        $this->assertSame($token, $response->viewData('checkoutIdempotencyKey'));
+        $payload = [...$this->checkoutData(), 'checkout_token' => $token, 'idempotency_key' => $token];
+        $this->post(route('checkout.store'), $payload)->assertRedirect();
+        $order = Order::sole();
+
+        $newKey = (string) Str::uuid();
+        $this->withSession(['cart' => [$product->id => 2], 'checkout_idempotency_key' => $newKey])
+            ->post(route('checkout.store'), [...$this->checkoutData(), 'checkout_token' => $token])
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHas('cart', [$product->id => 2])
+            ->assertSessionHas('checkout_idempotency_key', $newKey);
+
+        $this->actingAs($other)->post(route('checkout.store'), $payload)->assertStatus(409);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertSame(4, $product->fresh()->stock);
+    }
+
+    public function test_disabled_qr_demo_cannot_create_an_order(): void
+    {
+        config()->set('pawora.payments.demo_mode', false);
+        $product = $this->product();
+        $customer = User::factory()->create(['role' => 'customer']);
+
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 1]])
+            ->post(route('checkout.store'), [...$this->checkoutData(), 'payment_method' => 'qr_demo'])
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertSame(5, $product->fresh()->stock);
+    }
+
     public function test_qr_demo_is_local_only_and_order_owner_controls_the_simulator(): void
     {
         $this->enablePaymentDemo();
