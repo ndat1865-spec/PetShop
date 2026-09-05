@@ -7,8 +7,10 @@ use App\Models\ChatMessage;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\AdminAuditLogger;
+use App\Services\ChatAutoReplyService;
 use App\Services\ChatBroadcaster;
 use App\Services\ChatConversationPresenter;
+use App\Services\ChatHandoffService;
 use App\Services\ChatMessagePresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ class AdminChatController extends Controller
 {
     public function index(Request $request): View
     {
+        app(ChatAutoReplyService::class)->deliverDue();
         $filters = $this->validatedFilters($request);
         $conversations = $this->conversationQuery($filters)->paginate(30)->withQueryString();
         $selected = filled($request->query('conversation'))
@@ -35,7 +38,7 @@ class AdminChatController extends Controller
 
         return view('admin.chats.index', [
             'conversations' => $conversations,
-            'selected' => $selected?->fresh(['user', 'assignee', 'messages.sender']),
+            'selected' => $selected,
             'staff' => $this->staff(),
             'stats' => $this->stats(),
             'filters' => $filters,
@@ -50,6 +53,7 @@ class AdminChatController extends Controller
 
     public function data(Request $request, ChatConversationPresenter $conversationPresenter, ChatMessagePresenter $messagePresenter): JsonResponse
     {
+        app(ChatAutoReplyService::class)->deliverDue();
         $filters = $this->validatedFilters($request);
         $conversations = $this->conversationQuery($filters)->limit(50)->get()
             ->map(fn (ChatConversation $conversation) => $conversationPresenter->admin($conversation));
@@ -57,7 +61,7 @@ class AdminChatController extends Controller
             ? ChatConversation::with(['user', 'assignee'])->where('uuid', $request->query('conversation'))->first()
             : null;
         $messages = $selected
-            ? $selected->messages()->delivered()->with('sender')->orderBy('id')->limit(150)->get()->map(fn ($message) => $messagePresenter->toArray($message))
+            ? $selected->messages()->delivered()->with('sender')->orderBy('id')->get()->map(fn ($message) => $messagePresenter->toArray($message))
             : collect();
 
         return response()->json([
@@ -81,12 +85,20 @@ class AdminChatController extends Controller
             'image' => ['nullable', 'required_without:message', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024)],
         ]);
         if ($existing = ChatMessage::where('client_message_id', $data['client_message_id'])->first()) {
-            abort_unless((int) $existing->conversation_id === (int) $conversation->id, 409);
+            abort_unless((int) $existing->conversation_id === (int) $conversation->id && $existing->sender_type === 'admin', 409);
 
             return response()->json(['message' => $presenter->toArray($existing), 'duplicate' => true]);
         }
 
         $message = DB::transaction(function () use ($request, $conversation, $data) {
+            $conversation = ChatConversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+            abort_if(in_array($conversation->status, ['closed', 'spam'], true), 422);
+            if ($existing = ChatMessage::where('client_message_id', $data['client_message_id'])->first()) {
+                abort_unless((int) $existing->conversation_id === (int) $conversation->id && $existing->sender_type === 'admin', 409);
+
+                return $existing;
+            }
+            app(ChatHandoffService::class)->cancelPending($conversation);
             $attachment = [];
             if ($request->hasFile('image')) {
                 $file = $request->file('image');
@@ -121,6 +133,9 @@ class AdminChatController extends Controller
 
             return $message;
         });
+        if (! $message->wasRecentlyCreated) {
+            return response()->json(['message' => $presenter->toArray($message), 'duplicate' => true]);
+        }
         $message->load(['conversation', 'sender']);
         $broadcaster->message($message);
         $broadcaster->conversation($conversation->fresh());
@@ -136,10 +151,18 @@ class AdminChatController extends Controller
             'bot_enabled' => ['required', 'boolean'],
         ]);
         $before = $conversation->only(['status', 'priority', 'bot_enabled', 'closed_at']);
-        $conversation->update([
-            ...$data,
-            'closed_at' => in_array($data['status'], ['closed', 'spam'], true) ? ($conversation->closed_at ?: now()) : null,
-        ]);
+        DB::transaction(function () use ($conversation, $data) {
+            $locked = ChatConversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+            app(ChatHandoffService::class)->cancelPending($locked);
+            $locked->update([
+                ...$data,
+                'handoff_requested_at' => $data['bot_enabled'] ? null : $locked->handoff_requested_at,
+                'handoff_reason' => $data['bot_enabled'] ? null : $locked->handoff_reason,
+                'fallback_sent_at' => $data['bot_enabled'] ? null : $locked->fallback_sent_at,
+                'closed_at' => in_array($data['status'], ['closed', 'spam'], true) ? ($locked->closed_at ?: now()) : null,
+            ]);
+        });
+        $conversation->refresh();
         $audit->record($request, 'chat.conversation_updated', 'Cập nhật trạng thái hội thoại', $conversation, $before, $conversation->only(['status', 'priority', 'bot_enabled', 'closed_at']));
         $broadcaster->conversation($conversation->fresh());
 
@@ -152,18 +175,43 @@ class AdminChatController extends Controller
             'assigned_to' => ['nullable', Rule::exists('users', 'id')->where(fn ($query) => $query->whereIn('role', [User::ROLE_ADMIN, User::ROLE_STAFF])->where('is_active', true))],
         ]);
         $before = $conversation->assigned_to;
-        $conversation->update(['assigned_to' => $data['assigned_to'] ?? null]);
+        DB::transaction(function () use ($conversation, $data) {
+            $locked = ChatConversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+            $values = ['assigned_to' => $data['assigned_to'] ?? null];
+            if ($values['assigned_to']) {
+                $values['bot_enabled'] = false;
+                app(ChatHandoffService::class)->cancelPending($locked);
+            }
+            $locked->update($values);
+        });
+        $conversation->refresh();
         $audit->record($request, 'chat.assigned', 'Phân công hội thoại', $conversation, ['assigned_to' => $before], ['assigned_to' => $conversation->assigned_to]);
         $broadcaster->conversation($conversation->fresh());
 
         return response()->json(['ok' => true, 'message' => 'Đã cập nhật người phụ trách.']);
     }
 
+    public function accept(Request $request, ChatConversation $conversation, ChatBroadcaster $broadcaster): JsonResponse
+    {
+        DB::transaction(function () use ($request, $conversation) {
+            $locked = ChatConversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+            abort_if(in_array($locked->status, ['closed', 'spam'], true), 422, 'Hãy mở lại hội thoại trước khi tiếp nhận.');
+            abort_if($locked->assigned_to && (int) $locked->assigned_to !== (int) $request->user()->id, 409, 'Hội thoại đã có người phụ trách.');
+            $locked->update(['assigned_to' => $request->user()->id, 'bot_enabled' => false, 'status' => 'open']);
+            app(ChatHandoffService::class)->cancelPending($locked);
+        });
+        $broadcaster->conversation($conversation->fresh());
+
+        return response()->json(['ok' => true]);
+    }
+
     public function read(Request $request, ChatConversation $conversation, ChatBroadcaster $broadcaster): JsonResponse
     {
-        $conversation->messages()->where('sender_type', 'customer')->whereNull('read_at')->update(['read_at' => now()]);
-        $conversation->update(['admin_unread_count' => 0, 'admin_last_read_at' => now()]);
-        $broadcaster->conversation($conversation->fresh());
+        $readCount = $conversation->messages()->where('sender_type', 'customer')->whereNull('read_at')->update(['read_at' => now()]);
+        if ($readCount > 0 || $conversation->admin_unread_count > 0) {
+            $conversation->update(['admin_unread_count' => 0, 'admin_last_read_at' => now()]);
+            $broadcaster->conversation($conversation->fresh());
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -174,6 +222,7 @@ class AdminChatController extends Controller
             'q' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(ChatConversation::STATUSES)],
             'unread' => ['nullable', Rule::in(['1'])],
+            'support' => ['nullable', Rule::in(['waiting', 'human', 'bot'])],
             'assigned' => ['nullable', Rule::in(['mine', 'unassigned'])],
             'conversation' => ['nullable', 'uuid'],
         ]);
@@ -195,6 +244,9 @@ class AdminChatController extends Controller
             ->when(($filters['unread'] ?? null) === '1', fn ($query) => $query->where('admin_unread_count', '>', 0))
             ->when(($filters['assigned'] ?? null) === 'mine', fn ($query) => $query->where('assigned_to', auth()->id()))
             ->when(($filters['assigned'] ?? null) === 'unassigned', fn ($query) => $query->whereNull('assigned_to'))
+            ->when(($filters['support'] ?? '') === 'waiting', fn ($query) => $query->active()->where('bot_enabled', false)->whereNull('assigned_to'))
+            ->when(($filters['support'] ?? '') === 'human', fn ($query) => $query->where('bot_enabled', false)->whereNotNull('assigned_to'))
+            ->when(($filters['support'] ?? '') === 'bot', fn ($query) => $query->where('bot_enabled', true))
             ->orderByDesc('last_message_at')->orderByDesc('id');
     }
 
@@ -206,6 +258,7 @@ class AdminChatController extends Controller
     private function stats(): array
     {
         return [
+            'handoff' => ChatConversation::active()->where('bot_enabled', false)->whereNull('assigned_to')->count(),
             'new' => ChatConversation::where('status', 'new')->count(),
             'unread' => ChatConversation::where('admin_unread_count', '>', 0)->count(),
             'open' => ChatConversation::where('status', 'open')->count(),

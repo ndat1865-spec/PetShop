@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Services\OnePayGateway;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class OnePayController extends Controller
@@ -20,10 +21,10 @@ class OnePayController extends Controller
         $result = $this->handleResult($request, $onepay, false);
 
         if ($result === true) {
-            return response('responsecode=1&desc=confirm-success');
+            return response('responsecode=1&desc=confirm-success', 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
         }
 
-        return response('responsecode=0&desc=confirm-fail');
+        return response('responsecode=0&desc=confirm-fail', 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
     }
 
     private function handleResult(Request $request, OnePayGateway $onepay, bool $redirect)
@@ -38,8 +39,6 @@ class OnePayController extends Controller
         }
 
         if (! $onepay->validSignature($params)) {
-            $this->record($order, $params, 'invalid_signature');
-
             if (! $redirect) {
                 return false;
             }
@@ -48,8 +47,28 @@ class OnePayController extends Controller
                 ->withErrors(['payment' => 'Chữ ký OnePay không hợp lệ. Pawora chưa ghi nhận thanh toán.']);
         }
 
-        if (! is_numeric($params['vpc_Amount'] ?? null) || (int) $order->total !== intdiv((int) $params['vpc_Amount'], 100)) {
-            $this->record($order, $params, 'invalid_amount');
+        if ($order->payment_method !== 'onepay') {
+            if (! $redirect) {
+                return false;
+            }
+
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+                ->withErrors(['payment' => 'Đơn hàng không sử dụng OnePay. Pawora chưa ghi nhận thanh toán.']);
+        }
+
+        if (! $onepay->merchantMatches($params)) {
+            $this->record($order, $params, 'invalid_merchant', $onepay);
+
+            if (! $redirect) {
+                return false;
+            }
+
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+                ->withErrors(['payment' => 'Merchant OnePay trả về không khớp cấu hình. Pawora chưa ghi nhận thanh toán.']);
+        }
+
+        if (! $onepay->amountMatches($order, $params['vpc_Amount'] ?? null)) {
+            $this->record($order, $params, 'invalid_amount', $onepay);
             if (! $redirect) {
                 return false;
             }
@@ -58,18 +77,39 @@ class OnePayController extends Controller
                 ->withErrors(['payment' => 'Số tiền OnePay trả về không khớp với đơn hàng.']);
         }
 
-        $status = $onepay->successful($params) ? 'paid' : 'failed';
-        $this->record($order, $params, $status);
+        if (! $onepay->currencyMatches($params)) {
+            $this->record($order, $params, 'invalid_currency', $onepay);
 
-        if ($status === 'paid') {
-            $order->forceFill([
-                'payment_status' => 'paid',
-                'status' => $order->status === 'pending' ? 'confirmed' : $order->status,
-                'paid_at' => now(),
-            ])->save();
-        } elseif ($order->payment_status !== 'paid') {
-            $order->forceFill(['payment_status' => 'failed'])->save();
+            if (! $redirect) {
+                return false;
+            }
+
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+                ->withErrors(['payment' => 'Loại tiền OnePay trả về không khớp với đơn hàng.']);
         }
+
+        $status = DB::transaction(function () use ($order, $params, $onepay): string {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($lockedOrder->payment_status === 'paid') {
+                return 'paid';
+            }
+
+            $status = $onepay->successful($params) ? 'paid' : 'failed';
+            $this->record($lockedOrder, $params, $status, $onepay);
+
+            if ($status === 'paid') {
+                $lockedOrder->forceFill([
+                    'payment_status' => 'paid',
+                    'status' => $lockedOrder->status === 'pending' ? 'confirmed' : $lockedOrder->status,
+                    'paid_at' => now(),
+                ])->save();
+            } else {
+                $lockedOrder->forceFill(['payment_status' => 'failed'])->save();
+            }
+
+            return $status;
+        });
 
         if (! $redirect) {
             return true;
@@ -79,20 +119,43 @@ class OnePayController extends Controller
             ->with($status === 'paid' ? 'success' : 'error', $status === 'paid' ? 'Thanh toán OnePay thành công.' : 'Thanh toán OnePay chưa thành công.');
     }
 
-    private function record(Order $order, array $params, string $status): void
+    private function record(Order $order, array $params, string $status, OnePayGateway $onepay): void
     {
-        PaymentTransaction::updateOrCreate(
-            ['provider' => 'onepay', 'provider_transaction_id' => $params['vpc_TransactionNo'] ?? $params['vpc_MerchTxnRef'] ?? (string) Str::uuid()],
-            [
+        DB::transaction(function () use ($order, $params, $status, $onepay): void {
+            $order = Order::query()->lockForUpdate()->findOrFail($order->id);
+            $transaction = PaymentTransaction::query()
+                ->where('request_id', $order->public_token)
+                ->lockForUpdate()
+                ->first();
+
+            if ($transaction?->status === 'paid') {
+                return;
+            }
+
+            $values = [
                 'order_id' => $order->id,
                 'request_id' => $order->public_token,
+                'provider' => 'onepay',
+                'provider_transaction_id' => $params['vpc_TransactionNo'] ?? $params['vpc_MerchTxnRef'] ?? (string) Str::uuid(),
                 'type' => 'payment',
                 'status' => $status,
-                'amount' => ((float) ($params['vpc_Amount'] ?? $order->total * 100)) / 100,
-                'currency' => 'VND',
+                'amount' => $onepay->amountMatches($order, $params['vpc_Amount'] ?? null)
+                    ? ((int) $params['vpc_Amount']) / 100
+                    : $order->total,
+                'currency' => $onepay->currencyMatches($params)
+                    ? $onepay->responseCurrency($params)
+                    : OnePayGateway::CURRENCY,
                 'response_payload' => $params,
                 'processed_at' => now(),
-            ]
-        );
+            ];
+
+            if ($transaction) {
+                $transaction->fill($values)->save();
+
+                return;
+            }
+
+            PaymentTransaction::create($values);
+        });
     }
 }

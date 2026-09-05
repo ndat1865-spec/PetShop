@@ -3,13 +3,15 @@
     data-create-url="{{ route('chat.conversations.store') }}"
     data-show-template="{{ route('chat.conversations.show', ['conversation' => '__UUID__']) }}"
     data-message-template="{{ route('chat.messages.store', ['conversation' => '__UUID__']) }}"
+    data-user-id="{{ auth()->id() ?? 'guest' }}"
+    data-handoff-template="{{ route('chat.handoff', ['conversation' => '__UUID__']) }}"
     data-read-template="{{ route('chat.read', ['conversation' => '__UUID__']) }}"
     aria-label="Hỗ trợ trực tuyến Pawora">
     <div class="support-chat__panel" id="pawora-support-panel" role="dialog" aria-modal="false" aria-labelledby="pawora-support-title" hidden data-chat-panel>
         <header class="support-chat__header">
             <div class="support-chat__brand">
                 <span class="support-chat__mark" aria-hidden="true"><img src="{{ asset('media/pawora-p-logo.png') }}" alt=""></span>
-                <span><strong id="pawora-support-title">Pawora hỗ trợ</strong><small><i aria-hidden="true"></i> Phản hồi trong ít phút</small></span>
+                <span><strong id="pawora-support-title">Pawora hỗ trợ</strong><small data-chat-support-label>Hỗ trợ mua hàng &amp; đơn hàng</small></span>
             </div>
             <div class="support-chat__header-actions">
                 <button type="button" class="support-chat__icon" aria-label="Tắt âm thanh thông báo" aria-pressed="false" data-chat-sound>
@@ -21,15 +23,16 @@
             </div>
         </header>
 
-        <div class="support-chat__connection" role="status" hidden data-chat-connection>Đang kết nối lại. Tin nhắn sẽ được gửi khi đường truyền ổn định.</div>
+        <div class="support-chat__connection" role="status" hidden data-chat-connection>Kết nối gián đoạn. Bạn có thể thử gửi lại; nội dung đang soạn vẫn được giữ.</div>
         <div class="support-chat__status sr-only" role="status" aria-live="polite" aria-atomic="true" data-chat-live></div>
 
         <div class="support-chat__start" data-chat-start>
             <div class="support-chat__welcome">
                 <p class="eyebrow">Chăm sóc khách hàng</p>
                 <h2>Xin chào! Pawora có thể giúp gì cho bạn?</h2>
-                <p>Gửi câu hỏi về sản phẩm, đơn hàng, vận chuyển hoặc đổi trả. Đội ngũ Pawora sẽ tiếp nhận ngay.</p>
+                <p>Gửi câu hỏi về sản phẩm, đơn hàng, vận chuyển hoặc đổi trả. Bạn có thể yêu cầu nhân viên hỗ trợ trong hội thoại.</p>
             </div>
+            <button type="button" class="support-chat__request-start" data-chat-request-start>Yêu cầu nhân viên tư vấn</button>
             <form class="support-chat__start-form" data-chat-start-form novalidate>
                 @guest
                     <label>Họ và tên <span aria-hidden="true">*</span><input name="name" autocomplete="name" required minlength="2" maxlength="100" value=""></label>
@@ -55,6 +58,19 @@
         <div class="support-chat__conversation" hidden data-chat-conversation>
             <div class="support-chat__timeline" aria-label="Nội dung cuộc trò chuyện" data-chat-messages>
                 <div class="support-chat__empty" data-chat-empty><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5.5h16v11H9l-5 4v-15Z"/><path d="M8 10h8M8 13h5"/></svg><p>Cuộc trò chuyện của bạn sẽ xuất hiện tại đây.</p></div>
+            </div>
+            <button type="button" class="chat-new-messages" data-chat-new-messages hidden>Tin nhắn mới ↓</button>
+            <div class="support-chat__help">
+                <button type="button" data-chat-handoff>Yêu cầu nhân viên</button>
+                <details><summary>Chủ đề hỗ trợ</summary><div class="support-chat__topics">
+                    <button type="button" data-chat-topic="Tôi cần được xem mã giảm giá">Mã giảm giá</button>
+                    <button type="button" data-chat-topic="Tôi cần tìm sản phẩm phù hợp">Tìm sản phẩm</button>
+                    <button type="button" data-chat-topic="Phí ship được tính thế nào?">Phí ship</button>
+                    <button type="button" data-chat-topic="Tôi cần kiểm tra đơn hàng">Đơn hàng</button>
+                    <a href="{{ route('account.profile') }}#my-vouchers">Mở Ví voucher ↗</a>
+                    <a href="{{ route('account.orders.index') }}">Xem đơn của tôi ↗</a>
+                    <a href="{{ route('products.index') }}">Xem sản phẩm ↗</a>
+                </div></details>
             </div>
             <form class="support-chat__composer" data-chat-message-form>
                 <div class="support-chat__preview" hidden data-chat-image-preview><img alt="Xem trước hình ảnh sẽ gửi"><button type="button" aria-label="Bỏ hình ảnh" data-chat-image-remove>×</button></div>

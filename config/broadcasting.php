@@ -41,9 +41,12 @@ return [
                 'scheme' => env('REVERB_SCHEME', 'https'),
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 'path' => env('REVERB_SERVER_PATH', ''),
+                // Chat has polling fallback; a stopped Reverb server must not stall writes.
+                'timeout' => 0.5,
             ],
             'client_options' => [
-                // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                'connect_timeout' => 0.2,
+                'timeout' => 0.5,
             ],
         ],
 

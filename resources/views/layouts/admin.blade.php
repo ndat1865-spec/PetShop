@@ -8,7 +8,7 @@
     <title>@yield('title','Pawora Admin')</title>
     @vite(['resources/css/app.css','resources/js/app.js'])
 </head>
-<body class="admin-body">
+<body @class(['admin-body', 'admin-chat-page' => request()->routeIs('admin.chats')])>
 @php
     $navGroups = [
         'Tổng quan' => [

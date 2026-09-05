@@ -1,3 +1,5 @@
+import { setupChatComposer } from './chat-composer';
+
 const adminChat = document.querySelector('[data-admin-chat]');
 
 if (adminChat) {
@@ -14,6 +16,14 @@ if (adminChat) {
     const infoPanel = adminChat.querySelector('[data-chat-info-panel]');
     const imageInput = replyForm?.querySelector('input[type="file"]');
     const imagePreview = replyForm?.querySelector('[data-admin-image-preview]');
+    const composer = setupChatComposer(replyForm, `pawora_admin_draft_${adminChat.dataset.userId}_${selectedUuid}`);
+    const newMessages = adminChat.querySelector('[data-admin-new-messages]');
+    const acceptButton = adminChat.querySelector('[data-chat-accept]');
+    let messageSignature = '';
+    let listSignature = '';
+    let refreshAgain = false;
+    let forceBottom = true;
+    let refreshing = false;
     let previewUrl = null;
     let refreshTimer = null;
 
@@ -42,6 +52,12 @@ if (adminChat) {
 
     const renderMessages = (messages) => {
         if (!messagesBox) return;
+        const signature = JSON.stringify(messages.map(({ id, read_at }) => [id, read_at]));
+        if (signature === messageSignature && !forceBottom) return;
+        const atBottom = forceBottom || messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 64;
+        const oldTop = messagesBox.scrollTop;
+        const oldLast = messagesBox.lastElementChild?.dataset.messageId;
+        messageSignature = signature;
         messagesBox.replaceChildren();
         messages.forEach((message) => {
             const article = document.createElement('article');
@@ -72,7 +88,14 @@ if (adminChat) {
             article.append(time);
             messagesBox.append(article);
         });
-        messagesBox.scrollTop = messagesBox.scrollHeight;
+        if (atBottom) {
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+            if (newMessages) newMessages.hidden = true;
+        } else {
+            messagesBox.scrollTop = oldTop;
+            if (newMessages && String(messages.at(-1)?.id) !== oldLast) newMessages.hidden = false;
+        }
+        forceBottom = false;
     };
 
     const threadLink = (conversation) => {
@@ -101,6 +124,12 @@ if (adminChat) {
         state.className = `ops-status ops-status--${conversation.status}`;
         state.textContent = conversation.status_label;
         meta.append(state);
+        if (conversation.support_mode !== 'bot') {
+            const support = document.createElement('i');
+            support.className = 'chat-support-badge';
+            support.textContent = conversation.support_label;
+            meta.append(support);
+        }
         if (conversation.assignee_name) {
             const assignee = document.createElement('em');
             assignee.textContent = conversation.assignee_name;
@@ -118,10 +147,12 @@ if (adminChat) {
     };
 
     const refresh = async ({ announce = false } = {}) => {
+        if (refreshing) { refreshAgain = true; return; }
+        refreshing = true;
         try {
             const url = new URL(adminChat.dataset.feedUrl);
             const current = new URL(window.location.href);
-            ['q', 'status', 'unread', 'assigned'].forEach((key) => {
+            ['q', 'status', 'unread', 'assigned', 'support'].forEach((key) => {
                 if (current.searchParams.has(key)) url.searchParams.set(key, current.searchParams.get(key));
             });
             if (selectedUuid) url.searchParams.set('conversation', selectedUuid);
@@ -132,21 +163,40 @@ if (adminChat) {
                 const output = adminChat.querySelector(`[data-chat-stat="${key}"]`);
                 if (output) output.textContent = value;
             });
-            if (listBox) {
+            const nextListSignature = JSON.stringify(payload.conversations);
+            if (listBox && nextListSignature !== listSignature) {
+                listSignature = nextListSignature;
                 const listScrollTop = listBox.scrollTop;
                 listBox.replaceChildren(...payload.conversations.map(threadLink));
                 listBox.scrollTop = listScrollTop;
             }
-            if (selectedUuid && payload.selected) renderMessages(payload.messages || []);
+            if (selectedUuid && payload.selected) {
+                renderMessages(payload.messages || []);
+                const selected = payload.selected;
+                adminChat.querySelector('[data-chat-support-label]').textContent = `${selected.support_label} · ${selected.assignee_name || 'Chưa phân công'}`;
+                adminChat.querySelector('[data-chat-handoff-reason]').textContent = selected.handoff_reason_label || '';
+                if (acceptButton) acceptButton.hidden = Boolean(selected.assigned_to) || ['closed', 'spam'].includes(selected.status);
+                if (settingsForm && !settingsForm.contains(document.activeElement)) {
+                    settingsForm.elements.status.value = selected.status;
+                    settingsForm.elements.priority.value = selected.priority;
+                    settingsForm.querySelector('[type=checkbox]').checked = selected.bot_enabled;
+                }
+                if (assignForm && !assignForm.contains(document.activeElement)) assignForm.elements.assigned_to.value = selected.assigned_to || '';
+            }
             if (announce) say('Hộp thư vừa được cập nhật.');
         } catch {
-            if (status) status.textContent = 'Kết nối realtime gián đoạn, hệ thống vẫn đang thử tải lại.';
+            if (status) status.textContent = 'Không tải được tin nhắn. Đang thử kết nối lại.';
+        } finally {
+            refreshing = false;
+            if (refreshAgain) { refreshAgain = false; refresh(); }
         }
     };
 
     const startPolling = () => {
         window.clearInterval(refreshTimer);
-        refreshTimer = window.setInterval(refresh, 4000);
+        refreshTimer = window.setInterval(() => {
+            if (!document.hidden && !composer?.busy) refresh();
+        }, 4000);
     };
 
     if (window.Echo) {
@@ -155,27 +205,36 @@ if (adminChat) {
             .listen('.chat.conversation.updated', () => refresh());
     }
     startPolling();
+    const fitViewport = () => {
+        const height = window.innerWidth <= 760 ? window.visualViewport?.height : window.innerHeight;
+        adminChat.closest('.admin-workspace').style.setProperty('--admin-chat-height', `${height || window.innerHeight}px`);
+    };
+    window.visualViewport?.addEventListener('resize', fitViewport);
+    window.addEventListener('resize', fitViewport);
+    fitViewport();
 
     replyForm?.querySelectorAll('[data-quick-reply]').forEach((button) => {
         button.addEventListener('click', () => {
             const input = replyForm.querySelector('textarea');
             input.value = button.dataset.quickReply;
+            composer?.save();
             input.focus();
         });
     });
     replyForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const input = replyForm.querySelector('textarea');
-        if (!input.value.trim() && !imageInput.files?.length) return;
+        if (composer?.busy || (!input.value.trim() && !imageInput.files?.length)) return;
         const data = new FormData(replyForm);
-        data.set('client_message_id', crypto.randomUUID());
-        const button = replyForm.querySelector('button[type="submit"]');
-        button.disabled = true;
+        data.set('client_message_id', composer.id());
+        composer.setBusy(true);
         status.textContent = 'Đang gửi trả lời...';
         try {
             const response = await fetch(endpoint(adminChat.dataset.replyTemplate, selectedUuid), { method: 'POST', headers: formHeaders, credentials: 'same-origin', body: data });
             if (!response.ok) throw new Error(await parseError(response));
             replyForm.reset();
+            composer.clear();
+            forceBottom = true;
             removeAdminPreview();
             status.textContent = 'Đã gửi. Bot đã tạm dừng trong hội thoại này.';
             await refresh();
@@ -183,7 +242,7 @@ if (adminChat) {
         } catch (error) {
             status.textContent = `${error.message} Nội dung vẫn được giữ để gửi lại.`;
         } finally {
-            button.disabled = false;
+            composer.setBusy(false);
         }
     });
 
@@ -230,9 +289,34 @@ if (adminChat) {
         event.preventDefault();
         submitJsonForm(assignForm, endpoint(adminChat.dataset.assignTemplate, selectedUuid), 'Đã cập nhật người phụ trách.');
     });
+    newMessages?.addEventListener('click', () => {
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+        newMessages.hidden = true;
+    });
+    messagesBox?.addEventListener('scroll', () => {
+        if (messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 64) newMessages.hidden = true;
+    });
+    acceptButton?.addEventListener('click', async () => {
+        acceptButton.disabled = true;
+        try {
+            const response = await fetch(endpoint(adminChat.dataset.acceptTemplate, selectedUuid), { method: 'POST', headers: formHeaders, credentials: 'same-origin' });
+            if (!response.ok) throw new Error(await parseError(response));
+            say('Bạn đã tiếp nhận hội thoại. Bot đã tạm dừng.');
+            await refresh();
+        } catch (error) { say(error.message); }
+        finally { acceptButton.disabled = false; }
+    });
+    const closeInfo = () => {
+        infoPanel?.classList.remove('is-open');
+        infoToggle?.setAttribute('aria-expanded', 'false');
+        infoToggle?.focus();
+    };
+    adminChat.querySelector('[data-chat-info-close]')?.addEventListener('click', closeInfo);
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && infoPanel?.classList.contains('is-open')) closeInfo(); });
     infoToggle?.addEventListener('click', () => {
         const open = infoPanel.classList.toggle('is-open');
         infoToggle.setAttribute('aria-expanded', String(open));
+        if (open) infoPanel.querySelector('button, select')?.focus();
     });
 
     if (selectedUuid) {
@@ -276,9 +360,9 @@ if (rulesPage) {
                 payload.matches.forEach((match) => {
                     const item = document.createElement('article');
                     const title = document.createElement('strong');
-                    title.textContent = `${match.name} · ưu tiên ${match.priority}`;
+                    title.textContent = match.name + (match.priority ? ` · ưu tiên ${match.priority}` : '') + (match.action === 'handoff' ? ' · Chuyển nhân viên' : '');
                     const copy = document.createElement('p');
-                    copy.textContent = match.response;
+                    copy.textContent = match.action === 'handoff' ? 'Hội thoại sẽ chuyển sang chờ nhân viên, bot tạm dừng. ' + match.response : match.response;
                     item.append(title, copy);
                     result.append(item);
                 });

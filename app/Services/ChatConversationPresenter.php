@@ -15,6 +15,9 @@ class ChatConversationPresenter
             'status' => $conversation->status,
             'status_label' => $conversation->statusLabel(),
             'bot_enabled' => $conversation->bot_enabled,
+            'support_mode' => $conversation->supportMode(),
+            'support_label' => $conversation->supportLabel(),
+            'handoff_reason_label' => $conversation->handoffReasonLabel(),
             'customer_unread_count' => $conversation->customer_unread_count,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
         ];

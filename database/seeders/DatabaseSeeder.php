@@ -6,7 +6,6 @@ use App\Models\Category;
 use App\Models\ChatAutoReplyRule;
 use App\Models\ChatConversation;
 use App\Models\ContactMessage;
-use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductReview;
@@ -93,15 +92,7 @@ class DatabaseSeeder extends Seeder
                 $i++;
             }
         }
-        $demoCoupons = [
-            ['code' => 'PAWORA10', 'type' => 'percent', 'value' => 10, 'minimum_order' => 500000, 'usage_limit' => 500],
-            ['code' => 'BEMOI50', 'type' => 'fixed', 'value' => 50000, 'minimum_order' => 300000, 'usage_limit' => 300],
-            ['code' => 'PAWORA15', 'type' => 'percent', 'value' => 15, 'minimum_order' => 800000, 'usage_limit' => 200],
-            ['code' => 'GIAM100K', 'type' => 'fixed', 'value' => 100000, 'minimum_order' => 1200000, 'usage_limit' => 100],
-        ];
-        foreach ($demoCoupons as $coupon) {
-            Coupon::firstOrCreate(['code' => $coupon['code']], [...$coupon, 'is_active' => true]);
-        }
+        $this->call(VoucherDemoSeeder::class);
 
         $this->seedVerifiedReviews();
         $this->seedContactMessages();
@@ -238,34 +229,7 @@ class DatabaseSeeder extends Seeder
     private function seedChatSupport(): void
     {
         $admin = User::where('email', 'admin@pawora.vn')->firstOrFail();
-        $rules = [
-            ['Lời chào', ['xin chào', 'hello', 'chào shop'], 'contains', 'Xin chào! Pawora đã nhận được tin nhắn. Bạn cần hỗ trợ sản phẩm hay đơn hàng ạ?', 100, 'always'],
-            ['Phí giao hàng', ['phí ship', 'phí vận chuyển', 'giao hàng'], 'contains', 'Pawora tính phí theo khu vực và sẽ hiển thị chính xác ở bước thanh toán. Đơn đủ điều kiện sẽ được miễn phí vận chuyển.', 90, 'always'],
-            ['Đổi trả và hoàn tiền', ['đổi trả', 'hoàn tiền', 'trả hàng'], 'contains', 'Pawora hỗ trợ yêu cầu đổi trả trong vòng 7 ngày kể từ khi nhận hàng. Bạn gửi giúp mã đơn và tình trạng sản phẩm nhé.', 85, 'always'],
-            ['Kiểm tra đơn hàng', ['mã vận đơn', 'đơn hàng của tôi', 'kiểm tra đơn'], 'contains', 'Bạn gửi mã đơn hàng để Pawora kiểm tra hành trình và mã vận đơn chính xác giúp bạn nhé.', 95, 'always'],
-            ['Tư vấn sản phẩm', ['tư vấn sản phẩm', 'chọn thức ăn', 'chọn size'], 'contains', 'Bạn cho Pawora biết loại thú cưng, cân nặng và nhu cầu sử dụng. Nhân viên sẽ tư vấn lựa chọn phù hợp nhất.', 80, 'always'],
-            ['Ngoài giờ hỗ trợ', ['hỗ trợ', 'nhân viên', 'tư vấn'], 'contains', 'Pawora đã ghi nhận yêu cầu ngoài giờ. Đội ngũ sẽ phản hồi từ 08:00 đến 18:00 trong ngày làm việc gần nhất.', 30, 'outside_hours'],
-        ];
-
-        foreach ($rules as $index => [$name, $keywords, $matchType, $response, $priority, $timeMode]) {
-            ChatAutoReplyRule::updateOrCreate(['name' => $name], [
-                'keywords' => $keywords,
-                'match_type' => $matchType,
-                'response' => $response,
-                'priority' => $priority,
-                'delay_seconds' => $index % 3,
-                'once_per_conversation' => true,
-                'active' => true,
-                'working_time_mode' => $timeMode,
-                'start_time' => $timeMode === 'always' ? null : '08:00:00',
-                'end_time' => $timeMode === 'always' ? null : '18:00:00',
-                'weekdays' => $timeMode === 'always' ? null : [1, 2, 3, 4, 5, 6],
-                'stop_after_match' => true,
-                'trigger_count' => 4 + $index,
-                'created_by' => $admin->id,
-                'updated_by' => $admin->id,
-            ]);
-        }
+        $this->call(ChatSupportRuleSeeder::class);
 
         $samples = [
             ['Trần Minh Anh', 'minhanh.demo@pawora.vn', '0911000101', 'PAW-DEMO-RV-01', 'new', 'high', 'Mình muốn kiểm tra đơn hàng của tôi đã có mã vận đơn chưa?', null],

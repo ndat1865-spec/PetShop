@@ -7,6 +7,7 @@ use App\Models\ReturnRequest;
 use App\Models\User;
 use App\Models\UserAddress;
 use App\Services\CartService;
+use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\RefundService;
 use Illuminate\Http\Request;
@@ -22,10 +23,19 @@ class AccountController extends Controller
         return redirect()->route('account.profile');
     }
 
-    public function profile(Request $request)
+    public function profile(Request $request, CouponService $couponService)
     {
         $user = $request->user();
         $orders = $user->orders();
+        $voucherOptions = $couponService->publicForUser($user);
+        $voucherGroups = collect([
+            'Có thể sử dụng' => ['available'],
+            'Chưa thể sử dụng' => ['scheduled', 'first_order_only'],
+            'Đã sử dụng' => ['user_exhausted'],
+            'Đã kết thúc' => ['expired', 'exhausted'],
+        ])->map(fn (array $statuses) => $voucherOptions
+            ->filter(fn (array $option) => in_array($option['evaluation']['status'], $statuses, true)))
+            ->filter->isNotEmpty();
 
         return view('account.profile', [
             'recentOrders' => (clone $orders)
@@ -39,6 +49,13 @@ class AccountController extends Controller
                 'active' => (clone $orders)->whereNotIn('status', ['delivered', 'cancelled'])->count(),
                 'addresses' => $user->addresses()->count(),
                 'returns' => (clone $orders)->whereHas('returnRequests')->count(),
+            ],
+            'voucherOptions' => $voucherOptions,
+            'voucherGroups' => $voucherGroups,
+            'voucherSummary' => [
+                'available' => $voucherOptions->where('evaluation.status', 'available')->count(),
+                'used' => $voucherOptions->where('evaluation.status', 'user_exhausted')->count(),
+                'ended' => $voucherOptions->whereIn('evaluation.status', ['expired', 'exhausted'])->count(),
             ],
         ]);
     }
@@ -351,22 +368,26 @@ class AccountController extends Controller
 
             if (! $product || $product->status !== 'active') {
                 $unavailableItems++;
+
                 continue;
             }
 
             if ($item->product_variant_id) {
                 if (! $variant || ! $variant->is_active || (int) $variant->product_id !== (int) $product->id) {
                     $unavailableItems++;
+
                     continue;
                 }
             } elseif ($product->variants->where('is_active', true)->isNotEmpty()) {
                 $unavailableItems++;
+
                 continue;
             }
 
             $available = (int) ($variant?->stock ?? $product->stock);
             if ($available < 1) {
                 $unavailableItems++;
+
                 continue;
             }
 
@@ -377,6 +398,7 @@ class AccountController extends Controller
 
             if ($quantityAdded < 1) {
                 $unavailableItems++;
+
                 continue;
             }
 

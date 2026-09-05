@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class ChatAutoReplyRule extends Model
 {
+    public const CATEGORIES = [
+        'general' => 'Hỗ trợ chung', 'shopping' => 'Sản phẩm & mua hàng',
+        'voucher' => 'Voucher', 'shipping' => 'Vận chuyển', 'payment' => 'Thanh toán',
+        'order' => 'Đơn hàng', 'returns' => 'Đổi trả & khiếu nại',
+    ];
+
     public const MATCH_TYPES = ['exact', 'contains'];
 
     public const WORKING_TIME_MODES = ['always', 'in_hours', 'outside_hours'];
@@ -15,6 +21,7 @@ class ChatAutoReplyRule extends Model
         'name', 'keywords', 'match_type', 'response', 'priority', 'delay_seconds',
         'once_per_conversation', 'active', 'working_time_mode', 'start_time', 'end_time',
         'weekdays', 'stop_after_match', 'trigger_count', 'created_by', 'updated_by',
+        'category', 'template_key', 'handoff',
     ];
 
     protected $casts = [
@@ -23,6 +30,7 @@ class ChatAutoReplyRule extends Model
         'once_per_conversation' => 'boolean',
         'active' => 'boolean',
         'stop_after_match' => 'boolean',
+        'handoff' => 'boolean',
     ];
 
     public function creator()

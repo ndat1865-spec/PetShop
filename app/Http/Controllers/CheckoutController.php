@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\AddressDirectory;
 use App\Services\CartService;
+use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
@@ -24,7 +25,7 @@ use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
 {
-    public function create(Request $request, CartService $cart)
+    public function create(Request $request, CartService $cart, CouponService $couponService)
     {
         $details = $cart->details();
         if (empty($details['items'])) {
@@ -44,10 +45,7 @@ class CheckoutController extends Controller
 
         return view('store.checkout', [
             'cart' => $details,
-            'coupons' => Coupon::query()
-                ->orderBy('minimum_order')
-                ->orderByDesc('value')
-                ->get(),
+            'couponOptions' => $couponService->publicForUser($request->user(), (int) $details['subtotal'], 30, true),
             'provinces' => config('pawora.shipping.provinces', []),
             'savedAddresses' => $savedAddresses,
             'checkoutIdempotencyKey' => $checkoutIdempotencyKey,
@@ -82,7 +80,7 @@ class CheckoutController extends Controller
         return response()->json(['wards' => $directory->wards($data['province'])]);
     }
 
-    public function shippingQuote(Request $request, CartService $cart, ShippingCalculator $shipping)
+    public function shippingQuote(Request $request, CartService $cart, ShippingCalculator $shipping, CouponService $couponService)
     {
         $data = $request->validate([
             'province' => ['required', 'string', 'in:'.implode(',', config('pawora.shipping.provinces', []))],
@@ -93,20 +91,20 @@ class CheckoutController extends Controller
         $details = $cart->details();
         abort_if(empty($details['items']), 422, 'Giỏ hàng đang trống.');
 
-        $discount = $this->couponDiscount($data['coupon_code'] ?? null, (float) $details['subtotal']);
+        $discount = $this->couponDiscount($data['coupon_code'] ?? null, (float) $details['subtotal'], $request, $couponService);
         $discountedSubtotal = (float) $details['subtotal'] - $discount;
         $quote = $shipping->quote($data['province'], $discountedSubtotal, $data['district_id'] ?? null, $data['ward_code'] ?? null);
 
         return response()->json([...$quote, 'discount' => $discount, 'total' => $discountedSubtotal + (float) $quote['fee']]);
     }
 
-    public function couponPreview(Request $request, CartService $cart)
+    public function couponPreview(Request $request, CartService $cart, CouponService $couponService)
     {
         $data = $request->validate(['coupon_code' => ['required', 'string', 'max:30']]);
         $details = $cart->details();
         abort_if(empty($details['items']), 422, 'Giỏ hàng đang trống.');
 
-        $discount = $this->couponDiscount($data['coupon_code'], (float) $details['subtotal']);
+        $discount = $this->couponDiscount($data['coupon_code'], (float) $details['subtotal'], $request, $couponService);
 
         return response()->json([
             'code' => Str::upper($data['coupon_code']),
@@ -115,7 +113,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function store(Request $request, CartService $cart)
+    public function store(Request $request, CartService $cart, CouponService $couponService)
     {
         abort_unless($request->user(), 401);
         $data = $request->validate([
@@ -170,7 +168,7 @@ class CheckoutController extends Controller
         $cartLines = $cart->lines();
         abort_if(empty($cartLines), 422, 'Giỏ hàng đang trống.');
         try {
-            $order = DB::transaction(function () use ($cartLines, $data, $request, $idempotencyKey) {
+            $order = DB::transaction(function () use ($cartLines, $data, $request, $idempotencyKey, $couponService) {
                 $productIds = collect($cartLines)->pluck('product_id')->unique()->values();
                 $variantIds = collect($cartLines)->pluck('variant_id')->filter()->unique()->values();
                 $products = Product::whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
@@ -200,11 +198,15 @@ class CheckoutController extends Controller
                 $coupon = null;
                 $discount = 0;
                 if (! empty($data['coupon_code'])) {
-                    $coupon = Coupon::where('code', strtoupper($data['coupon_code']))->lockForUpdate()->first();
-                    if (! $coupon || ! $coupon->isValidFor($subtotal)) {
-                        abort(422, 'Mã ưu đãi không hợp lệ hoặc chưa đủ điều kiện.');
+                    $coupon = Coupon::where('code', Str::upper(trim($data['coupon_code'])))->lockForUpdate()->first();
+                    if (! $coupon) {
+                        abort(422, 'Mã ưu đãi không tồn tại.');
                     }
-                    $discount = $coupon->discountFor($subtotal);
+                    $evaluation = $couponService->evaluate($coupon, $subtotal, $request->user());
+                    if (! $evaluation['valid']) {
+                        abort(422, $evaluation['reason']);
+                    }
+                    $discount = $evaluation['discount'];
                 }
                 $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
                 $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
@@ -215,7 +217,7 @@ class CheckoutController extends Controller
                 }
                 $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
                 if ($coupon) {
-                    $coupon->increment('used_count');
+                    $couponService->recordUsage($coupon, $request->user(), $order, $discount);
                 }
 
                 return $order;
@@ -308,15 +310,17 @@ class CheckoutController extends Controller
             ->with('success', 'Yêu cầu đặt hàng này đã được xử lý trước đó. Pawora không tạo đơn trùng.');
     }
 
-    private function couponDiscount(?string $code, float $subtotal): float
+    private function couponDiscount(?string $code, float $subtotal, Request $request, CouponService $couponService): int
     {
         if (! $code) {
             return 0;
         }
 
         $coupon = Coupon::where('code', Str::upper(trim($code)))->first();
-        abort_if(! $coupon || ! $coupon->isValidFor($subtotal), 422, 'Mã ưu đãi không hợp lệ hoặc chưa đủ điều kiện.');
+        abort_if(! $coupon, 422, 'Mã ưu đãi không tồn tại.');
+        $evaluation = $couponService->evaluate($coupon, $subtotal, $request->user());
+        abort_if(! $evaluation['valid'], 422, $evaluation['reason']);
 
-        return $coupon->discountFor($subtotal);
+        return $evaluation['discount'];
     }
 }

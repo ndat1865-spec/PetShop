@@ -166,17 +166,17 @@
                     </div>
 
                     <section class="coupon-catalog" aria-labelledby="coupon-catalog-title">
-                        <div class="coupon-catalog__head"><h3 id="coupon-catalog-title">Ưu đãi dành cho bạn</h3><span>{{ $coupons->count() }} mã</span></div>
-                        @if($coupons->isEmpty())
+                        <div class="coupon-catalog__head"><h3 id="coupon-catalog-title">Ưu đãi dành cho bạn</h3><span>{{ $couponOptions->count() }} mã</span></div>
+                        @if($couponOptions->isEmpty())
                             <div class="voucher-empty"><strong>Chưa có ưu đãi khả dụng</strong><span>Bạn vẫn có thể nhập mã được Pawora cung cấp ở phía trên.</span></div>
                         @else
                             <div class="voucher-list" data-voucher-list>
-                                @foreach($coupons as $coupon)
-                                    @php($remaining = $coupon->remainingFor((float) $cart['subtotal']))
-                                    @php($discount = $coupon->discountFor((float) $cart['subtotal']))
-                                    @php($unavailableReason = $coupon->unavailableReasonForCheckout())
-                                    @php($eligible = ! $unavailableReason && $remaining <= 0)
-                                    @php($voucherState = $unavailableReason ?: ($remaining > 0 ? 'Mua thêm '.number_format($remaining, 0, ',', '.').'đ để sử dụng' : 'Có thể áp dụng'))
+                                @foreach($couponOptions as $option)
+                                    @php($coupon = $option['coupon'])
+                                    @php($evaluation = $option['evaluation'])
+                                    @php($discount = $evaluation['discount'])
+                                    @php($eligible = $evaluation['valid'])
+                                    @php($voucherState = $evaluation['reason'] ?: 'Có thể áp dụng')
                                     <button type="button" class="voucher-option" data-voucher="{{ $coupon->code }}" data-discount="{{ $discount }}" data-eligible="{{ $eligible ? 'true' : 'false' }}" aria-pressed="false" @disabled(! $eligible)>
                                         <span class="voucher-option__code"><span>{{ $coupon->code }}</span><strong>{{ $coupon->type === 'percent' ? 'Giảm '.number_format($coupon->value, 0).'%' : 'Giảm '.number_format($coupon->value, 0, ',', '.').'đ' }}</strong></span>
                                         <span class="voucher-option__body">

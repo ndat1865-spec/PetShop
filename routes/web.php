@@ -98,9 +98,10 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 Route::post('/dang-xuat', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 Route::prefix('ho-tro/tin-nhan')->name('chat.')->group(function () {
     Route::get('/hien-tai', [CustomerChatController::class, 'current'])->name('current');
-    Route::post('/hoi-thoai', [CustomerChatController::class, 'store'])->middleware('throttle:5,1')->name('conversations.store');
+    Route::post('/hoi-thoai', [CustomerChatController::class, 'store'])->middleware('throttle:5,1')->block(10, 10)->name('conversations.store');
     Route::get('/hoi-thoai/{conversation}', [CustomerChatController::class, 'show'])->middleware('throttle:60,1')->name('conversations.show');
     Route::post('/hoi-thoai/{conversation}/tin-nhan', [CustomerChatController::class, 'message'])->middleware('throttle:20,1')->name('messages.store');
+    Route::post('/hoi-thoai/{conversation}/nhan-vien', [CustomerChatController::class, 'handoff'])->middleware('throttle:20,1')->name('handoff');
     Route::post('/hoi-thoai/{conversation}/da-doc', [CustomerChatController::class, 'read'])->middleware('throttle:30,1')->name('read');
     Route::get('/tep/{message}', [CustomerChatController::class, 'attachment'])->middleware('signed')->name('attachments.show');
 });
@@ -122,6 +123,7 @@ Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.
     Route::patch('/danh-muc/{category}', [AdminController::class, 'updateCategory'])->middleware('permission:catalog.manage')->name('categories.update');
     Route::get('/ma-giam-gia', [AdminController::class, 'coupons'])->middleware('permission:promotions.manage')->name('coupons');
     Route::post('/ma-giam-gia', [AdminController::class, 'storeCoupon'])->middleware('permission:promotions.manage')->name('coupons.store');
+    Route::get('/ma-giam-gia/{coupon}', [AdminController::class, 'couponDetails'])->middleware('permission:promotions.manage')->name('coupons.show');
     Route::patch('/ma-giam-gia/{coupon}', [AdminController::class, 'updateCoupon'])->middleware('permission:promotions.manage')->name('coupons.update');
     Route::get('/khach-hang', [AdminController::class, 'customers'])->middleware('permission:customers.view')->name('customers');
     Route::get('/danh-gia', [AdminReviewController::class, 'index'])->middleware('permission:reviews.view')->name('reviews');
@@ -133,10 +135,12 @@ Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.
     Route::post('/tin-nhan/{conversation}/tra-loi', [AdminChatController::class, 'reply'])->middleware(['permission:chats.reply', 'throttle:60,1'])->name('chats.reply');
     Route::patch('/tin-nhan/{conversation}', [AdminChatController::class, 'update'])->middleware('permission:chats.manage')->name('chats.update');
     Route::patch('/tin-nhan/{conversation}/phan-cong', [AdminChatController::class, 'assign'])->middleware('permission:chats.assign')->name('chats.assign');
+    Route::post('/tin-nhan/{conversation}/tiep-nhan', [AdminChatController::class, 'accept'])->middleware('permission:chats.reply')->name('chats.accept');
     Route::post('/tin-nhan/{conversation}/da-doc', [AdminChatController::class, 'read'])->middleware('permission:chats.view')->name('chats.read');
     Route::get('/tin-nhan/tra-loi-tu-dong', [AdminChatRuleController::class, 'index'])->middleware('permission:chat_rules.manage')->name('chat-rules');
     Route::post('/tin-nhan/tra-loi-tu-dong', [AdminChatRuleController::class, 'store'])->middleware('permission:chat_rules.manage')->name('chat-rules.store');
     Route::patch('/tin-nhan/tra-loi-tu-dong/{rule}', [AdminChatRuleController::class, 'update'])->middleware('permission:chat_rules.manage')->name('chat-rules.update');
+    Route::patch('/tin-nhan/tra-loi-tu-dong/{rule}/bat-tat', [AdminChatRuleController::class, 'toggle'])->middleware('permission:chat_rules.manage')->name('chat-rules.toggle');
     Route::delete('/tin-nhan/tra-loi-tu-dong/{rule}', [AdminChatRuleController::class, 'destroy'])->middleware('permission:chat_rules.manage')->name('chat-rules.destroy');
     Route::post('/tin-nhan/tra-loi-tu-dong/thu', [AdminChatRuleController::class, 'test'])->middleware('permission:chat_rules.manage')->name('chat-rules.test');
     Route::get('/tai-khoan', [AdminController::class, 'users'])->middleware('permission:users.manage')->name('users');

@@ -14,9 +14,7 @@ class ChatConversationUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public ChatConversation $conversation)
-    {
-    }
+    public function __construct(public ChatConversation $conversation) {}
 
     public function broadcastOn(): array
     {
@@ -40,6 +38,9 @@ class ChatConversationUpdated implements ShouldBroadcastNow
                 'status_label' => $this->conversation->statusLabel(),
                 'priority' => $this->conversation->priority,
                 'bot_enabled' => $this->conversation->bot_enabled,
+                'support_mode' => $this->conversation->supportMode(),
+                'support_label' => $this->conversation->supportLabel(),
+                'handoff_reason_label' => $this->conversation->handoffReasonLabel(),
                 'customer_unread_count' => $this->conversation->customer_unread_count,
                 'admin_unread_count' => $this->conversation->admin_unread_count,
                 'last_message_at' => $this->conversation->last_message_at?->toIso8601String(),

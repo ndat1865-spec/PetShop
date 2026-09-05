@@ -95,7 +95,7 @@ return [
         'merchant_id' => env('ONEPAY_MERCHANT_ID'),
         'access_code' => env('ONEPAY_ACCESS_CODE'),
         'secure_secret' => env('ONEPAY_SECURE_SECRET'),
-        'payment_url' => env('ONEPAY_PAYMENT_URL', 'https://mtf.onepay.vn/vpcpay/vpcpay.op'),
+        'payment_url' => env('ONEPAY_PAYMENT_URL', 'https://mtf.onepay.vn/paygate/vpcpay.op'),
         'return_url' => env('ONEPAY_RETURN_URL'),
         'callback_url' => env('ONEPAY_CALLBACK_URL'),
         'refund_url' => env('ONEPAY_REFUND_URL'),

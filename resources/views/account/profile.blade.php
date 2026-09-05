@@ -135,6 +135,49 @@
             </section>
         </div>
 
+        <section class="member-account-card member-vouchers-card" id="my-vouchers" aria-labelledby="my-vouchers-title">
+            <header class="member-card-heading">
+                <div><p>Ưu đãi</p><h2 id="my-vouchers-title">Voucher của tôi</h2></div>
+                <div class="member-voucher-summary" aria-label="Tổng quan voucher">
+                    <span><strong>{{ $voucherSummary['available'] }}</strong> có thể dùng</span>
+                    <span><strong>{{ $voucherSummary['used'] }}</strong> đã dùng hết</span>
+                    <span><strong>{{ $voucherSummary['ended'] }}</strong> đã kết thúc</span>
+                </div>
+            </header>
+            <p class="member-voucher-feedback" data-copy-feedback role="status" aria-live="polite">Chọn “Sao chép mã” để dùng voucher khi thanh toán.</p>
+
+            @if($voucherOptions->isEmpty())
+                <div class="member-card-empty member-voucher-empty">
+                    <p>Hiện chưa có voucher công khai dành cho bạn.</p>
+                    <a href="{{ route('products.index') }}">Khám phá sản phẩm</a>
+                </div>
+            @else
+                <div class="member-voucher-list">
+                    @foreach($voucherGroups as $groupName => $groupOptions)
+                        <section class="member-voucher-group" aria-labelledby="voucher-group-{{ Str::slug($groupName) }}">
+                            <h3 id="voucher-group-{{ Str::slug($groupName) }}">{{ $groupName }} <span>{{ $groupOptions->count() }}</span></h3>
+                            <div>
+                                @foreach($groupOptions as $option)
+                                    @php($coupon = $option['coupon'])
+                                    @php($evaluation = $option['evaluation'])
+                                    <article @class(['member-voucher', 'is-'.$evaluation['status']])>
+                                        <div class="member-voucher-ticket" aria-hidden="true"><span>Pawora</span><strong>{{ $coupon->type === 'percent' ? number_format($coupon->value, 0).'%' : number_format($coupon->value, 0, ',', '.').'đ' }}</strong></div>
+                                        <div class="member-voucher-content">
+                                            <header><div><h3>{{ $coupon->name ?: $coupon->code }}</h3><code>{{ $coupon->code }}</code></div><span class="member-voucher-status">{{ $evaluation['label'] }}</span></header>
+                                            @if($coupon->description)<p>{{ $coupon->description }}</p>@endif
+                                            <dl><div><dt>Đơn tối thiểu</dt><dd>{{ number_format($coupon->minimum_order, 0, ',', '.') }}đ</dd></div><div><dt>Hạn dùng</dt><dd>{{ $coupon->expires_at ? $coupon->expires_at->format('d/m/Y H:i') : 'Không giới hạn' }}</dd></div><div><dt>Lượt của bạn</dt><dd>{{ $evaluation['user_usage_count'] }}/{{ $coupon->per_user_limit ?: '∞' }}</dd></div></dl>
+                                            @if($evaluation['reason'])<p class="member-voucher-reason">{{ $evaluation['reason'] }}</p>@endif
+                                            <footer><button type="button" data-copy-value="{{ $coupon->code }}" aria-label="Sao chép mã voucher {{ $coupon->code }}">Sao chép mã</button><a href="{{ route('products.index') }}">Mua sắm ngay <span aria-hidden="true">→</span></a></footer>
+                                        </div>
+                                    </article>
+                                @endforeach
+                            </div>
+                        </section>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+
         <section class="member-account-card member-orders-card" aria-labelledby="recent-orders-title">
             <header class="member-card-heading">
                 <div><p>Mua sắm</p><h2 id="recent-orders-title">Đơn hàng gần đây</h2></div>

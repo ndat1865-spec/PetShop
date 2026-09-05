@@ -13,10 +13,21 @@ use Illuminate\View\View;
 
 class AdminChatRuleController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'category' => ['nullable', Rule::in(array_keys(ChatAutoReplyRule::CATEGORIES))],
+            'active' => ['nullable', Rule::in(['0', '1'])],
+        ]);
+
         return view('admin.chats.rules', [
-            'rules' => ChatAutoReplyRule::orderByDesc('priority')->orderBy('id')->get(),
+            'filters' => $filters,
+            'rules' => ChatAutoReplyRule::query()
+                ->when(filled($filters['q'] ?? null), fn ($query) => $query->where(fn ($nested) => $nested->where('name', 'like', '%'.$filters['q'].'%')->orWhere('response', 'like', '%'.$filters['q'].'%')->orWhere('keywords', 'like', '%'.$filters['q'].'%')))
+                ->when(filled($filters['category'] ?? null), fn ($query) => $query->where('category', $filters['category']))
+                ->when(isset($filters['active']), fn ($query) => $query->where('active', $filters['active']))
+                ->orderByDesc('priority')->orderBy('id')->get(),
             'editing' => request('edit') ? ChatAutoReplyRule::find(request('edit')) : null,
         ]);
     }
@@ -48,6 +59,16 @@ class AdminChatRuleController extends Controller
         return redirect()->route('admin.chat-rules')->with('success', 'Đã xóa quy tắc.');
     }
 
+    public function toggle(Request $request, ChatAutoReplyRule $rule, AdminAuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate(['active' => ['required', 'boolean']]);
+        $before = $rule->only('active');
+        $rule->update($data);
+        $audit->record($request, 'chat.rule_toggled', 'Bật/tắt quy tắc', $rule, $before, $rule->only('active'));
+
+        return back()->with('success', 'Đã cập nhật quy tắc.');
+    }
+
     public function test(Request $request, ChatAutoReplyService $service): JsonResponse
     {
         $data = $request->validate(['message' => ['required', 'string', 'max:2000']]);
@@ -59,6 +80,8 @@ class AdminChatRuleController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'category' => ['nullable', Rule::in(array_keys(ChatAutoReplyRule::CATEGORIES))],
+            'handoff' => ['nullable', 'boolean'],
             'keywords_text' => ['required', 'string', 'max:2000'],
             'match_type' => ['required', Rule::in(ChatAutoReplyRule::MATCH_TYPES)],
             'response' => ['required', 'string', 'max:3000'],
@@ -80,6 +103,8 @@ class AdminChatRuleController extends Controller
         return [
             ...$data,
             'keywords' => $keywords,
+            'category' => $data['category'] ?? 'general',
+            'handoff' => $request->boolean('handoff'),
             'once_per_conversation' => $request->boolean('once_per_conversation'),
             'active' => $request->boolean('active'),
             'stop_after_match' => $request->boolean('stop_after_match'),

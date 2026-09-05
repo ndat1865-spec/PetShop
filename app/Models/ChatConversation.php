@@ -31,6 +31,7 @@ class ChatConversation extends Model
         'guest_phone', 'order_number', 'assigned_to', 'status', 'priority', 'bot_enabled',
         'customer_unread_count', 'admin_unread_count', 'last_message_at',
         'customer_last_read_at', 'admin_last_read_at', 'closed_at',
+        'handoff_requested_at', 'handoff_reason', 'fallback_sent_at',
     ];
 
     protected $hidden = ['access_token_hash', 'channel_key'];
@@ -41,6 +42,8 @@ class ChatConversation extends Model
         'customer_last_read_at' => 'datetime',
         'admin_last_read_at' => 'datetime',
         'closed_at' => 'datetime',
+        'handoff_requested_at' => 'datetime',
+        'fallback_sent_at' => 'datetime',
     ];
 
     public function getRouteKeyName(): string
@@ -65,7 +68,27 @@ class ChatConversation extends Model
 
     public function latestMessage()
     {
-        return $this->hasOne(ChatMessage::class, 'conversation_id')->latestOfMany();
+        return $this->hasOne(ChatMessage::class, 'conversation_id')->ofMany(['id' => 'max'], fn ($query) => $query->delivered());
+    }
+
+    public function supportMode(): string
+    {
+        return $this->bot_enabled ? 'bot' : ($this->assigned_to ? 'human' : 'waiting');
+    }
+
+    public function supportLabel(): string
+    {
+        return ['bot' => 'Bot hỗ trợ', 'waiting' => 'Đang chờ nhân viên', 'human' => 'Nhân viên đang hỗ trợ'][$this->supportMode()];
+    }
+
+    public function handoffReasonLabel(): ?string
+    {
+        return match ($this->handoff_reason) {
+            'customer_request' => 'Khách yêu cầu nhân viên',
+            'unmatched' => 'Bot chưa xử lý được câu hỏi',
+            'verification' => 'Cần nhân viên xác minh',
+            default => null,
+        };
     }
 
     public function scopeActive(Builder $query): Builder

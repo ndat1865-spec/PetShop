@@ -1,91 +1,62 @@
 # Pawora Commerce
 
-Pawora là website thương mại điện tử phụ kiện thú cưng xây dựng bằng Laravel 10, Blade, MySQL/MariaDB và Vite. Hệ thống bao phủ catalog, biến thể, giỏ session, checkout, coupon, vận chuyển, COD/QR/cổng thanh toán, vòng đời đơn hàng, đổi trả/hoàn tiền và khu vực Admin có 2FA, permission, inventory ledger và audit log.
+Website thương mại điện tử phụ kiện thú cưng, xây dựng bằng Laravel, Blade và Vite. Project tập trung vào luồng mua hàng và xử lý đơn: từ lựa chọn biến thể, đặt hàng, thanh toán đến giao nhận, đổi trả và hoàn tiền.
 
-## Công nghệ
+## Chức năng
 
-- PHP 8.1+ (đã kiểm tra với PHP 8.2.32)
-- Laravel 10
-- MySQL hoặc MariaDB (đã kiểm tra với MariaDB 10.4.32/XAMPP)
-- Blade, CSS, JavaScript, Vite 8
-- PHPUnit 10
+- Catalog: tìm kiếm, lọc, phân trang, biến thể theo màu/size, giá và tồn kho.
+- Giỏ hàng session; checkout tính lại giá từ database, áp dụng voucher, phí vận chuyển và khóa tồn trong transaction.
+- Chống tạo đơn trùng bằng idempotency key; lưu snapshot sản phẩm và giá tại thời điểm đặt hàng.
+- COD và tích hợp SePay, VNPay, ZaloPay, MoMo, OnePay khi có cấu hình phù hợp.
+- Theo dõi đơn, xác nhận nhận hàng, hủy đơn, đổi trả/hoàn tiền và đánh giá sau giao hàng.
+- Tài khoản, sổ địa chỉ, ví voucher, giới hạn sử dụng voucher và lịch sử sử dụng.
+- Admin/Staff: phân quyền, 2FA tùy chọn, quản lý sản phẩm, tồn kho, đơn, vận chuyển, thanh toán và audit log.
+- CSKH: chat theo quy tắc, chuyển bot sang nhân viên, hộp thư có phân công và cập nhật qua Reverb/polling.
 
-## Chức năng chính
+## Yêu cầu môi trường
 
-- Trang chủ, danh mục, tìm kiếm, lọc, sắp xếp và phân trang.
-- Sản phẩm, biến thể theo size/màu, giá và tồn kho.
-- Review gắn với đơn đã giao.
-- Giỏ hàng session theo cặp product/variant.
-- Checkout tính lại giá từ database, coupon, shipping và transaction khóa tồn.
-- COD, QR SePay, VNPay, ZaloPay, MoMo và OnePay khi được cấu hình.
-- Order, OrderItem snapshot, payment transaction, shipment, hủy, đổi trả và refund.
-- Tài khoản, avatar, đổi mật khẩu và sổ địa chỉ.
-- Admin/Staff permission, 2FA, dashboard, catalog, tồn kho, đơn, vận chuyển, thanh toán, CSKH và audit.
+- PHP **8.2+** và Composer 2. Laravel dùng bản 10; dependency Reverb trong `composer.lock` yêu cầu PHP 8.2.
+- MySQL hoặc MariaDB, extension PHP `pdo_mysql`.
+- Node.js **20.19+ thuộc dòng 20, hoặc 22.12+** theo yêu cầu của Vite 8; npm.
+- Môi trường kiểm tra tại repo: PHP 8.2.32, Node.js 24.19.0, MySQL/MariaDB qua XAMPP.
 
-## Cài đặt sạch bằng XAMPP
+Giữ `composer.lock` và `package-lock.json` để cài đúng bộ dependency. `composer check-platform-reqs` kiểm tra các extension PHP cần thiết trên máy.
 
-### 1. Chuẩn bị
+## Cài đặt local
 
-1. Bật Apache và MySQL trong XAMPP.
-2. Mở terminal tại thư mục dự án.
-3. Tạo database UTF-8:
+Các lệnh dưới đây dùng PowerShell, chạy tại thư mục dự án. Khởi động MySQL trong XAMPP và tạo database riêng cho ứng dụng:
 
 ```sql
 CREATE DATABASE pawora CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 2. Cài dependency và cấu hình
-
 ```powershell
 composer install
-Copy-Item .env.example .env
+composer check-platform-reqs
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 php artisan key:generate
-npm install
+npm ci
 npm run build
 ```
 
-Giữ cấu hình local mặc định trong `.env.example` nếu XAMPP dùng MySQL `root` không mật khẩu. Nếu máy khác, cập nhật `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` trong `.env`.
+Đây là hướng dẫn cho lần cài mới; không tạo lại `APP_KEY` của ứng dụng đang có dữ liệu. Sửa `DB_*` trong `.env` theo database vừa tạo. Cấu hình mẫu dùng MySQL local với tài khoản `root` không mật khẩu.
 
-Không commit `.env`, API key, secret thanh toán hoặc mật khẩu thật.
+Chọn địa chỉ chạy và đặt **cả** `APP_URL`, `ASSET_URL` trong `.env` tương ứng:
 
-### 3. Tạo schema và dữ liệu demo
+- Apache/XAMPP: `http://localhost/PetShopnew/public` (điều chỉnh tên thư mục nếu khác).
+- Laravel dev server: `http://127.0.0.1:8000`.
 
-Cách khuyến nghị:
+Tạo schema, dữ liệu demo và liên kết ảnh upload:
 
 ```powershell
 php artisan migrate --seed
 php artisan storage:link
-```
-
-Hoặc import bản SQL demo đã làm sạch:
-
-```powershell
-$paworaSql = (Resolve-Path database\pawora-demo.sql).Path.Replace('\', '/')
-& 'C:\xampp\mysql\bin\mysql.exe' -u root pawora --execute="source $paworaSql"
-php artisan storage:link
-```
-
-`database/pawora-demo.sql` được tạo từ database tạm sau khi chạy đủ 24 migration và seed; bản hiện tại đã được import kiểm chứng gồm 25 bảng, 10 tài khoản demo, 32 sản phẩm và cột idempotency của checkout.
-
-### 4. Mở ứng dụng
-
-Với Apache/XAMPP: `http://localhost/PetShopnew/public`
-
-Hoặc dùng server Laravel:
-
-```powershell
 php artisan serve
 ```
 
-Sau đó mở `http://127.0.0.1:8000`.
+Nếu dùng Apache thì không cần `php artisan serve`. Khi phát triển frontend, chạy `npm run dev` ở terminal khác; khi dùng bản build, chạy lại `npm run build` sau khi sửa frontend hoặc các biến `VITE_*`.
 
-Để bật cập nhật chat theo thời gian thực, mở thêm một terminal và chạy:
-
-```powershell
-php artisan reverb:start
-```
-
-Nếu chưa chạy Reverb, các trang mua sắm và quản trị vẫn hoạt động; trình duyệt chỉ không nhận tin nhắn chat theo thời gian thực.
+`database/pawora-demo.sql` là snapshot demo cũ, được giữ để tham khảo. Nên cài bằng migrations và seeders hiện tại; nếu import snapshot vào database trống, cần chạy `php artisan migrate --seed` để cập nhật schema và voucher mới.
 
 ## Tài khoản demo
 
@@ -94,81 +65,61 @@ Nếu chưa chạy Reverb, các trang mua sắm và quản trị vẫn hoạt đ
 | Admin | `admin@pawora.vn` | `Pawora@2026` |
 | Customer | `khach@pawora.vn` | `Pawora@2026` |
 
-Các tài khoản này chỉ dành cho môi trường demo. Hãy đổi hoặc xóa chúng trước khi triển khai thật.
+Seeder tạo các tài khoản này cho local/demo. Không dùng tài khoản và mật khẩu mẫu trong môi trường thật. Admin 2FA mặc định tắt (`ADMIN_REQUIRE_TWO_FACTOR=false`); cần cấu hình mail trước khi bật.
 
-Admin 2FA mặc định tắt ở local (`ADMIN_REQUIRE_TWO_FACTOR=false`). Khi bật, hệ thống gửi mã xác thực ngắn hạn qua cấu hình mail.
+## Tích hợp và giới hạn demo
 
-## Cấu hình tích hợp tùy chọn
+Có thể demo luồng COD mà không bật cổng thanh toán online. Các tích hợp cần tài khoản nhà cung cấp, thông tin xác thực và callback URL phù hợp; việc có code tích hợp không đồng nghĩa đã được kiểm chứng với giao dịch thật.
 
-Các gateway chỉ hoạt động khi biến môi trường tương ứng được cấu hình. Không cần bật gateway online để demo luồng COD.
+- **Thanh toán:** điền các nhóm biến tương ứng trong `.env.example`. SePay cần thông tin tài khoản nhận tiền và webhook key; các cổng còn lại cần merchant/app credentials. Xem [hướng dẫn OnePay sandbox](docs/onepay-sandbox-demo.md).
+- **Hoàn tiền:** `REFUND_DEMO_MODE=true` mặc định không gửi yêu cầu hoàn tiền đến cổng; hệ thống ghi nhận luồng xử lý thủ công/demo. Muốn tích hợp thật phải cấu hình và kiểm thử riêng.
+- **Vận chuyển:** GHN mặc định tắt; có thể tính phí theo vùng Pawora. GHN cần token/shop id; tra cứu phường/xã công khai phụ thuộc dịch vụ bên ngoài và có fallback giới hạn khi dịch vụ lỗi.
+- **Mail/OAuth:** cấu hình SMTP hoặc Resend để gửi mail, Google/Facebook để đăng nhập mạng xã hội. `.env.example` dùng SMTP Mailpit local; cần chạy Mailpit hoặc đổi sang cấu hình mail của bạn.
+- **Chat realtime:** điền cùng bộ `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` cho server/client, build lại frontend và chạy `php artisan reverb:start` ở terminal khác. Khi Reverb chưa kết nối, chat vẫn cập nhật bằng polling (khoảng 3,5–4 giây).
 
-- SePay: tài khoản nhận tiền và `SEPAY_WEBHOOK_API_KEY`.
-- VNPay: merchant code, hash secret và URL sandbox.
-- ZaloPay: app id, key1, key2 và URL sandbox.
-- MoMo: partner/access/secret key và callback URL.
-- OnePay: merchant/access/secure secret và URL sandbox.
-- GHN: `GHN_ENABLED=true`, token, shop id và địa chỉ API.
+Không đưa `.env`, secret thanh toán hoặc dữ liệu khách hàng thật lên Git. Cấu hình mẫu bật kiểm tra TLS; cấu hình CA certificate của PHP nếu máy local gặp lỗi chứng chỉ.
 
-Không ghi giá trị secret vào README, ảnh chụp hoặc slide bảo vệ.
+Hướng dẫn thao tác voucher và dữ liệu mẫu: [docs/voucher-demo.md](docs/voucher-demo.md).
+
+Demo chat, chuyển nhân viên và cập nhật bộ quy tắc: [docs/chat-support-demo.md](docs/chat-support-demo.md).
 
 ## Kiểm thử
 
-Tạo database test riêng:
+Tạo database **chỉ dành cho test**:
 
 ```sql
 CREATE DATABASE pawora_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Sau đó chạy:
+`phpunit.xml` cấu hình MySQL local, database `pawora_testing`, `root` không mật khẩu. Điều chỉnh thông tin kết nối test nếu máy khác. Bộ test dùng `RefreshDatabase`, có thể tạo lại toàn bộ schema của database test.
+
+Trước khi chạy, bảo đảm không có config cache hoặc biến môi trường của terminal (`DB_*`, `DATABASE_URL`) trỏ test về database demo/thật. Nếu có `.env.testing`, nó cũng phải dùng database test riêng.
 
 ```powershell
+php artisan config:clear
 php artisan test
-```
-
-Receipt gần nhất ngày 01/09/2026:
-
-```text
-Tests: 111 passed (1460 assertions)
-Duration: 19.36s
-```
-
-`phpunit.xml` dùng database `pawora_testing`; không trỏ test suite vào database chứa dữ liệu thật.
-
-## Kiểm tra trước khi đóng gói
-
-```powershell
-php artisan route:list
-php artisan migrate:status
-php artisan test
+php artisan test --filter=CartNormalizationLegacyTest
 npm run build
-php artisan optimize:clear
 ```
 
-Checklist:
+`tests/Feature` kiểm tra nghiệp vụ và HTTP; `tests/Unit` kiểm tra logic độc lập. Các test có tên `LegacyTest` bảo vệ hành vi hiện có khi refactor. Giữ test trong repo; cache và kết quả chạy test không cần commit. Postman và Katalon được giữ làm công cụ kiểm tra bổ sung.
 
-- Không có `.env`, token, API key, secret hay dữ liệu cá nhân thật trong gói nộp.
-- `database/pawora-demo.sql` được tạo từ database tạm chỉ chứa dữ liệu seeder.
-- `public/storage` hoạt động sau `php artisan storage:link`.
-- Có thể cài lại bằng `migrate --seed` hoặc SQL export.
-- Kiểm tra responsive tại 390, 640, 767, 1024px và desktop.
+Kiểm tra style bằng `php vendor/bin/pint --test`. Repo còn lỗi style có sẵn ở một số file; chỉ format các file đang sửa, tránh tạo diff toàn project.
 
-## Cấu trúc quan trọng
+## Cấu trúc
 
 ```text
-app/Http/Controllers   Điều phối request
-app/Services           Cart, shipping, inventory, gateway, refund
-app/Models             Eloquent và state rules
-database/migrations    Schema
-database/seeders       Dữ liệu demo an toàn
-resources/views        Blade storefront/Admin
-resources/js           Tương tác giao diện
-resources/css          Responsive và reduced motion
-tests/Feature          Kiểm thử nghiệp vụ
+app/Http/Controllers   Nhận request, validation và điều phối nghiệp vụ
+app/Services           Giỏ hàng, địa chỉ, vận chuyển, thanh toán, hoàn tiền, chat
+app/Models             Eloquent, quan hệ và quy tắc trạng thái
+config                 Cấu hình ứng dụng và tích hợp
+routes                 HTTP routes và broadcast channels
+database/migrations    Schema theo phiên bản
+database/seeders       Dữ liệu demo
+resources/views        Blade storefront và Admin
+resources/js           Tương tác frontend
+resources/css          Giao diện và responsive
+tests                  Unit, feature và regression tests
 ```
 
-## Ghi chú bảo vệ Lab 08
-
-- Best seller chỉ được tính từ đơn đã thanh toán và không bị hủy.
-- Checkout dùng idempotency key để cùng một lần submit không tạo hai Order.
-- Return URL là luồng trình duyệt; callback/IPN/webhook là server-to-server và phải kiểm tra chữ ký/secret, order, amount và xử lý lặp.
-- Không sửa trực tiếp database để giả trạng thái thanh toán.
+Thuật ngữ nghiệp vụ nằm trong [CONTEXT.md](CONTEXT.md). Tài liệu demo và ảnh kiểm tra giao diện nằm trong `docs/`, `output/playwright/`; tài liệu thuyết trình nằm trong `projects/`. Các thư mục này phục vụ giải thích và kiểm chứng project, không phải file rác của ứng dụng.

@@ -18,6 +18,7 @@ use App\Models\Shipment;
 use App\Models\ShopSetting;
 use App\Models\User;
 use App\Services\AdminAuditLogger;
+use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\RefundService;
 use App\Services\ShipmentInitializer;
@@ -336,26 +337,123 @@ class AdminController extends Controller
 
     public function coupons(Request $request)
     {
-        return view('admin.coupons', ['coupons' => Coupon::when($request->filled('q'), fn ($q) => $q->where('code', 'like', '%'.$request->q.'%'))->latest()->paginate(20)->withQueryString()]);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', Rule::in(['percent', 'fixed'])],
+            'visibility' => ['nullable', Rule::in(['public', 'private'])],
+            'status' => ['nullable', Rule::in(['available', 'scheduled', 'expired', 'exhausted', 'inactive'])],
+        ]);
+
+        $coupons = Coupon::query()
+            ->withCount('usages')
+            ->when(filled($filters['q'] ?? null), function ($query) use ($filters) {
+                $term = '%'.$filters['q'].'%';
+                $query->where(fn ($nested) => $nested->where('code', 'like', $term)->orWhere('name', 'like', $term));
+            })
+            ->when(filled($filters['type'] ?? null), fn ($query) => $query->where('type', $filters['type']))
+            ->when(($filters['visibility'] ?? null) === 'public', fn ($query) => $query->where('is_public', true))
+            ->when(($filters['visibility'] ?? null) === 'private', fn ($query) => $query->where('is_public', false))
+            ->when(filled($filters['status'] ?? null), function ($query) use ($filters) {
+                match ($filters['status']) {
+                    'inactive' => $query->where('is_active', false),
+                    'scheduled' => $query->where('is_active', true)->where('starts_at', '>', now()),
+                    'expired' => $query->where('is_active', true)->whereNotNull('expires_at')->where('expires_at', '<=', now()),
+                    'exhausted' => $query->where('is_active', true)->whereNotNull('usage_limit')->whereColumn('used_count', '>=', 'usage_limit'),
+                    'available' => $query->availableForCheckout(),
+                };
+            })
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.coupons', compact('coupons'));
+    }
+
+    public function couponDetails(Coupon $coupon, CouponService $coupons)
+    {
+        $coupon->loadCount('usages')->loadSum('usages as total_savings', 'discount_amount');
+        $recentUsages = $coupon->usages()->with(['user', 'order'])->latest('used_at')->take(12)->get();
+        $totalUses = max((int) $coupon->used_count, (int) $coupon->usages_count);
+        $remaining = $coupon->usage_limit === null ? null : max(0, $coupon->usage_limit - $totalUses);
+
+        return view('admin.coupon-show', [
+            'coupon' => $coupon,
+            'recentUsages' => $recentUsages,
+            'status' => $coupons->evaluate($coupon, (int) $coupon->minimum_order),
+            'statistics' => [
+                'uses' => $totalUses,
+                'savings' => (int) ($coupon->total_savings ?? 0),
+                'users' => $coupon->usages()->whereNotNull('user_id')->distinct()->count('user_id'),
+                'remaining' => $remaining,
+                'progress' => $coupon->usage_limit ? min(100, (int) round($totalUses * 100 / $coupon->usage_limit)) : 0,
+            ],
+        ]);
     }
 
     public function storeCoupon(Request $request, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['code' => 'required|string|max:30|unique:coupons', 'type' => 'required|in:percent,fixed', 'value' => 'required|numeric|min:0', 'minimum_order' => 'nullable|numeric|min:0', 'starts_at' => 'nullable|date', 'expires_at' => 'nullable|date|after_or_equal:starts_at', 'usage_limit' => 'nullable|integer|min:1', 'is_active' => 'nullable|boolean']);
-        $coupon = Coupon::create([...$data, 'code' => Str::upper($data['code']), 'minimum_order' => $data['minimum_order'] ?? 0, 'is_active' => $request->boolean('is_active', true)]);
-        $audit->record($request, 'coupon.created', 'Tạo mã giảm giá', $coupon, [], $coupon->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']));
+        $data = $this->validatedCouponData($request);
+        $coupon = Coupon::create($data);
+        $audit->record($request, 'coupon.created', 'Tạo mã giảm giá', $coupon, [], $coupon->only(array_keys($data)));
 
-        return back()->with('success', 'Đã tạo mã giảm giá.');
+        return redirect()->route('admin.coupons.show', $coupon)->with('success', 'Đã tạo mã giảm giá.');
     }
 
     public function updateCoupon(Request $request, Coupon $coupon, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['code' => ['required', 'string', 'max:30', Rule::unique('coupons')->ignore($coupon)], 'type' => 'required|in:percent,fixed', 'value' => 'required|numeric|min:0', 'minimum_order' => 'nullable|numeric|min:0', 'starts_at' => 'nullable|date', 'expires_at' => 'nullable|date|after_or_equal:starts_at', 'usage_limit' => 'nullable|integer|min:1', 'is_active' => 'nullable|boolean']);
-        $before = $coupon->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']);
-        $coupon->update([...$data, 'code' => Str::upper($data['code']), 'minimum_order' => $data['minimum_order'] ?? 0, 'is_active' => $request->boolean('is_active')]);
-        $audit->record($request, 'coupon.updated', 'Cập nhật mã giảm giá', $coupon, $before, $coupon->fresh()->only(['code', 'type', 'value', 'minimum_order', 'usage_limit', 'is_active']));
+        $data = $this->validatedCouponData($request, $coupon);
+        $before = $coupon->only(array_keys($data));
+        $coupon->update($data);
+        $audit->record($request, 'coupon.updated', 'Cập nhật mã giảm giá', $coupon, $before, $coupon->fresh()->only(array_keys($data)));
 
-        return back()->with('success', 'Đã cập nhật mã giảm giá.');
+        return redirect()->route('admin.coupons.show', $coupon)->with('success', 'Đã cập nhật mã giảm giá.');
+    }
+
+    private function validatedCouponData(Request $request, ?Coupon $coupon = null): array
+    {
+        $request->merge(['code' => Str::upper(trim((string) $request->input('code')))]);
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:30', Rule::unique('coupons')->ignore($coupon)],
+            'name' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:1200'],
+            'type' => ['required', Rule::in(['percent', 'fixed'])],
+            'value' => [
+                'required', 'numeric', 'gt:0',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if ($request->input('type') === 'percent' && (float) $value > 100) {
+                        $fail('Giá trị phần trăm không được vượt quá 100%.');
+                    }
+                },
+            ],
+            'minimum_order' => ['nullable', 'numeric', 'min:0'],
+            'maximum_discount' => ['nullable', 'numeric', 'gt:0'],
+            'starts_at' => ['nullable', 'date'],
+            'expires_at' => [
+                'nullable', 'date',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if (filled($request->input('starts_at')) && filled($value)
+                        && Carbon::parse($value)->lessThanOrEqualTo(Carbon::parse($request->input('starts_at')))) {
+                        $fail('Thời gian kết thúc phải sau thời gian bắt đầu.');
+                    }
+                },
+            ],
+            'usage_limit' => ['nullable', 'integer', 'min:1'],
+            'per_user_limit' => ['nullable', 'integer', 'min:1'],
+            'first_order_only' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
+            'is_public' => ['nullable', 'boolean'],
+        ]);
+
+        return [
+            ...$data,
+            'minimum_order' => $data['minimum_order'] ?? 0,
+            'maximum_discount' => $data['maximum_discount'] ?? null,
+            'usage_limit' => $data['usage_limit'] ?? null,
+            'per_user_limit' => $data['per_user_limit'] ?? null,
+            'first_order_only' => $request->boolean('first_order_only'),
+            'is_active' => $request->boolean('is_active'),
+            'is_public' => $request->boolean('is_public'),
+        ];
     }
 
     public function customers(Request $request)
