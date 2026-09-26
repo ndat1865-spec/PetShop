@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -26,10 +27,18 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->validate(['email' => 'required|email', 'password' => 'required|string']);
+        // Chỉ đếm lần đăng nhập sai theo email + IP; đăng nhập đúng không bị tính vào giới hạn.
+        $throttleKey = 'login:'.Str::lower($credentials['email']).'|'.$request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return back()->withErrors(['email' => 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau '.RateLimiter::availableIn($throttleKey).' giây.'])->onlyInput('email');
+        }
         $credentials['is_active'] = true;
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            RateLimiter::hit($throttleKey, 60);
+
             return back()->withErrors(['email' => 'Email hoặc mật khẩu chưa đúng.'])->onlyInput('email');
         }
+        RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
         if (config('pawora.admin.require_two_factor', false) && $request->user()?->canAccessAdmin()) {
             $user = $request->user();

@@ -85,7 +85,7 @@ Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function
 });
 Route::middleware('guest')->group(function () {
     Route::get('/dang-nhap', [AuthController::class, 'loginForm'])->name('login');
-    Route::post('/dang-nhap', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/dang-nhap', [AuthController::class, 'login'])->middleware('throttle:20,1');
     Route::get('/dang-ky', [AuthController::class, 'registerForm'])->name('register');
     Route::post('/dang-ky', [AuthController::class, 'register']);
     Route::get('/quen-mat-khau', [AuthController::class, 'forgotPasswordForm'])->name('password.request');

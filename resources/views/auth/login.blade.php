@@ -62,11 +62,21 @@
                 <button class="figma-auth__submit" type="submit">Đăng nhập</button>
             </div>
 
+            @php
+                $googleLogin = filled(config('services.google.client_id')) && filled(config('services.google.client_secret'));
+                $facebookLogin = filled(config('services.facebook.client_id')) && filled(config('services.facebook.client_secret'));
+            @endphp
+            @if($googleLogin || $facebookLogin)
             <div class="figma-auth__divider"><span>Hoặc</span></div>
             <div class="figma-auth__socials">
+                @if($googleLogin)
                 <a href="{{ route('social.redirect', ['provider' => 'google']) }}"><img src="{{ asset('media/auth/figma/google.svg') }}" alt="" width="28" height="28">Đăng nhập với Google</a>
+                @endif
+                @if($facebookLogin)
                 <a href="{{ route('social.redirect', ['provider' => 'facebook']) }}"><img src="{{ asset('media/auth/figma/facebook.svg') }}" alt="" width="28" height="28">Đăng nhập với Facebook</a>
+                @endif
             </div>
+            @endif
             <p class="figma-auth__switch">Bạn chưa có tài khoản? <a href="{{ route('register') }}">Đăng ký</a></p>
         </form>
     </div>
