@@ -65,7 +65,9 @@ Link: https://petshopnew-production.up.railway.app. Các mục cần đăng nh�
 | HTTPS sau proxy | Link trong trang, redirect của `/thanh-toan`, `/admin` | Pass: không còn link `http://`; chưa đăng nhập bị chuyển về `https://…/dang-nhap` |
 | Cookie | Header `Set-Cookie` | Pass: `pawora_session` có `secure`, `httponly` |
 | Trang lỗi | Sản phẩm/đơn không tồn tại | Pass: 404, không lộ trang debug |
-| Đăng nhập mạng xã hội | Trang `/dang-nhap` khi chưa cấu hình Google/Facebook | Pass: nút tự ẩn |
+| Đăng nhập mạng xã hội | Trang `/dang-nhap` trước và sau khi đặt biến Google/Facebook | Pass: chưa cấu hình thì nút tự ẩn; sau khi cấu hình thì hiện hai nút, `redirect_uri` gửi đi đúng `/auth/{provider}/callback` trên tên miền Railway |
+| Đăng nhập Google | Nhóm đăng nhập bằng Gmail trên link Railway | Pass sau khi sửa redirect URI trong Google Cloud (trước đó lỗi `redirect_uri_mismatch` do thiếu `/auth/google/callback`); consent screen đã publish |
+| Đăng nhập Facebook | Nhóm đăng nhập bằng tài khoản quản trị app | Pass; app Facebook chưa đăng nên người khác phải được thêm làm Người thử nghiệm |
 | GHN | Lệnh tinker đếm quận/huyện của Thành phố Hà Nội trên Console Railway | Pass: 30 quận/huyện, server Railway (US West) gọi được GHN sandbox |
 | Đăng nhập, COD, VNPay, ZaloPay, MoMo, Admin đổi trạng thái | Nhóm thử trên giao diện với tài khoản demo | Chờ nhóm xác nhận |
 

@@ -120,11 +120,12 @@ Biến cần đặt (không commit giá trị thật):
 | Phiên, mail | `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `CACHE_DRIVER=file`, `QUEUE_CONNECTION=sync`, `MAIL_MAILER=log`, `ADMIN_REQUIRE_TWO_FACTOR=false` |
 | Thanh toán | `VNPAY_*`, `ZALOPAY_*`, `MOMO_*` như mục "Biến môi trường thanh toán"; để trống các biến `*_RETURN_URL`, `*_REDIRECT_URL`, `*_CALLBACK_URL`, `*_IPN_URL` để hệ thống tự dùng tên miền Railway |
 | Vận chuyển (GHN) | `GHN_ENABLED=true`, `GHN_TOKEN`, `GHN_SHOP_ID` (token/shop môi trường thử nghiệm của GHN), `GHN_API_URL=https://dev-online-gateway.ghn.vn/shiip/public-api/v2`, `GHN_SSL_VERIFY=true` |
+| Đăng nhập mạng xã hội | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI=https://${{RAILWAY_PUBLIC_DOMAIN}}/auth/google/callback`, `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI=https://${{RAILWAY_PUBLIC_DOMAIN}}/auth/facebook/callback`, `SOCIALITE_SSL_VERIFY=true` |
 
 Lưu ý:
 
 - Checkout chỉ hiện cổng đã cấu hình đủ; không đặt biến SePay thì lựa chọn chuyển khoản tự ẩn.
-- Nút đăng nhập Google/Facebook chỉ hiện khi có client ID/secret; nếu bật, phải khai báo redirect URI theo tên miền Railway trong Google Cloud/Facebook Developers.
+- Nút đăng nhập Google/Facebook chỉ hiện khi có client ID/secret; cấu hình phía Google/Facebook xem mục "Đăng nhập Google/Facebook trên Railway" bên dưới.
 - Ổ đĩa container không lưu lâu dài: ảnh Admin upload mới sẽ mất sau mỗi lần deploy lại. Ảnh sản phẩm demo nằm trong `public/media` nên không bị ảnh hưởng.
 - GHN cung cấp danh sách Quận/Huyện → Phường/Xã ở checkout và tính phí ship. Khi GHN tắt hoặc gọi lỗi, Quận/Huyện để trống, Phường/Xã lấy từ danh bạ công khai và phí ship theo bảng giá nội bộ; checkout vẫn đặt hàng được.
 - Kiểm tra GHN ngay trên server (tab **Console**), kết quả khoảng `30` là GHN đang chạy, `0` là chưa:
@@ -135,6 +136,24 @@ Lưu ý:
 
 - Trong **Variables**, biến hiện `<empty string>` nghĩa là chưa có giá trị (thường do dán thiếu). Sửa lại rồi **Deploy**; không deploy khi `GHN_TOKEN` hoặc `GHN_SHOP_ID` còn trống.
 - Gói dùng thử Railway là $5 / 30 ngày; hết hạn mà không nâng cấp thì link ngừng chạy.
+
+### Đăng nhập Google/Facebook trên Railway
+
+Callback của ứng dụng là `/auth/google/callback` và `/auth/facebook/callback`. Mỗi tên miền mới phải được khai báo ở phía nhà cung cấp; giữ nguyên dòng `localhost` để XAMPP vẫn đăng nhập được.
+
+**Google Cloud** (project chứa OAuth client đang dùng):
+
+1. **Google Auth Platform → Clients →** mở client Web application.
+2. **Authorized JavaScript origins:** `https://petshopnew-production.up.railway.app` (chỉ tên miền, không có đường dẫn).
+3. **Authorized redirect URIs:** thêm đúng `https://petshopnew-production.up.railway.app/auth/google/callback`, bấm **Save**. Thiếu phần `/auth/google/callback` sẽ gây lỗi `redirect_uri_mismatch`. Thay đổi có thể mất 5 phút đến vài giờ.
+4. **Branding:** App name, User support email, Application home page `https://petshopnew-production.up.railway.app`, Privacy policy `https://petshopnew-production.up.railway.app/chinh-sach-bao-mat`, Terms `https://petshopnew-production.up.railway.app/dieu-khoan-mua-hang`, Authorized domains `petshopnew-production.up.railway.app` (`up.railway.app` nằm trong Public Suffix List nên phải dùng nguyên tên miền con), Developer contact. Không tải logo để khỏi phải xét duyệt thương hiệu.
+5. **Audience → Publish app** để chuyển sang In production; ứng dụng chỉ xin `email` và `profile` nên không cần xác minh. Nếu chưa publish được, thêm Gmail người dùng thử vào **Test users**.
+
+**Facebook Developers** (đúng app có App ID trong `FACEBOOK_CLIENT_ID`):
+
+1. **Trường hợp sử dụng → Đăng nhập bằng Facebook → Tùy chỉnh:** quyền `email` và `public_profile`; ở **Cài đặt** bật Đăng nhập OAuth ứng dụng, Đăng nhập OAuth trên web, Bắt buộc HTTPS và thêm **URI chuyển hướng OAuth hợp lệ** `https://petshopnew-production.up.railway.app/auth/facebook/callback`.
+2. **Cài đặt ứng dụng → Thông tin cơ bản:** Miền ứng dụng `petshopnew-production.up.railway.app`, URL chính sách quyền riêng tư `https://petshopnew-production.up.railway.app/chinh-sach-bao-mat`, URL điều khoản dịch vụ `https://petshopnew-production.up.railway.app/dieu-khoan-mua-hang`, Xóa dữ liệu người dùng (URL hướng dẫn, dùng lại trang chính sách), biểu tượng 1024×1024, Hạng mục; thêm nền tảng **Trang web** với URL `https://petshopnew-production.up.railway.app`.
+3. Khi ứng dụng còn ở trạng thái chưa đăng (Development), chỉ quản trị viên và người được thêm tại **Vai trò trong ứng dụng → Vai trò → Người thử nghiệm** mới đăng nhập được; người được mời phải chấp nhận tại developers.facebook.com/requests. Nút **Đăng** có thể mờ cho đến khi quyền có lượt gọi API thật; không cần xác minh doanh nghiệp cho `email`/`public_profile`.
 
 ## Tài khoản demo
 
