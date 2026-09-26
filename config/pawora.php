@@ -33,11 +33,6 @@ return [
     'refunds' => [
         'demo_mode' => env('REFUND_DEMO_MODE', true),
     ],
-    'payments' => [
-        'demo_mode' => env('PAYMENT_DEMO_MODE', false),
-        'demo_secret' => env('PAYMENT_DEMO_SECRET'),
-        'demo_callback_tolerance' => env('PAYMENT_DEMO_CALLBACK_TOLERANCE', 300),
-    ],
     'returns' => [
         'window_days' => env('RETURN_WINDOW_DAYS', 7),
     ],

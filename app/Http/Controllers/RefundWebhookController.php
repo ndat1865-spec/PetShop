@@ -10,7 +10,7 @@ class RefundWebhookController extends Controller
 {
     public function __invoke(Request $request, string $provider, RefundGatewayRegistry $gateways, RefundService $refunds)
     {
-        abort_unless(in_array($provider, ['vnpay', 'zalopay', 'momo', 'onepay', 'sepay'], true), 404);
+        abort_unless(in_array($provider, ['vnpay', 'zalopay', 'momo', 'sepay'], true), 404);
         $gateway = $gateways->for($provider);
         if (! $gateway->verifyCallback($request)) {
             return response()->json(['success' => false, 'message' => 'Invalid signature'], 401);

@@ -7,12 +7,11 @@ use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\Product;
 use App\Models\User;
-use App\Services\DemoPaymentGateway;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-class CheckoutSecurityAndDemoPaymentTest extends TestCase
+class CheckoutSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -109,9 +108,8 @@ class CheckoutSecurityAndDemoPaymentTest extends TestCase
         $this->assertSame(4, $product->fresh()->stock);
     }
 
-    public function test_disabled_qr_demo_cannot_create_an_order(): void
+    public function test_removed_qr_demo_payment_method_is_rejected(): void
     {
-        config()->set('pawora.payments.demo_mode', false);
         $product = $this->product();
         $customer = User::factory()->create(['role' => 'customer']);
 
@@ -123,78 +121,74 @@ class CheckoutSecurityAndDemoPaymentTest extends TestCase
         $this->assertSame(5, $product->fresh()->stock);
     }
 
-    public function test_qr_demo_is_local_only_and_order_owner_controls_the_simulator(): void
+    public function test_bank_transfer_qr_is_shown_only_to_the_order_owner(): void
     {
-        $this->enablePaymentDemo();
+        $this->enableSepay();
         $product = $this->product();
         $owner = User::factory()->create(['role' => 'customer']);
         $other = User::factory()->create(['role' => 'customer']);
 
         $this->actingAs($owner)->withSession(['cart' => [$product->id => 1]])
-            ->post(route('checkout.store'), [...$this->checkoutData(), 'payment_method' => 'qr_demo'])
+            ->post(route('checkout.store'), [...$this->checkoutData(), 'payment_method' => 'bank_transfer'])
             ->assertRedirect();
         $order = Order::firstOrFail();
+        $this->assertSame('unpaid', $order->payment_status);
 
-        $this->get(route('payments.demo.payment', $order))
+        $this->get(route('payments.sepay.payment', $order))
             ->assertOk()
             ->assertSee($order->number)
             ->assertSee(number_format((int) $order->total, 0, ',', '.'));
-        $this->actingAs($other)->post(route('payments.demo.simulate', $order), ['outcome' => 'succeeded'])
-            ->assertForbidden();
-        $this->actingAs($owner)->post(route('payments.demo.simulate', $order), ['outcome' => 'succeeded'])
-            ->assertRedirect();
 
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'paid', 'status' => 'confirmed']);
-        $this->assertDatabaseHas('payment_transactions', ['order_id' => $order->id, 'provider' => 'demo', 'status' => 'paid']);
-
-        config()->set('app.env', 'production');
-        $this->assertFalse(app(DemoPaymentGateway::class)->enabled());
+        $this->flushSession();
+        $this->actingAs($other)->get(route('payments.sepay.payment', $order))->assertForbidden();
+        $this->actingAs($other)->get(route('payments.sepay.payment', ['order' => $order, 'token' => 'wrong-token']))->assertForbidden();
     }
 
-    public function test_demo_callback_verifies_signature_order_amount_freshness_and_is_idempotent(): void
+    public function test_sepay_webhook_checks_api_key_and_amount_and_is_idempotent(): void
     {
-        $this->enablePaymentDemo();
-        $order = $this->demoOrder();
-        $gateway = app(DemoPaymentGateway::class);
-        $payload = [
-            'event_id' => (string) Str::uuid(),
-            'order_number' => $order->number,
-            'amount' => (int) $order->total,
-            'status' => 'succeeded',
-            'timestamp' => now()->timestamp,
-        ];
+        $this->enableSepay();
+        $order = $this->bankTransferOrder();
+        $payload = ['id' => 90001, 'transferType' => 'in', 'transferAmount' => (int) $order->total, 'content' => 'Thanh toan '.$order->number];
+        $headers = ['Authorization' => 'Apikey testing-sepay-key'];
 
-        $this->postJson(route('webhooks.payment-demo'), $payload, ['X-Pawora-Demo-Signature' => 'invalid'])
-            ->assertUnauthorized();
+        $this->postJson(route('webhooks.sepay'), $payload, ['Authorization' => 'Apikey wrong-key'])->assertUnauthorized();
+        $this->postJson(route('webhooks.sepay'), [...$payload, 'transferAmount' => 1000], $headers)->assertUnprocessable();
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'unpaid']);
 
-        $wrongAmount = [...$payload, 'event_id' => (string) Str::uuid(), 'amount' => (int) $order->total + 1];
-        $this->postJson(route('webhooks.payment-demo'), $wrongAmount, ['X-Pawora-Demo-Signature' => $gateway->signature($wrongAmount)])
-            ->assertUnprocessable();
+        $this->postJson(route('webhooks.sepay'), $payload, $headers)->assertOk()->assertJson(['success' => true]);
+        $this->postJson(route('webhooks.sepay'), $payload, $headers)->assertOk()->assertJson(['success' => true, 'message' => 'Already processed']);
 
-        $wrongOrder = [...$payload, 'event_id' => (string) Str::uuid(), 'order_number' => 'PAW-UNKNOWN'];
-        $this->postJson(route('webhooks.payment-demo'), $wrongOrder, ['X-Pawora-Demo-Signature' => $gateway->signature($wrongOrder)])
-            ->assertNotFound();
-
-        $expired = [...$payload, 'event_id' => (string) Str::uuid(), 'timestamp' => now()->subHour()->timestamp];
-        $this->postJson(route('webhooks.payment-demo'), $expired, ['X-Pawora-Demo-Signature' => $gateway->signature($expired)])
-            ->assertUnprocessable();
-
-        $signature = $gateway->signature($payload);
-        $this->postJson(route('webhooks.payment-demo'), $payload, ['X-Pawora-Demo-Signature' => $signature])
-            ->assertOk()->assertJson(['success' => true, 'duplicate' => false, 'payment_status' => 'paid']);
-        $this->postJson(route('webhooks.payment-demo'), $payload, ['X-Pawora-Demo-Signature' => $signature])
-            ->assertOk()->assertJson(['success' => true, 'duplicate' => true, 'payment_status' => 'paid']);
-
-        $this->assertSame(1, PaymentTransaction::where('provider', 'demo')->count());
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'paid', 'status' => 'confirmed']);
+        $this->assertSame(1, PaymentTransaction::where('provider', 'sepay')->count());
     }
 
-    private function enablePaymentDemo(): void
+    public function test_checkout_lists_only_configured_payment_gateways(): void
     {
-        config()->set('app.env', 'testing');
-        config()->set('pawora.payments.demo_mode', true);
-        config()->set('pawora.payments.demo_secret', 'testing-demo-secret-that-is-not-production');
-        config()->set('pawora.payments.demo_callback_tolerance', 300);
+        config()->set('services.vnpay.enabled', true);
+        config()->set('services.vnpay.tmn_code', 'TESTCODE');
+        config()->set('services.vnpay.hash_secret', 'testing-hash-secret');
+        config()->set('services.zalopay.enabled', false);
+        config()->set('services.momo.enabled', false);
+        config()->set('services.sepay.account_number', null);
+        $product = $this->product();
+        $customer = User::factory()->create(['role' => 'customer']);
+
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 1]])
+            ->get(route('checkout.create'))
+            ->assertOk()
+            ->assertSee('value="cod"', false)
+            ->assertSee('value="vnpay"', false)
+            ->assertDontSee('value="zalopay"', false)
+            ->assertDontSee('value="momo"', false)
+            ->assertDontSee('value="bank_transfer"', false);
+    }
+
+    private function enableSepay(): void
+    {
+        config()->set('services.sepay.bank', 'Vietcombank');
+        config()->set('services.sepay.account_number', '0000000000');
+        config()->set('services.sepay.account_name', 'PAWORA TEST');
+        config()->set('services.sepay.webhook_api_key', 'testing-sepay-key');
     }
 
     private function product(int $stock = 5): Product
@@ -228,12 +222,12 @@ class CheckoutSecurityAndDemoPaymentTest extends TestCase
         ];
     }
 
-    private function demoOrder(): Order
+    private function bankTransferOrder(): Order
     {
         $customer = User::factory()->create(['role' => 'customer']);
 
         return Order::create([
-            'number' => 'PAW-260831-DEMO01',
+            'number' => 'PAW-260926-SEPAY1',
             'public_token' => (string) Str::uuid(),
             'checkout_token' => (string) Str::uuid(),
             'user_id' => $customer->id,
@@ -243,8 +237,8 @@ class CheckoutSecurityAndDemoPaymentTest extends TestCase
             'shipping_address' => '01 Nguyễn Huệ, TP.HCM',
             'subtotal' => 200000,
             'total' => 225000,
-            'payment_method' => 'qr_demo',
-            'payment_status' => 'pending',
+            'payment_method' => 'bank_transfer',
+            'payment_status' => 'unpaid',
             'status' => 'pending',
         ]);
     }

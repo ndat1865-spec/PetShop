@@ -92,32 +92,32 @@
                             <path d="M7 10h.01M17 14h.01M12 10v4m-2-2h4" />
                         </svg></span><span><strong>Thanh toán khi nhận hàng</strong><small>Trả tiền mặt cho đơn vị vận
                             chuyển.</small></span></label>
+                @if($paymentMethods['bank_transfer'])
                 <label class="payment-option bank"><input type="radio" name="payment_method" value="bank_transfer"><span
                         class="pay-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M3 10h18L12 4z" />
                             <path d="M5 10v8M9 10v8M15 10v8M19 10v8M4 18h16" />
                         </svg></span><span><strong>Chuyển khoản ngân hàng</strong><small>Thông tin chuyển khoản hiển thị
                             sau khi đặt đơn.</small></span></label>
-                @if($paymentDemoEnabled)
-                    <label class="payment-option bank"><input type="radio" name="payment_method" value="qr_demo"><span
-                            class="pay-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM15 14h2v2h-2zM18 14h2v5h-2zM14 18h3v2h-3z" /></svg></span><span><strong>QR Demo Pawora</strong><small>Quét QR và giả lập thành công/thất bại, không cần tài khoản cổng thanh toán.</small></span></label>
                 @endif
+                @if($paymentMethods['vnpay'])
                 <label class="payment-option vnpay"><input type="radio" name="payment_method" value="vnpay"><span
                         class="pay-logo"><img src="{{ asset('media/payments/vnpay.webp') }}" alt="" width="74"
                             height="44"></span><span><strong>Thanh toán VNPay</strong><small>Chuyển sang cổng VNPay
                             Sandbox để thanh toán bằng thẻ test/QR.</small></span></label>
+                @endif
+                @if($paymentMethods['zalopay'])
                 <label class="payment-option zalopay"><input type="radio" name="payment_method" value="zalopay"><span
                         class="pay-logo"><img src="{{ asset('media/payments/zalopay.png') }}" alt="" width="74"
                             height="44"></span><span><strong>Thanh toán ZaloPay</strong><small>Chuyển sang ZaloPay
                             Sandbox để thanh toán thử.</small></span></label>
+                @endif
+                @if($paymentMethods['momo'])
                 <label class="payment-option momo"><input type="radio" name="payment_method" value="momo"><span
                         class="pay-logo square"><img src="{{ asset('media/payments/momo.png') }}" alt="" width="44"
                             height="44"></span><span><strong>Thanh toán MoMo</strong><small>Sẵn sàng kết nối khi có MoMo
                             Business Sandbox.</small></span></label>
-                <label class="payment-option onepay"><input type="radio" name="payment_method" value="onepay"><span
-                        class="pay-card-stack" aria-hidden="true"><b>VISA</b><b>MC</b><b>JCB</b></span><span><strong>Thẻ
-                            quốc tế OnePay</strong><small>Visa, Mastercard, JCB, AMEX qua OnePay
-                            Sandbox.</small></span></label>
+                @endif
             </div>
         </fieldset>
     </div>
