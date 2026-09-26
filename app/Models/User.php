@@ -128,6 +128,12 @@ class User extends Authenticatable
 
     public function avatarUrl(): ?string
     {
-        return $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null;
+        // Trên PaaS ổ đĩa có thể bị làm mới khi deploy; file mất thì giao diện dùng chữ cái đầu thay vì ảnh vỡ.
+        return $this->hasAvatarFile() ? Storage::disk('public')->url($this->avatar_path) : null;
+    }
+
+    public function hasAvatarFile(): bool
+    {
+        return filled($this->avatar_path) && Storage::disk('public')->exists($this->avatar_path);
     }
 }

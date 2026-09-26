@@ -213,7 +213,7 @@ class AuthController extends Controller
         } else {
             $user->update([$column => $socialUser->getId(), 'email_verified_at' => $user->email_verified_at ?: now()]);
         }
-        if (! $user->avatar_path && $socialUser->getAvatar()) {
+        if (! $user->hasAvatarFile() && $socialUser->getAvatar()) {
             $avatarPath = $this->importSocialAvatar($socialUser->getAvatar(), $provider, $user->id);
             if ($avatarPath) {
                 $user->update(['avatar_path' => $avatarPath]);

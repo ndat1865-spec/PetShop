@@ -779,6 +779,40 @@ class CommerceTest extends TestCase
         $this->assertAuthenticatedAs($customer);
     }
 
+    public function test_missing_avatar_file_falls_back_to_initials_and_social_login_reimports_it(): void
+    {
+        Storage::fake('public');
+        $customer = User::factory()->create(['email' => 'lost-avatar@example.com', 'google_id' => 'google-lost-1', 'avatar_path' => 'avatars/removed-by-redeploy.png']);
+
+        $this->assertFalse($customer->hasAvatarFile());
+        $this->assertNull($customer->avatarUrl());
+        $this->actingAs($customer)->get(route('account.profile'))
+            ->assertOk()
+            ->assertDontSee('avatars/removed-by-redeploy.png', false);
+        auth()->logout();
+
+        $avatarUrl = 'https://images.example.test/google-avatar-again.png';
+        $avatarBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        Http::fake([$avatarUrl => Http::response($avatarBytes, 200, ['Content-Type' => 'image/png'])]);
+        $socialUser = \Mockery::mock(SocialUserContract::class);
+        $socialUser->shouldReceive('getId')->andReturn('google-lost-1');
+        $socialUser->shouldReceive('getEmail')->andReturn('lost-avatar@example.com');
+        $socialUser->shouldReceive('getName')->andReturn('Lost Avatar');
+        $socialUser->shouldReceive('getNickname')->andReturn(null);
+        $socialUser->shouldReceive('getAvatar')->andReturn($avatarUrl);
+        $provider = \Mockery::mock();
+        $provider->shouldReceive('stateless')->once()->andReturnSelf();
+        $provider->shouldReceive('user')->once()->andReturn($socialUser);
+        Socialite::shouldReceive('driver')->once()->with('google')->andReturn($provider);
+
+        $this->get(route('social.callback', ['provider' => 'google']))->assertRedirect(route('home'));
+
+        $customer->refresh();
+        $this->assertNotSame('avatars/removed-by-redeploy.png', $customer->avatar_path);
+        Storage::disk('public')->assertExists($customer->avatar_path);
+        $this->assertNotNull($customer->avatarUrl());
+    }
+
     public function test_saved_default_address_is_available_during_checkout(): void
     {
         $customer = User::factory()->create(['name' => 'Đạt Nguyễn', 'phone' => '0869372600']);

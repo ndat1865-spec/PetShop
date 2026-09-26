@@ -126,7 +126,7 @@ Lưu ý:
 
 - Checkout chỉ hiện cổng đã cấu hình đủ; không đặt biến SePay thì lựa chọn chuyển khoản tự ẩn.
 - Nút đăng nhập Google/Facebook chỉ hiện khi có client ID/secret; cấu hình phía Google/Facebook xem mục "Đăng nhập Google/Facebook trên Railway" bên dưới.
-- Ổ đĩa container không lưu lâu dài: ảnh Admin upload mới sẽ mất sau mỗi lần deploy lại. Ảnh sản phẩm demo nằm trong `public/media` nên không bị ảnh hưởng.
+- Ổ đĩa container bị làm mới sau mỗi lần deploy/khởi động lại. Để giữ ảnh đại diện (kể cả ảnh lấy từ Google/Facebook) và ảnh Admin upload, gắn một **Volume** cho service web với mount path `/app/storage/app/public`; nếu upload báo lỗi quyền ghi, thêm biến `RAILWAY_RUN_UID=0`. Khi file ảnh đại diện không còn, giao diện tự hiện chữ cái đầu thay vì ảnh vỡ và lần đăng nhập Google/Facebook tiếp theo tự tải lại ảnh. Ảnh sản phẩm demo nằm trong `public/media` nên không bị ảnh hưởng.
 - GHN cung cấp danh sách Quận/Huyện → Phường/Xã ở checkout và tính phí ship. Khi GHN tắt hoặc gọi lỗi, Quận/Huyện để trống, Phường/Xã lấy từ danh bạ công khai và phí ship theo bảng giá nội bộ; checkout vẫn đặt hàng được.
 - Kiểm tra GHN ngay trên server (tab **Console**), kết quả khoảng `30` là GHN đang chạy, `0` là chưa:
 
