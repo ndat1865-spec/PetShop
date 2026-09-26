@@ -6,8 +6,8 @@ Pawora là website thương mại điện tử dành cho cửa hàng thú cưng.
 
 - Danh mục và chi tiết sản phẩm, biến thể màu/kích thước, tìm kiếm và bộ lọc theo thú cưng.
 - Giỏ hàng lưu trong session; giá, coupon, phí giao hàng và tồn kho được tính lại ở server.
-- Checkout COD, chuyển khoản SePay và các tích hợp sandbox VNPay, ZaloPay, MoMo, OnePay.
-- QR Demo Pawora chạy hoàn toàn ở local/testing, có giả lập thành công/thất bại và callback HMAC idempotent.
+- Checkout COD, chuyển khoản SePay và các tích hợp sandbox VNPay, ZaloPay, MoMo.
+- Chuyển khoản QR qua SePay/VietQR: trang thanh toán hiển thị QR đúng số tiền và mã đơn; đơn được xác nhận đã thanh toán bằng webhook SePay hoặc Admin bấm **Xác nhận đã nhận thanh toán**.
 - Lịch sử đơn, huỷ đơn, xác nhận nhận hàng, đổi trả, hoàn tiền và quản lý vận chuyển.
 - Quản trị sản phẩm, tồn kho, coupon, khách hàng, đơn hàng, thanh toán, đánh giá, liên hệ, chat và cấu hình vận hành.
 
@@ -20,7 +20,7 @@ Pawora là website thương mại điện tử dành cho cửa hàng thú cưng.
 | Composer | đã kiểm tra với `2.10.2` |
 | Database | MySQL/MariaDB; đã kiểm tra với MariaDB `10.4.32` của XAMPP |
 | Node.js / npm | đã kiểm tra với Node `24.19.0`, npm `12.0.2` |
-| Frontend | Vite `8.2.1`, Axios, Laravel Echo, Lottie, QRCode |
+| Frontend | Vite `8.2.1`, Axios, Laravel Echo, Lottie |
 
 PHP cần các extension thông dụng của Laravel và driver `pdo_mysql` (OpenSSL, Mbstring, Tokenizer, XML, Ctype, JSON, Fileinfo). Máy phải có Composer, Node.js/npm và MySQL hoặc MariaDB đang chạy.
 
@@ -98,6 +98,31 @@ php artisan serve
 
 Sau đó mở `http://127.0.0.1:8000` và đặt `APP_URL=http://127.0.0.1:8000`, `ASSET_URL=http://127.0.0.1:8000`.
 
+## Deploy lên Railway
+
+`railway.json` đã cấu hình sẵn: Railway build bằng Railpack (Composer, `npm run build`, FrankenPHP với document root `public/`), trước mỗi lần deploy chạy `php artisan migrate --force && php artisan pawora:seed-if-empty` (chỉ seed dữ liệu demo khi database còn trống), rồi kiểm tra sức khỏe tại `/`.
+
+1. Đẩy code lên GitHub.
+2. Trên Railway: **New Project → Deploy from GitHub repo** và chọn repo này.
+3. Trong project: **+ New → Database → MySQL**, giữ tên service là `MySQL`.
+4. Ở service web: **Variables → Raw Editor**, dán các biến dưới đây rồi **Deploy**.
+5. **Settings → Networking → Generate Domain** để lấy link `https://...up.railway.app`.
+
+Biến cần đặt (không commit giá trị thật):
+
+| Nhóm | Biến |
+| --- | --- |
+| Ứng dụng | `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` (tạo bằng `php artisan key:generate --show`), `APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUSTED_PROXIES=*`, `LOG_CHANNEL=stderr` |
+| Database | `DB_CONNECTION=mysql`, `DB_HOST=${{MySQL.MYSQLHOST}}`, `DB_PORT=${{MySQL.MYSQLPORT}}`, `DB_DATABASE=${{MySQL.MYSQLDATABASE}}`, `DB_USERNAME=${{MySQL.MYSQLUSER}}`, `DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}` |
+| Phiên, mail | `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `CACHE_DRIVER=file`, `QUEUE_CONNECTION=sync`, `MAIL_MAILER=log`, `ADMIN_REQUIRE_TWO_FACTOR=false` |
+| Thanh toán | `VNPAY_*`, `ZALOPAY_*`, `MOMO_*` như mục "Biến môi trường thanh toán"; để trống các biến `*_RETURN_URL`, `*_REDIRECT_URL`, `*_CALLBACK_URL`, `*_IPN_URL` để hệ thống tự dùng tên miền Railway |
+
+Lưu ý:
+
+- Checkout chỉ hiện cổng đã cấu hình đủ; không đặt biến SePay thì lựa chọn chuyển khoản tự ẩn.
+- Nút đăng nhập Google/Facebook chỉ hiện khi có client ID/secret; nếu bật, phải khai báo redirect URI theo tên miền Railway trong Google Cloud/Facebook Developers.
+- Ổ đĩa container không lưu lâu dài: ảnh Admin upload mới sẽ mất sau mỗi lần deploy lại. Ảnh sản phẩm demo nằm trong `public/media` nên không bị ảnh hưởng.
+
 ## Tài khoản demo
 
 Seeder và SQL export cùng tạo hai tài khoản sau:
@@ -116,33 +141,32 @@ Seeder và SQL export cùng tạo hai tài khoản sau:
 3. Nhấn **Xác nhận đặt hàng**. Hệ thống chỉ tạo một đơn ngay cả khi form bị gửi lại với cùng checkout token; F5 trang xác nhận không tạo thêm đơn.
 4. Trong admin, xác nhận và xử lý vận chuyển. COD chỉ chuyển sang đã thanh toán khi khách đã xác nhận nhận hàng và admin hoàn tất giao hàng.
 
-## Trình diễn QR Demo không cần cổng thật
+## Trình diễn thanh toán QR (chuyển khoản SePay)
 
-Trong `.env` local, đặt:
+1. Trong `.env`, điền tài khoản nhận tiền: `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_NAME`, rồi chạy `php artisan config:clear`. Nếu thiếu hai biến đầu, checkout sẽ báo SePay chưa được cấu hình.
+2. Đăng nhập khách demo, đặt hàng và chọn **Chuyển khoản ngân hàng**. Trang thanh toán hiển thị mã VietQR chứa đúng số tiền và nội dung là mã đơn.
+3. Xác nhận thanh toán theo một trong hai cách:
+   - Tự động: SePay gọi `POST /api/webhooks/sepay` với header `Authorization: Apikey <SEPAY_WEBHOOK_API_KEY>`. Webhook chỉ nhận tiền vào, đúng mã đơn và đúng số tiền; gọi lặp không cập nhật lần hai. Cần URL công khai (tunnel) để SePay gọi được máy local.
+   - Thủ công khi demo trên lớp: Admin mở đơn và bấm **Xác nhận đã nhận thanh toán** (quyền `payments.manage`). Thao tác được ghi lịch sử đơn và audit log.
 
-```dotenv
-APP_ENV=local
-PAYMENT_DEMO_MODE=true
-PAYMENT_DEMO_SECRET=replace-with-a-long-random-local-secret
-PAYMENT_DEMO_CALLBACK_TOLERANCE=300
-```
+Chỉ trang QR của chính chủ đơn (hoặc có token của đơn, hoặc Admin) mới mở được; người khác nhận 403.
 
-Sau khi đổi `.env`, chạy `php artisan config:clear`. Tại checkout, chọn **QR Demo Pawora**. Trang thanh toán sinh QR chứa đúng mã đơn, số tiền và URL trạng thái. Dùng nút **Giả lập thanh toán thành công** hoặc **thất bại** để trình diễn. Thành công cập nhật đơn đúng một lần; callback lặp trả kết quả idempotent.
+## Trình diễn VNPay sandbox
 
-`PAYMENT_DEMO_MODE` mặc định là `false` và code luôn vô hiệu hoá demo khi `APP_ENV=production`, kể cả nếu biến này bị đặt nhầm thành `true`. `PAYMENT_DEMO_SECRET` chỉ là secret local cho callback demo, không commit giá trị thật.
+1. Điền `VNPAY_ENABLED=true`, `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET` (credential sandbox), `VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` và `VNPAY_RETURN_URL` trỏ về `/thanh-toan/vnpay/return` của máy đang chạy.
+2. Đặt hàng, chọn **Thanh toán VNPay**. Trên trang VNPay chọn thẻ nội địa, ngân hàng **NCB** và dùng thẻ test công khai của VNPay: `9704198526191432198` · `NGUYEN VAN A` · phát hành `07/15` · OTP `123456`.
+3. Trình duyệt quay về Pawora; return URL kiểm chữ ký HMAC-SHA512 và số tiền rồi mới ghi đơn đã thanh toán, nên chạy được trên `localhost` mà không cần IPN công khai.
 
-Callback demo kỹ thuật dùng `POST /api/webhooks/payment-demo` với JSON gồm `event_id`, `order_number`, `amount`, `status`, `timestamp` và header `X-Pawora-Demo-Signature`. Chữ ký là HMAC-SHA256 do server tạo từ payload; callback sai chữ ký, quá hạn, sai đơn hoặc sai số tiền bị từ chối.
+Nguồn thẻ test: [VNPay sandbox](https://sandbox.vnpayment.vn/apis/vnpay-demo/). Đây là dữ liệu thử nghiệm công khai, không phải thẻ thật.
 
 ## Biến môi trường thanh toán
 
 `.env.example` liệt kê đầy đủ tên biến. Các nhóm chính:
 
-- Demo: `PAYMENT_DEMO_MODE`, `PAYMENT_DEMO_SECRET`, `PAYMENT_DEMO_CALLBACK_TOLERANCE`.
 - SePay: `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_NAME`, `SEPAY_WEBHOOK_API_KEY`.
 - VNPay: `VNPAY_ENABLED`, `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_PAYMENT_URL`, `VNPAY_RETURN_URL`.
 - ZaloPay: `ZALOPAY_ENABLED`, `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, các URL callback/return.
 - MoMo: `MOMO_ENABLED`, `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`, các URL create/IPN/return.
-- OnePay: `ONEPAY_ENABLED`, `ONEPAY_MERCHANT_ID`, `ONEPAY_ACCESS_CODE`, `ONEPAY_SECURE_SECRET`, các URL callback/return.
 
 Giữ `*_SSL_VERIFY=true` ngoài môi trường XAMPP cục bộ. Không đưa credential sandbox/production vào README, SQL, log hoặc Git.
 
@@ -157,17 +181,27 @@ npm run build
 composer validate --strict
 ```
 
-Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`/`DB_PASSWORD` trước lệnh test hoặc điều chỉnh bản local của `phpunit.xml`. Báo cáo lần kiểm thử gần nhất nằm tại `docs/testing-report.md`; checklist đóng gói ở `docs/submission-checklist.md`.
+Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`/`DB_PASSWORD` trước lệnh test hoặc điều chỉnh bản local của `phpunit.xml`. Ngược lại, nếu Windows đã có sẵn biến môi trường `DB_PASSWORD` cho project khác, biến đó sẽ ghi đè `.env` và mọi lệnh `php artisan` báo `Access denied`; chạy `$env:DB_PASSWORD = $null` trong cửa sổ PowerShell trước khi dùng artisan. Báo cáo lần kiểm thử gần nhất nằm tại `docs/testing-report.md`; checklist đóng gói ở `docs/submission-checklist.md`.
 
 ## Database export
 
-`database/export/pawora_demo.sql` được tạo từ migration + `DatabaseSeeder`, gồm schema và dữ liệu demo tối thiểu (10 user demo, 32 sản phẩm, biến thể, coupon, đơn mẫu, đánh giá, liên hệ và chat). File không chứa `DEFINER`, đường dẫn máy cá nhân hoặc API key/secret. Snapshot đã được import thử vào database sạch; migration/seeder vẫn là nguồn chuẩn nên được ưu tiên khi phát triển.
+`database/export/pawora_demo.sql` là file SQL duy nhất để nộp. File được tạo ngày 26/09/2026 từ database sạch sau `php artisan migrate --seed`, gồm đủ 26 bảng và 27 migration (kể cả `coupon_usages` và `orders.idempotency_key`) cùng dữ liệu demo: 10 user, 32 sản phẩm, 192 biến thể, 8 mã giảm giá, 8 đơn mẫu, đánh giá, liên hệ và chat. File không chứa `DEFINER`, đường dẫn máy cá nhân hoặc API key/secret. Snapshot đã được import thử vào database trống: schema trùng khớp bản migrate và `php artisan migrate:status` không còn migration `Pending`.
+
+Mỗi khi thêm migration mới phải export lại để SQL không bị lệch với code:
+
+```powershell
+C:\xampp\mysql\bin\mysql.exe -u root --execute="CREATE DATABASE pawora_export_clean CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+$env:DB_DATABASE = "pawora_export_clean"; php artisan migrate --seed --force; Remove-Item Env:DB_DATABASE
+C:\xampp\mysql\bin\mysqldump.exe -u root --default-character-set=utf8mb4 --skip-comments --skip-dump-date --single-transaction --skip-triggers --no-tablespaces pawora_export_clean --result-file=database\export\pawora_demo.sql
+C:\xampp\mysql\bin\mysql.exe -u root --execute="DROP DATABASE pawora_export_clean;"
+```
+
+Migration/seeder vẫn là nguồn chuẩn nên được ưu tiên khi phát triển.
 
 ## Giới hạn và lưu ý
 
-- Các cổng VNPay/ZaloPay/MoMo/OnePay, SePay webhook, GHN, social login, email và Reverb cần credential/dịch vụ riêng; mặc định đều không cần cho COD và QR Demo.
+- Các cổng VNPay/ZaloPay/MoMo, SePay webhook, GHN, social login, email và Reverb cần credential/dịch vụ riêng; mặc định chỉ COD chạy được mà không cần cấu hình thêm.
 - Chat mặc định tự polling. Muốn bật realtime, cấu hình Reverb, đặt `BROADCAST_DRIVER=reverb`, `VITE_REALTIME_ENABLED=true`, rồi chạy `php artisan reverb:start` và build lại frontend.
-- QR Demo mô phỏng trạng thái, không chuyển tiền thật và không được dùng trong production.
 - Responsive đã kiểm tra bằng viewport trình duyệt; thiết bị điện thoại vật lý vẫn cần người nộp xác nhận theo checklist.
 - SQL export chứa dữ liệu giả và hash mật khẩu demo, không chứa dữ liệu khách hàng thật. Không dùng snapshot demo cho production.
 

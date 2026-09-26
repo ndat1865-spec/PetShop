@@ -1,6 +1,6 @@
 # Checklist đóng gói và nộp Pawora
 
-Ngày chuẩn bị: 31/08/2026 (Asia/Ho_Chi_Minh)
+Ngày chuẩn bị: 31/08/2026, cập nhật 26/09/2026 (Asia/Ho_Chi_Minh)
 
 ## Mã nguồn và bảo mật
 
@@ -25,7 +25,8 @@ Ngày chuẩn bị: 31/08/2026 (Asia/Ho_Chi_Minh)
 - [x] Toàn bộ migration chạy trên database sạch.
 - [x] `DatabaseSeeder` chạy thành công và có tài khoản/sản phẩm/dữ liệu demo.
 - [x] Có `database/export/pawora_demo.sql` không chứa `DEFINER`, đường dẫn cá nhân hoặc secret.
-- [x] SQL export đã import thành công vào database sạch `pawora_import_test`.
+- [x] SQL export đã được export lại ngày 26/09/2026 (đủ 27 migration) và import thành công vào database trống; schema trùng khớp bản migrate.
+- [x] Chỉ còn một file SQL: `database/export/pawora_demo.sql`.
 - [ ] Trên máy nhận bài, chọn **một** cách: `php artisan migrate --seed` hoặc import SQL; không chạy cả hai chồng lên nhau.
 - [ ] Đăng nhập thử `admin@pawora.vn` và `khach@pawora.vn` bằng mật khẩu demo trong README.
 
@@ -35,23 +36,22 @@ Ngày chuẩn bị: 31/08/2026 (Asia/Ho_Chi_Minh)
 - [x] Toàn bộ PHPUnit suite pass; số liệu chi tiết ở `docs/testing-report.md`.
 - [x] Kiểm tra server-side cho giỏ rỗng, quantity 0/âm/vượt kho, dữ liệu checkout sai và ID không tồn tại.
 - [x] Kiểm tra double-submit/refresh không tạo đơn trùng.
-- [x] Kiểm tra callback QR demo idempotent, sai chữ ký, sai tiền, sai đơn và quá hạn.
-- [x] Kiểm tra user khác không xem/thao tác đơn hoặc QR demo của chủ đơn.
+- [x] Kiểm tra webhook SePay: sai API key, sai tiền và webhook lặp không đánh dấu paid hai lần.
+- [x] Kiểm tra user khác không xem được đơn hoặc trang QR chuyển khoản của chủ đơn.
 
 ## Trình diễn bắt buộc
 
-- [ ] COD: đăng nhập khách demo, đặt một đơn, ghi lại mã đơn và xác nhận database chỉ tăng một đơn.
+- [x] COD: đăng nhập khách demo, đặt một đơn, ghi lại mã đơn và xác nhận database chỉ tăng một đơn (chạy thử 26/09/2026).
 - [ ] COD: refresh trang xác nhận/gửi lại form và xác nhận không tạo đơn thứ hai.
-- [ ] QR Demo: đặt `APP_ENV=local`, `PAYMENT_DEMO_MODE=true`, secret local rồi chạy `php artisan config:clear`.
-- [ ] QR Demo: tạo đơn, đối chiếu mã đơn/số tiền trên trang QR và bấm giả lập thất bại.
-- [ ] QR Demo: thử lại thành công, refresh/gửi callback lặp và xác nhận trạng thái vẫn đúng một lần.
-- [ ] Đặt lại `PAYMENT_DEMO_MODE=false` nếu gói được dùng ngoài buổi demo.
+- [ ] QR chuyển khoản: điền `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_NAME` trong `.env` máy demo, chạy `php artisan config:clear`.
+- [ ] QR chuyển khoản: đặt đơn, đối chiếu mã đơn/số tiền trên trang QR, rồi Admin bấm **Xác nhận đã nhận thanh toán** và kiểm tra đơn thành đã thanh toán.
+- [ ] VNPay: đặt đơn, chọn ngân hàng NCB, thanh toán bằng thẻ test trong README và kiểm tra đơn quay về ở trạng thái đã thanh toán.
 
 ## Responsive và trình duyệt
 
 - [x] Kiểm tra viewport desktop 1440×900.
-- [x] Kiểm tra viewport mobile 390×844.
-- [x] Kiểm tra không có overflow ngang nghiêm trọng ở các trang chính và QR demo trong viewport đã nêu.
+- [x] Kiểm tra viewport mobile 390×844 và 375×812.
+- [x] Kiểm tra không có overflow ngang nghiêm trọng ở các trang chính trong viewport đã nêu.
 - [ ] Kiểm tra trên ít nhất một điện thoại vật lý: menu, tìm kiếm, giỏ hàng, checkout, bàn phím form, QR và nút giả lập.
 - [ ] Kiểm tra thêm trình duyệt sẽ dùng khi chấm (Chrome/Edge mới nhất trên máy nhận bài).
 
@@ -59,6 +59,7 @@ Ngày chuẩn bị: 31/08/2026 (Asia/Ho_Chi_Minh)
 
 - [ ] Chạy `php artisan optimize:clear`.
 - [ ] Không đóng gói `.env`, `vendor/`, `node_modules/`, `storage/logs/*`, cache và database test/local.
+- [ ] Không đóng gói thư mục phụ không thuộc bài: `projects/`, `output/`, `.agents/`, `design-system/`, `scripts/`.
 - [ ] Có thể đóng gói `public/build/` để chạy ngay; nếu bỏ build thì người nhận phải chạy `npm ci && npm run build`.
 - [ ] Giữ `database/export/pawora_demo.sql`, README, `docs/testing-report.md` và checklist này trong gói.
 - [ ] Giải nén thử vào thư mục mới và thực hiện đúng README một lần trước khi nộp.

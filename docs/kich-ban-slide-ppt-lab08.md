@@ -1,6 +1,6 @@
 # Kịch bản chi tiết 32 slide – Bảo vệ Lab 08 Pawora
 
-> Quy ước: 26 slide `CORE`, 6 slide `BACKUP`; canvas 16:9; chữ hiển thị tối đa khoảng 45 từ/slide. Baseline source là commit `93fcef6`; các bổ sung ngày 01/09/2026 được khóa bằng receipt runtime thật: 127 route, 24 migration `Ran`, 111 test/1.460 assertion, build pass và visual QA 390–1440 px. Chỉ dùng screenshot chụp từ XAMPP đang chạy.
+> Quy ước: 26 slide `CORE`, 6 slide `BACKUP`; canvas 16:9; chữ hiển thị tối đa khoảng 45 từ/slide. Baseline source là commit `93fcef6`; receipt runtime chạy lại ngày 26/09/2026 trên XAMPP: 129 route, 27 migration `Ran`, 168 test/1.778 assertion, build pass; visual QA 375–1440 px. Chỉ dùng screenshot chụp từ XAMPP đang chạy.
 
 ## Slide 1 – Pawora: từ phụ kiện thú cưng đến đơn hàng an toàn
 
@@ -8,7 +8,7 @@
 
 **Mục tiêu:** Giảng viên nhận diện đề tài, Lab 08 và đủ bốn thành viên.
 
-**Người trình bày:** Trần Thị Mỹ Ngân.
+**Người trình bày:** Nguyễn Ngọc Minh Thu.
 
 **Thời lượng:** 20 giây.
 
@@ -40,9 +40,9 @@
 
 **Loại:** CORE
 
-**Mục tiêu:** Hiểu nhanh hai nhóm người dùng và chuỗi nghiệp vụ chính.
+**Mục tiêu:** Bước 1 – Phân tích nghiệp vụ: hiểu nhanh tác nhân (Khách, Admin, Staff) và chuỗi nghiệp vụ chính.
 
-**Người trình bày:** Trần Thị Mỹ Ngân.
+**Người trình bày:** Nguyễn Ngọc Minh Thu.
 
 **Thời lượng:** 25 giây.
 
@@ -70,37 +70,37 @@
 
 **Bản 10 phút:** Giữ.
 
-## Slide 3 – Bốn phạm vi không chồng chéo, Đạt giữ lõi giao dịch
+## Slide 3 – Bốn thành viên, mười một bước, không chồng chéo
 
 **Loại:** CORE
 
-**Mục tiêu:** Giảng viên biết chính xác ai chịu trách nhiệm phần nào.
+**Mục tiêu:** Giảng viên biết chính xác ai chịu trách nhiệm bước nào trong chuỗi 11 bước.
 
-**Người trình bày:** Trần Thị Mỹ Ngân.
+**Người trình bày:** Nguyễn Ngọc Minh Thu.
 
 **Thời lượng:** 25 giây.
 
-**Thông điệp chính:** Mỗi thành viên sở hữu một lát cắt rõ; phần rủi ro cao nhất thuộc Tiến Đạt.
+**Thông điệp chính:** Mỗi thành viên sở hữu một đoạn liên tiếp của chuỗi phân tích → database → MVC → giao diện → sản phẩm → giỏ → checkout → thanh toán → đơn hàng → Admin → kiểm thử.
 
-**Nội dung hiển thị:** `TIẾN ĐẠT — checkout · payment · order · stock · refund` · `MINH THU — catalog · product · review · cart` · `BÌNH MINH — toàn bộ Admin` · `MỸ NGÂN — account · UI · QA · package`.
+**Nội dung hiển thị:** `MINH THU — ① nghiệp vụ · ② database · ③ MVC` · `MỸ NGÂN — ④ giao diện · ⑪ kiểm thử` · `TIẾN ĐẠT — ⑤ sản phẩm · ⑥ giỏ hàng · ⑦ checkout · ⑧ thanh toán · ⑨ đơn hàng` · `BÌNH MINH — ⑩ Admin`.
 
-**Bố cục:** Bốn dải ngang có màu nhấn riêng; dải Đạt rộng hơn 20% và gắn nhãn “lõi giao dịch”.
+**Bố cục:** Chuỗi 11 ô đánh số chạy ngang; mỗi ô tô màu của người phụ trách; tên người ở dưới đoạn màu tương ứng.
 
-**Hình ảnh hoặc sơ đồ:** Không dùng icon trang trí; chỉ màu và nhãn chức năng.
+**Hình ảnh hoặc sơ đồ:** Không dùng icon trang trí; chỉ màu và số bước.
 
-**Code làm bằng chứng:** `docs/kich-ban-bao-ve-lab08.md:15-22`; đối chiếu route theo module tại `routes/web.php:36-158`.
+**Code làm bằng chứng:** `docs/kich-ban-bao-ve-lab08.md` mục 1 “Phân công chính thức”.
 
-**Database liên quan:** Đạt: commerce/payment; Thu: catalog/review; Minh: toàn schema Admin; Ngân: users/addresses.
+**Database liên quan:** Minh Thu: toàn bộ ERD/migration; Đạt: products/variants/orders/order_items/coupons/payment_transactions; Minh: dữ liệu Admin; Ngân: không trực tiếp.
 
-**Lời thuyết trình:** “Đạt phụ trách phần khó nhất và trình bày lâu nhất: checkout, payment, order, stock và refund. Minh Thu chỉ phụ trách catalog, sản phẩm, review và giỏ. Bình Minh chỉ phụ trách toàn bộ Admin. Em phụ trách tài khoản, giao diện, nghiệm thu và đóng gói.”
+**Lời thuyết trình:** “Nhóm chia việc đúng theo 11 bước. Em làm phân tích nghiệp vụ, thiết kế database và kiến trúc MVC. Mỹ Ngân làm toàn bộ giao diện phía khách và kiểm thử. Tiến Đạt làm backend từ sản phẩm, giỏ hàng, checkout, mã giảm giá, thanh toán đến đơn hàng. Bình Minh làm toàn bộ Admin.”
 
 **Câu chuyển slide:** “Các phần này gặp nhau trong kiến trúc Laravel MVC.”
 
 **Demo nếu có:** Không.
 
-**Câu giảng viên có thể hỏi:** (1) Ai trả lời callback? (2) Bình Minh có phụ trách cart không?
+**Câu giảng viên có thể hỏi:** (1) Ai trả lời callback? (2) Ai làm giao diện trang checkout? (3) Ai làm mã giảm giá?
 
-**Đáp án:** (1) Tiến Đạt. (2) Không; Bình Minh chỉ Admin.
+**Đáp án:** (1) Tiến Đạt. (2) Mỹ Ngân làm giao diện, Tiến Đạt làm xử lý. (3) Tiến Đạt làm phần áp mã khi checkout; Bình Minh làm trang Admin quản lý mã.
 
 **Bản 10 phút:** Bỏ; nói phân công trong slide 1 nếu thiếu thời gian.
 
@@ -108,9 +108,9 @@
 
 **Loại:** CORE
 
-**Mục tiêu:** Hiểu MVC mở rộng bằng middleware và service qua ví dụ thật.
+**Mục tiêu:** Bước 3 – Laravel MVC: hiểu MVC mở rộng bằng middleware và service qua ví dụ thật.
 
-**Người trình bày:** Nguyễn Tiến Đạt.
+**Người trình bày:** Nguyễn Ngọc Minh Thu.
 
 **Thời lượng:** 30 giây.
 
@@ -118,7 +118,7 @@
 
 **Nội dung hiển thị:** `User → Route → auth/throttle → CheckoutController → Cart/Shipping/Inventory Service → Eloquent → MySQL → Blade/Redirect`.
 
-**Bố cục:** Một flow ngang 8 node; node Controller/Service được nhấn màu Đạt; chú thích nhỏ “POST /thanh-toan”.
+**Bố cục:** Một flow ngang 8 node; node Controller/Service được nhấn màu; chú thích nhỏ “POST /thanh-toan”.
 
 **Hình ảnh hoặc sơ đồ:** Sơ đồ tự dựng từ code, không dùng screenshot.
 
@@ -142,9 +142,9 @@
 
 **Loại:** CORE
 
-**Mục tiêu:** Nhìn thấy tám bảng cốt lõi và các quan hệ chính.
+**Mục tiêu:** Bước 2 – Thiết kế database: nhìn thấy tám bảng cốt lõi và các quan hệ chính.
 
-**Người trình bày:** Nguyễn Tiến Đạt.
+**Người trình bày:** Nguyễn Ngọc Minh Thu.
 
 **Thời lượng:** 30 giây.
 
@@ -162,7 +162,7 @@
 
 **Lời thuyết trình:** “Order là tâm: thuộc về user, chứa nhiều OrderItem, có nhiều giao dịch và shipment. OrderItem snapshot tên, SKU và giá nên lịch sử không đổi khi catalog đổi. Product tách Variant để giữ giá và tồn theo lựa chọn.”
 
-**Câu chuyển slide:** “Từ nền dữ liệu này, Minh Thu trình bày cách khách tìm đúng sản phẩm.”
+**Câu chuyển slide:** “Từ nền dữ liệu này, Tiến Đạt trình bày cách khách tìm đúng sản phẩm.”
 
 **Demo nếu có:** Mở migration nếu được hỏi khóa ngoại/unique.
 
@@ -178,7 +178,7 @@
 
 **Mục tiêu:** Hiểu luồng request catalog và phân trang.
 
-**Người trình bày:** Nguyễn Ngọc Minh Thu.
+**Người trình bày:** Nguyễn Tiến Đạt.
 
 **Thời lượng:** 30 giây.
 
@@ -212,7 +212,7 @@
 
 **Mục tiêu:** Giải thích search/filter/sort và query preservation.
 
-**Người trình bày:** Nguyễn Ngọc Minh Thu.
+**Người trình bày:** Nguyễn Tiến Đạt.
 
 **Thời lượng:** 30 giây.
 
@@ -246,7 +246,7 @@
 
 **Mục tiêu:** Phân biệt Product/Variant và điều kiện review.
 
-**Người trình bày:** Nguyễn Ngọc Minh Thu.
+**Người trình bày:** Nguyễn Tiến Đạt.
 
 **Thời lượng:** 35 giây.
 
@@ -280,7 +280,7 @@
 
 **Mục tiêu:** Giải thích cấu trúc cart session và cách server tái xác minh dữ liệu.
 
-**Người trình bày:** Nguyễn Ngọc Minh Thu.
+**Người trình bày:** Nguyễn Tiến Đạt.
 
 **Thời lượng:** 35 giây.
 
@@ -478,7 +478,7 @@
 
 **Bản 10 phút:** Gộp vào slide 13.
 
-## Slide 15 – Sáu lựa chọn thanh toán, một mô hình giao dịch chung
+## Slide 15 – Năm lựa chọn thanh toán, một mô hình giao dịch chung
 
 **Loại:** CORE
 
@@ -488,11 +488,11 @@
 
 **Thời lượng:** 40 giây.
 
-**Thông điệp chính:** COD, bank transfer/SePay, VNPay, ZaloPay, MoMo và OnePay cùng cập nhật một Order/PaymentTransaction.
+**Thông điệp chính:** Phạm vi demo là COD, QR chuyển khoản SePay và VNPay sandbox; ZaloPay và MoMo có sẵn trong code và cùng cập nhật một Order/PaymentTransaction.
 
-**Nội dung hiển thị:** `COD` · `BANK/SEPAY QR` · `VNPAY` · `ZALOPAY` · `MOMO` · `ONEPAY` · `sandbox khi có credential`.
+**Nội dung hiển thị:** `COD` · `BANK/SEPAY QR` · `VNPAY` · `ZALOPAY` · `MOMO` · `sandbox khi có credential`.
 
-**Bố cục:** Sáu cổng xếp thành vòng quanh PaymentTransaction; không dùng logo tải từ web.
+**Bố cục:** Năm cổng xếp thành vòng quanh PaymentTransaction; không dùng logo tải từ web.
 
 **Hình ảnh hoặc sơ đồ:** Wordmark thuần chữ; screenshot nhóm radio payment từ checkout.
 
@@ -500,11 +500,11 @@
 
 **Database liên quan:** `orders.payment_method`, `payment_status`; `payment_transactions`.
 
-**Lời thuyết trình:** “COD hoàn tất theo luồng giao nhận. Bank transfer dùng QR/SePay. Bốn cổng redirect chạy sandbox khi có credential. Dù provider khác nhau, hệ thống quy về PaymentTransaction và trạng thái thanh toán của Order.”
+**Lời thuyết trình:** “Nhóm demo ba cách: COD hoàn tất theo luồng giao nhận; chuyển khoản hiển thị mã VietQR đúng số tiền và mã đơn, tiền về thì webhook SePay xác nhận, còn trên lớp Admin bấm xác nhận đã nhận thanh toán; VNPay chuyển sang cổng sandbox và thanh toán bằng thẻ test NCB. ZaloPay và MoMo có sẵn trong code và chỉ chạy khi có credential. Dù provider khác nhau, hệ thống quy về PaymentTransaction và trạng thái thanh toán của Order.”
 
 **Câu chuyển slide:** “Điểm khó không phải tạo URL, mà là xác minh return và callback.”
 
-**Demo nếu có:** Chỉ cho thấy đủ sáu lựa chọn; không đưa secret lên màn hình.
+**Demo nếu có:** COD, QR chuyển khoản và VNPay; không đưa secret hoặc số tài khoản thật lên màn hình nếu không cần.
 
 **Câu giảng viên có thể hỏi:** (1) Cổng nào chạy khi chưa có credential? (2) Có lưu số thẻ không?
 
@@ -530,7 +530,7 @@
 
 **Hình ảnh hoặc sơ đồ:** Security gate diagram.
 
-**Code làm bằng chứng:** `VnPayGateway`, `ZaloPayGateway`, `MomoGateway`, `OnePayGateway`, `SepayGateway`; các callback controller; `RefundService`.
+**Code làm bằng chứng:** `VnPayGateway`, `ZaloPayGateway`, `MomoGateway`, `SepayGateway`; các callback controller; `RefundService`.
 
 **Database liên quan:** unique request/provider transaction; `orders.total`, `payment_transactions.status`.
 
@@ -740,7 +740,7 @@
 
 **Lời thuyết trình:** “Admin page hiển thị next valid action thay vì dropdown trạng thái tùy ý. Tracking code do hệ thống sinh. Shipment và Order phải đồng bộ; return/refund chỉ xuất hiện khi đủ điều kiện và mọi chuyển đổi đều được backend kiểm tra.”
 
-**Câu chuyển slide:** “Ngoài giao dịch, Mỹ Ngân trình bày tài khoản và trải nghiệm người dùng.”
+**Câu chuyển slide:** “Mỹ Ngân trình bày giao diện và kiểm thử.”
 
 **Demo nếu có:** Mở một order; chỉ action hiện tại, history và shipment.
 
@@ -754,7 +754,7 @@
 
 **Loại:** CORE
 
-**Mục tiêu:** Tóm tắt account module và ownership.
+**Mục tiêu:** Bước 4 – Giao diện: tóm tắt các màn tài khoản dùng chung layout; phần backend/ownership do Đạt trả lời khi bị hỏi.
 
 **Người trình bày:** Trần Thị Mỹ Ngân.
 
@@ -772,7 +772,7 @@
 
 **Database liên quan:** `users`, `password_reset_tokens`, `user_addresses`, `orders`, `return_requests`, `product_reviews`.
 
-**Lời thuyết trình:** “Khách có login, reset, social login, hồ sơ, avatar, đổi mật khẩu, sổ địa chỉ và lịch sử đơn. Controller luôn scope theo user hiện tại; test xác nhận không thể đọc hoặc sửa address/order của người khác.”
+**Lời thuyết trình:** “Giao diện tài khoản gồm đăng nhập, quên mật khẩu, hồ sơ, avatar, đổi mật khẩu, sổ địa chỉ và lịch sử đơn, tất cả dùng chung layout với cửa hàng. Mọi form có CSRF và hiển thị lỗi ngay dưới ô nhập. Dữ liệu hiển thị do backend lọc theo user hiện tại, và test xác nhận không thể đọc hoặc sửa address/order của người khác.”
 
 **Câu chuyển slide:** “Module này dùng chung hệ giao diện responsive và accessible.”
 
@@ -830,17 +830,17 @@
 
 **Thông điệp chính:** Pawora không chỉ “chạy trên máy nhóm”; package có receipt và đường cài sạch.
 
-**Nội dung hiển thị:** `127 ROUTES` · `24/24 MIGRATIONS RAN` · `111 TESTS / 1,460 ASSERTIONS / 19.36s` · `VITE BUILD PASS` · `SQL IMPORT: 25 TABLES`.
+**Nội dung hiển thị:** `129 ROUTES` · `27/27 MIGRATIONS RAN` · `168 TESTS / 1,778 ASSERTIONS` · `VITE BUILD PASS` · `SQL IMPORT: 26 TABLES`.
 
 **Bố cục:** Năm con số lớn; dưới mỗi số là lệnh tái chạy tương ứng.
 
 **Hình ảnh hoặc sơ đồ:** Terminal receipt được dựng lại bằng text native, không chụp giả terminal.
 
-**Code làm bằng chứng:** output runtime ngày 01/09/2026; `phpunit.xml`; `database/pawora-demo.sql`; `README.md`.
+**Code làm bằng chứng:** output runtime ngày 26/09/2026; `phpunit.xml`; `database/export/pawora_demo.sql`; `README.md`; `docs/testing-report.md`.
 
 **Database liên quan:** DB chính `pawora`, DB test `pawora_testing`, DB tạm export/import đã xóa sau kiểm chứng.
 
-**Lời thuyết trình:** “Sau khi bật XAMPP, nhóm chạy lại toàn bộ: 127 route, 24 migration Ran, 111 test với 1.460 assertion trong 19,36 giây, Vite build pass. SQL demo được import vào DB trống: đủ 25 bảng, 10 user demo và 32 sản phẩm.”
+**Lời thuyết trình:** “Sau khi bật XAMPP, nhóm chạy lại toàn bộ: 129 route, 27 migration đều đã chạy, 168 test với 1.778 assertion không lỗi, Vite build pass. SQL demo được export lại và import vào database trống: đủ 26 bảng, 10 user demo và 32 sản phẩm, schema khớp với migration.”
 
 **Câu chuyển slide:** “Vì vậy package bàn giao đã đóng các khoảng trống thật trước khi kết luận.”
 
@@ -892,7 +892,7 @@
 
 **Mục tiêu:** Trả lời sâu về search/filter/sort/variant.
 
-**Người trình bày:** Nguyễn Ngọc Minh Thu.
+**Người trình bày:** Nguyễn Tiến Đạt.
 
 **Thời lượng:** Theo câu hỏi.
 
@@ -966,7 +966,7 @@
 
 **Thông điệp chính:** Cơ chế ký khác nhau nhưng bốn invariant giống nhau: origin, signature, amount, idempotency.
 
-**Nội dung hiển thị:** Bảng `SePay / VNPay / ZaloPay / MoMo / OnePay` × `secret/signature` · `amount` · `transaction id` · `replay guard`.
+**Nội dung hiển thị:** Bảng `SePay / VNPay / ZaloPay / MoMo` × `secret/signature` · `amount` · `transaction id` · `replay guard`.
 
 **Bố cục:** Bảng native 5×4; ô chưa có test riêng đánh dấu “coverage cần tăng”, không đánh dấu fail.
 
@@ -1068,15 +1068,15 @@
 
 **Thông điệp chính:** Có hai đường dựng DB và một checklist tái lập trước bảo vệ.
 
-**Nội dung hiển thị:** `composer install → .env → key → npm build` · `A: migrate --seed` · `B: import pawora-demo.sql` · `storage:link` · `test/build/routes/migrate status`.
+**Nội dung hiển thị:** `composer install → .env → key → npm build` · `A: migrate --seed` · `B: import database/export/pawora_demo.sql` · `storage:link` · `test/build/routes/migrate status`.
 
 **Bố cục:** Hai làn cài DB hội tụ vào cùng app; receipt test ở chân.
 
 **Hình ảnh hoặc sơ đồ:** Install flow; thumbnail README/SQL/QA report.
 
-**Code làm bằng chứng:** `README.md`; `database/pawora-demo.sql`; `.env.example`; `docs/bao-cao-visual-qa-2026-09-01.md`.
+**Code làm bằng chứng:** `README.md`; `database/export/pawora_demo.sql`; `.env.example`; `docs/testing-report.md`; `docs/submission-checklist.md`.
 
-**Database liên quan:** 24 migration, 25 bảng import, seed demo.
+**Database liên quan:** 27 migration, 26 bảng import, seed demo.
 
 **Lời thuyết trình:** “README ghi rõ XAMPP, dependency, hai cách dựng DB, tài khoản demo, gateway, Reverb, test và checklist. SQL đã được import ngược vào DB trống để xác nhận.”
 

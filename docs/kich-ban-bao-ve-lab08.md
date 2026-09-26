@@ -2,26 +2,67 @@
 
 > Tài liệu học nội bộ cho bốn thành viên. Nội dung được đối chiếu với source code tại commit `93fcef6`, ngày 31/08/2026. Không chép khóa bí mật từ `.env` vào tài liệu này.
 
-## 0. Kết quả kiểm tra source trước khi viết
+## 0. Kết quả kiểm tra source (chạy lại ngày 26/09/2026 trên XAMPP)
 
 | Kiểm tra | Kết quả | Ý nghĩa khi bảo vệ |
 |---|---|---|
-| `php artisan route:list` | Thành công, 127 routes | Có thể chứng minh đầy đủ các route cửa hàng, tài khoản, thanh toán, webhook và Admin. |
-| `php artisan migrate:status` | Chưa chạy được vì MySQL `localhost:3306` từ chối kết nối | Phải bật MySQL/XAMPP rồi chạy lại trước buổi bảo vệ; không được nói migration đã chạy thành công trong lần kiểm tra này. |
-| `php artisan test` | Unit test đầu tiên đạt; toàn bộ suite không hoàn tất khi database không phản hồi và đã được dừng | Phải chạy lại toàn bộ test khi `pawora_testing` sẵn sàng và lưu ảnh kết quả. |
-| README | Vẫn là README mặc định của Laravel | Chưa đạt mục 27-28 Lab 8; cần viết lại hướng dẫn Pawora. |
-| File SQL | Chưa thấy bản export database trong repo | Cần export trước khi đóng gói. |
+| `php artisan route:list` | 129 route | Chứng minh đủ route cửa hàng, tài khoản, thanh toán, webhook và Admin. |
+| `php artisan migrate:status` | 27/27 migration `Ran` trên MariaDB 10.4.32 của XAMPP | Database đúng với code. |
+| `php artisan test` | 168 test, 1.778 assertion, 0 lỗi | Nói đúng con số này; chi tiết trong `docs/testing-report.md`. |
+| `npm run build`, `composer validate --strict` | Pass | Frontend build được, `composer.json` hợp lệ. |
+| README | README Pawora đầy đủ cài đặt, tài khoản demo, COD, QR chuyển khoản, test, export SQL | Đạt mục 27-28 Lab 8. |
+| File SQL | `database/export/pawora_demo.sql`, export lại 26/09/2026, đủ 26 bảng/27 migration; import thử khớp schema | Là file SQL duy nhất để nộp. Thêm migration mới thì phải export lại. |
+| Thanh toán QR | QR Demo đã gỡ (26/09/2026). QR là chuyển khoản SePay/VietQR, cần `SEPAY_BANK` + `SEPAY_ACCOUNT_NUMBER` trong `.env` | Xác nhận bằng webhook SePay hoặc Admin bấm “Xác nhận đã nhận thanh toán”. Máy chưa cấu hình SePay chỉ chạy COD. |
+
+Lưu ý trên máy của nhóm: phải bật Apache và MySQL trong XAMPP Control Panel trước khi chạy. Nếu Windows có sẵn biến môi trường `DB_PASSWORD` của project khác, chạy `$env:DB_PASSWORD = $null` trong PowerShell trước các lệnh `php artisan`.
 
 ## 1. Phân công chính thức
 
-| Thành viên | Phạm vi chính | Không phụ trách |
-|---|---|---|
-| Nguyễn Tiến Đạt | Checkout, phí vận chuyển, coupon, thanh toán, webhook, Order/OrderItem, tồn kho khi đặt hàng, hủy/hoàn tiền, bảo mật đơn hàng | Catalog và CRUD Admin sản phẩm |
-| Nguyễn Ngọc Minh Thu | Trang chủ sản phẩm, danh mục, catalog, tìm kiếm/lọc/sắp xếp/phân trang, chi tiết, biến thể, đánh giá phía khách, giỏ hàng | Admin |
-| Lê Ngọc Bình Minh | Toàn bộ Admin: dashboard, catalog, tồn kho, người dùng, đơn hàng, vận chuyển, thanh toán, đổi trả, CSKH, quyền, audit | Chức năng phía khách |
-| Trần Thị Mỹ Ngân | Authentication, hồ sơ, địa chỉ, layout/brand/responsive, liên hệ, nghiệm thu, README, SQL, đóng gói | Nghiệp vụ thanh toán và CRUD Admin |
+Nhóm chia việc theo đúng chuỗi 11 bước giảng viên yêu cầu:
 
-# PHẦN I - KIẾN THỨC CHUNG CẢ NHÓM
+```text
+PHÂN TÍCH NGHIỆP VỤ → THIẾT KẾ DATABASE → LARAVEL MVC → GIAO DIỆN → SẢN PHẨM → GIỎ HÀNG
+→ CHECKOUT → THANH TOÁN → ĐƠN HÀNG → ADMIN → KIỂM THỬ
+```
+
+| # | Bước | Thành viên | Sản phẩm cần có khi bảo vệ |
+|---|---|---|---|
+| 1 | Phân tích nghiệp vụ | Nguyễn Ngọc Minh Thu | Tác nhân Khách/Admin/Staff, use case, luồng mua hàng chính, trạng thái đơn và thanh toán |
+| 2 | Thiết kế Database | Nguyễn Ngọc Minh Thu | ERD, giải thích PK/FK/unique, 27 migration, file `database/export/pawora_demo.sql` |
+| 3 | Laravel MVC | Nguyễn Ngọc Minh Thu | Luồng Route → Middleware → Controller → Service → Model → View, ví dụ thật trong source |
+| 4 | Giao diện | Trần Thị Mỹ Ngân | Layout chung, brand, toàn bộ trang phía khách (trang chủ, sản phẩm, giỏ, checkout, xác nhận, đơn hàng, tài khoản), responsive |
+| 5 | Sản phẩm | Nguyễn Tiến Đạt | Catalog, tìm kiếm/lọc/sắp xếp/phân trang, chi tiết, biến thể, đánh giá (backend) |
+| 6 | Giỏ hàng | Nguyễn Tiến Đạt | `CartService`, thêm/sửa/xóa, session cart, kiểm tồn kho (backend) |
+| 7 | Checkout | Nguyễn Tiến Đạt | Validate form, phí vận chuyển, **mã giảm giá**, transaction, `lockForUpdate`, trừ tồn kho |
+| 8 | Thanh toán | Nguyễn Tiến Đạt | COD, QR chuyển khoản SePay (trang QR đúng số tiền/mã đơn, webhook kiểm API key + số tiền, Admin xác nhận đã thanh toán) và VNPay sandbox (thẻ test NCB) |
+| 9 | Đơn hàng | Nguyễn Tiến Đạt | Order/OrderItem, trạng thái đơn và thanh toán, quyền xem đơn, hủy đơn |
+| 10 | Admin | Lê Ngọc Bình Minh | Toàn bộ Admin, **kể cả giao diện Admin**: dashboard, sản phẩm/danh mục, tồn kho, mã giảm giá, người dùng, đơn hàng/vận chuyển, phân quyền |
+| 11 | Kiểm thử | Trần Thị Mỹ Ngân | `php artisan test`, bảng test case đúng/sai, visual QA, README, cài máy sạch |
+
+| Thành viên | Các bước | Không phụ trách |
+|---|---|---|
+| Nguyễn Ngọc Minh Thu | 1 · 2 · 3 | Code chức năng cụ thể, Admin |
+| Trần Thị Mỹ Ngân | 4 · 11 | Logic backend, Admin |
+| Nguyễn Tiến Đạt | 5 · 6 · 7 · 8 · 9 (chỉ backend) | Mọi giao diện Blade/CSS, Admin |
+| Lê Ngọc Bình Minh | 10 (cả giao diện lẫn xử lý) | Chức năng phía khách |
+
+Ghi chú:
+
+- Đăng nhập, hồ sơ, địa chỉ và liên hệ không nằm trong 11 bước. Nhóm quy ước phần backend do Đạt trả lời, giao diện form do Ngân trả lời.
+- Nhóm giữ nguyên code các tích hợp nâng cao (VNPay, ZaloPay, MoMo, webhook hoàn tiền, GHN, chat tự động, 2FA, audit log) nhưng **không đưa vào phần bảo vệ chính**. Khi bị hỏi thì trả lời: “Có sẵn trong hệ thống, nhóm em chỉ trình bày luồng cơ bản.”
+
+Bản đồ tài liệu cần học:
+
+| Thành viên | Phần cần học trong tài liệu này |
+|---|---|
+| Minh Thu | Phần I (mục 2-8) và mục 9 “Tờ học nhanh của Minh Thu”; mục E “Database cần học” trong Phần II và Phần III |
+| Tiến Đạt | Phần II (checkout, thanh toán, đơn hàng) và Phần III (sản phẩm, giỏ hàng); phần backend đăng nhập/tài khoản trong Phần V |
+| Bình Minh | Phần IV |
+| Mỹ Ngân | Phần V (giao diện, kiểm thử), mục 9-11 của Phần VI |
+
+# PHẦN I - PHÂN TÍCH NGHIỆP VỤ, DATABASE, LARAVEL MVC (NGUYỄN NGỌC MINH THU)
+
+> Minh Thu trình bày các mục 2-6 (bước 1-3). Cả nhóm vẫn phải nắm mục 7 để trả lời thống nhất.
 
 ## 2. Pawora giải quyết bài toán gì?
 
@@ -77,7 +118,7 @@ flowchart TD
     I --> J{Phương thức}
     J -->|COD| K[Đơn pending, payment unpaid]
     J -->|SePay QR| L[Hiển thị QR và chờ webhook]
-    J -->|VNPay/ZaloPay/MoMo/OnePay| M[Chuyển sang cổng và chờ return/callback]
+    J -->|VNPay/ZaloPay/MoMo| M[Chuyển sang cổng và chờ return/callback]
     L --> N[Payment paid, Order confirmed]
     M --> N
     K --> O[Admin xác nhận đơn]
@@ -157,22 +198,78 @@ Transaction đảm bảo một nhóm ghi dữ liệu cùng thành công hoặc c
 - `orders.payment_status`: tình trạng tiền: unpaid, pending, paid, failed, refund_pending, refunded.
 - Một đơn COD có thể `status=confirmed` nhưng `payment_status=unpaid`; chỉ ghi paid khi giao hoàn tất theo `AdminController.php:634-637`.
 
-## 8. Bàn giao giữa bốn module
+## 8. Bàn giao giữa bốn thành viên
 
 | Người giao | Người nhận | Hợp đồng dữ liệu |
 |---|---|---|
-| Minh Thu | Tiến Đạt | Giỏ session đã chuẩn hóa thành line có `product_id`, `variant_id`, `quantity`; checkout vẫn phải lấy lại DB. |
-| Tiến Đạt | Bình Minh | Order có `status`, `payment_status`, totals, items, histories, payments, shipments; Admin chỉ chuyển theo rule của Model. |
-| Bình Minh | Mỹ Ngân | Các màn Admin và dữ liệu audit để Ngân đưa vào checklist nghiệm thu, không chuyển quyền sửa Admin cho Ngân. |
-| Mỹ Ngân | Cả nhóm | Tài khoản demo, README, SQL, checklist, môi trường chạy, ảnh kết quả test và lịch demo. |
+| Minh Thu | Cả nhóm | Use case, ERD, danh sách bảng/cột/khóa và sơ đồ MVC. Mọi người dùng chung tên bảng, tên trạng thái và thuật ngữ. |
+| Tiến Đạt | Mỹ Ngân | Với mỗi trang: route, tên trường form (ví dụ `quantity`, `variant_id`, `coupon_code`, `payment_method`), biến controller truyền sang view và định dạng JSON của các request AJAX. Ngân chỉ hiển thị, không tự tính giá hoặc tồn kho. |
+| Mỹ Ngân | Tiến Đạt | Trang Blade đúng `@csrf`/`@method`, hiển thị lỗi validation và thông báo flash. |
+| Tiến Đạt | Bình Minh | Order có `status`, `payment_status`, totals, items, histories, payments; Coupon có `used_count`. Admin chỉ chuyển trạng thái theo rule của Model. |
+| Bình Minh | Tiến Đạt | Product/Category/Variant/Coupon do Admin tạo; storefront chỉ đọc bản ghi active. |
+| Ba thành viên | Mỹ Ngân | Test case, dữ liệu demo, file code trọng tâm, lỗi đã biết và cách tái hiện. |
+| Mỹ Ngân | Cả nhóm | Tài khoản demo, README, checklist, ảnh kết quả test và lịch demo. |
 
-# PHẦN II - NGUYỄN TIẾN ĐẠT
+## 9. Tờ học nhanh của Minh Thu (bước 1-3)
+
+### Bài nói mở đầu 3-5 phút
+
+“Em là Nguyễn Ngọc Minh Thu, phụ trách ba bước đầu: phân tích nghiệp vụ, thiết kế database và kiến trúc Laravel MVC.
+
+Về nghiệp vụ, Pawora là website bán phụ kiện cho chó và mèo. Hệ thống có ba tác nhân. Khách xem sản phẩm, chọn biến thể, thêm vào giỏ, đặt hàng, thanh toán và theo dõi đơn. Admin quản lý sản phẩm, tồn kho, mã giảm giá, đơn hàng và người dùng. Staff là nhân viên chỉ có một phần quyền của Admin. Luồng chính là: sản phẩm → giỏ hàng → checkout → thanh toán → đơn hàng → Admin xử lý → giao hàng.
+
+Về database, trung tâm là bảng `orders`. Một user có nhiều order; một order có nhiều `order_items`; mỗi item trỏ tới product và variant. Product thuộc category và có nhiều variant theo size/màu. Bên cạnh đó có bảng `coupons` cho mã giảm giá, `payment_transactions` cho giao dịch, `inventory_adjustments` làm sổ kho và `order_status_histories` ghi lịch sử trạng thái. Các cột như email, slug, SKU, mã đơn đều có unique để chống trùng.
+
+Về kiến trúc, project dùng Laravel 12 theo mô hình MVC. Một request đi qua Route, Middleware, Controller, Service, Model rồi trả về Blade View. Ví dụ, mở trang sản phẩm thì route `/san-pham` gọi `StoreController::index()`, controller dùng Model `Product` để query MySQL rồi trả view `store.products`.”
+
+### 10 ý bắt buộc nhớ
+
+1. Ba tác nhân: Khách (customer), Admin, Staff. Staff có ít quyền hơn Admin.
+2. Luồng nghiệp vụ chính: sản phẩm → giỏ → checkout → thanh toán → đơn hàng → Admin → giao hàng.
+3. Đơn có hai trạng thái riêng: `status` (tiến trình xử lý hàng) và `payment_status` (tình trạng tiền).
+4. Bảng trung tâm là `orders`; `order_items` lưu giá lúc mua (snapshot) nên đổi giá sau này không làm sai đơn cũ.
+5. Product 1-n Variant; Category 1-n Product; User 1-n Order; Order 1-n OrderItem.
+6. Giỏ hàng **không có bảng** riêng; nó nằm trong session.
+7. Database được tạo bằng migration (27 file trong `database/migrations`) và có bản export `database/export/pawora_demo.sql`.
+8. Unique quan trọng: `users.email`, `products.slug`, `products.sku`, `product_variants.sku`, `orders.number`, `coupons.code`.
+9. MVC: Route nhận URL → Middleware kiểm tra (đăng nhập, quyền) → Controller điều phối → Model đọc/ghi DB → View hiển thị.
+10. Service (`CartService`, `CouponService`, `InventoryService`...) là nơi gom nghiệp vụ dùng lại, giúp controller gọn.
+
+### File/bảng/lệnh trọng tâm
+
+- File: `routes/web.php`, `app/Http/Controllers/StoreController.php`, `app/Models/Product.php`, `app/Models/Order.php`, `database/migrations/`, `database/export/pawora_demo.sql`, `resources/views/store/products.blade.php`.
+- Bảng: users, categories, products, product_variants, orders, order_items, coupons, payment_transactions, inventory_adjustments.
+- Lệnh: `php artisan route:list`, `php artisan migrate:status`, `php artisan migrate --seed`.
+
+### 10 câu dễ bị hỏi nhất
+
+1. Hệ thống có những tác nhân nào, mỗi tác nhân làm được gì?
+2. Vẽ lại ERD và chỉ ra bảng trung tâm.
+3. Vì sao tách `product_variants` khỏi `products`?
+4. Vì sao `order_items` phải lưu giá thay vì lấy giá từ `products`?
+5. Giỏ hàng lưu ở đâu? Vì sao không có bảng `carts`?
+6. Migration là gì? Khác gì so với tạo bảng bằng phpMyAdmin?
+7. Một request từ trình duyệt đi qua những lớp nào trong Laravel?
+8. Middleware dùng để làm gì trong Pawora?
+9. Model, Controller, View khác nhau thế nào? Cho một ví dụ thật.
+10. `status` và `payment_status` của đơn khác nhau thế nào?
+
+### Tuyệt đối không trả lời sai
+
+- Không nói giỏ hàng nằm trong bảng `carts`.
+- Không nói Controller truy vấn SQL thuần; project dùng Eloquent Model.
+- Không nói COD được tính là đã thanh toán ngay khi đặt hàng.
+- Không nhận phần code chi tiết checkout/thanh toán hoặc Admin; chuyển cho Đạt hoặc Bình Minh.
+
+# PHẦN II - CHECKOUT, THANH TOÁN, ĐƠN HÀNG (NGUYỄN TIẾN ĐẠT)
 
 ## A. Phạm vi phụ trách
 
-Đạt chịu trách nhiệm từ lúc người dùng mở checkout đến khi đơn hàng, tiền và tồn kho đạt trạng thái nhất quán: địa chỉ, coupon, phí vận chuyển, tổng tiền, tạo Order/OrderItem, COD, QR SePay, VNPay, ZaloPay, MoMo, OnePay, return/callback/webhook, trạng thái tiền, lịch sử đơn, quyền xem đơn, hủy và hoàn tiền.
+Đạt phụ trách backend của năm bước: **Sản phẩm, Giỏ hàng** (xem Phần III), **Checkout, Thanh toán, Đơn hàng** (phần này). Phần này tính từ lúc người dùng mở checkout đến khi đơn hàng, tiền và tồn kho đạt trạng thái nhất quán: địa chỉ, **mã giảm giá**, phí vận chuyển, tổng tiền, tạo Order/OrderItem, trừ tồn kho, COD, QR chuyển khoản SePay, trạng thái tiền, lịch sử đơn, quyền xem đơn và hủy đơn.
 
-Đạt không phụ trách giao diện catalog/giỏ trước checkout và không phụ trách CRUD Admin. Điểm giao với Minh Thu là cấu trúc `CartService`; điểm giao với Bình Minh là `Order::ADMIN_TRANSITIONS`, shipment và payment state; điểm giao với Ngân là tài khoản demo và checklist.
+Phạm vi bảo vệ chính gồm **COD, QR chuyển khoản SePay và VNPay sandbox**. Các cổng ZaloPay, MoMo và luồng hoàn tiền qua webhook vẫn còn trong code và được mô tả ở mục C-D để tham khảo; khi bị hỏi, Đạt trả lời ở mức “có sẵn, dùng chung mô hình kiểm tra chữ ký + số tiền”.
+
+Đạt **không làm giao diện**: các trang checkout, xác nhận, trang QR chuyển khoản và đơn hàng do Ngân làm. Đạt không phụ trách CRUD Admin. Điểm giao với Ngân là tên trường form, biến truyền sang view và JSON AJAX; điểm giao với Bình Minh là `Order::ADMIN_TRANSITIONS`, coupon và payment state; điểm giao với Minh Thu là ERD và tên trạng thái.
 
 ## B. Bài nói mở đầu 3-5 phút
 
@@ -180,7 +277,7 @@ Transaction đảm bảo một nhóm ghi dữ liệu cùng thành công hoặc c
 
 Sau đó hệ thống kiểm tra lại coupon, tính phí vận chuyển, tạo Order, tạo từng OrderItem và trừ tồn kho. OrderItem lưu `unit_price` và `line_total` để lịch sử mua hàng không thay đổi nếu giá sản phẩm sau này được cập nhật. Toàn bộ khối này nằm trong một database transaction, nên nếu tạo item hoặc trừ tồn kho lỗi thì Order cũng rollback.
 
-Với COD, đơn được tạo ở trạng thái chờ xử lý và chưa thanh toán. Với SePay, hệ thống hiển thị QR chứa đúng số tiền và mã đơn, sau đó webhook có API key sẽ đối chiếu nội dung, số tiền và chống xử lý lặp. Với VNPay, ZaloPay, MoMo và OnePay, hệ thống tạo URL hoặc phiên thanh toán, sau đó kiểm tra chữ ký, mã đơn, giao dịch và số tiền ở return/callback trước khi đổi `payment_status` thành `paid`.
+Với COD, đơn được tạo ở trạng thái chờ xử lý và chưa thanh toán. Với chuyển khoản QR, hệ thống hiển thị mã VietQR chứa đúng số tiền và nội dung là mã đơn. Tiền về thì webhook SePay gọi vào, hệ thống kiểm tra API key, mã đơn và số tiền, webhook lặp không cập nhật lần hai, rồi mới đổi `payment_status` thành `paid`. Khi demo trên lớp không có tiền thật, Admin bấm “Xác nhận đã nhận thanh toán”, thao tác được ghi lịch sử và audit. Với VNPay, khách được chuyển sang cổng sandbox, thanh toán bằng thẻ test NCB; khi trình duyệt quay về, Pawora kiểm chữ ký HMAC-SHA512 và số tiền rồi mới ghi `paid`. ZaloPay và MoMo dùng cùng nguyên tắc; nhóm giữ trong code nhưng không demo. OnePay đã được gỡ khỏi dự án vì sandbox dừng ở bước 3D Secure.
 
 Em phân biệt rõ trạng thái đơn và trạng thái thanh toán. Trạng thái đơn mô tả quá trình xử lý hàng; trạng thái thanh toán mô tả dòng tiền. Hai trạng thái liên quan nhưng không đồng nhất. Ví dụ COD có thể đã xác nhận đơn nhưng chưa thu tiền. Khi khách xác nhận nhận hàng và Admin hoàn tất giao hàng, hệ thống mới ghi COD đã thanh toán.
 
@@ -199,7 +296,6 @@ Phần bảo mật của em kiểm tra chủ sở hữu hoặc token công khai 
 | VNPay | `VnPayGateway::paymentUrl()` tạo tham số + HMAC; return/IPN tìm order, kiểm tra HMAC và amount; `updateOrCreate` giao dịch; paid thì xác nhận order. |
 | ZaloPay | `createPayment()` tạo app transaction, MAC và PaymentTransaction; return/callback kiểm tra checksum/MAC, transaction, order, amount rồi paid. |
 | MoMo | `createPayment()` tạo request signed; return/IPN kiểm tra signature, orderId, requestId, order-transaction và amount; `applyResult()` không hạ một order đã paid. |
-| OnePay | Tạo URL HMAC; return/callback dùng chung `handleResult()`; kiểm tra signature/amount; `updateOrCreate` giao dịch và cập nhật order. |
 | Xem đơn | GET `/don-hang/{order}` → `CheckoutController::show()` → Admin, owner, last_order session hoặc guest token hợp lệ → load items/histories → `store.order`. |
 | Hủy/hoàn | Customer/Admin kiểm tra quyền và state → transaction khóa Order → cancelled, hoàn kho, history → nếu đã paid gọi `RefundService::request()` với idempotency key → callback signed → cập nhật refund và `refunded_amount`. |
 
@@ -221,7 +317,6 @@ Phần bảo mật của em kiểm tra chủ sở hữu hoặc token công khai 
 | VNPay amount/idempotency | `app/Http/Controllers/VnPayController.php:50-100` | `ipn()`, `record()` | Đã paid trả mã đã xác nhận; transaction được upsert theo provider ID. |
 | ZaloPay callback | `app/Http/Controllers/ZaloPayController.php:29-68` | `callback()` | Kiểm MAC, transaction, order và amount trước khi paid. |
 | MoMo callback | `app/Http/Controllers/MomoController.php:12-78` | return/ipn/applyResult | Gắn requestId với order và không ghi failed đè lên paid. |
-| OnePay callback | `app/Http/Controllers/OnePayController.php:29-96` | `handleResult()` | Dùng chung xử lý browser return và server callback. |
 | Refund idempotent | `app/Services/RefundService.php:14-64` | `request()` | UUID v5 từ khóa logic; cùng yêu cầu trả lại giao dịch pending/succeeded. |
 | Refund callback | `app/Services/RefundService.php:67-101` | `applyCallback()` | Khóa refund/order; amount phải khớp; succeeded cũ không cộng lại. |
 
@@ -436,7 +531,7 @@ Nếu mạng/cổng online lỗi: demo COD hoàn chỉnh, mở QR SePay bằng d
 
 ### File, bảng và method trọng tâm
 
-- File: `CheckoutController.php`, `CartService.php`, `InventoryService.php`, `Order.php`, `SepayGateway.php`, `VnPayGateway.php`, `ZaloPayGateway.php`, `MomoGateway.php`, `OnePayGateway.php`, các payment controller và `RefundService.php`.
+- File: `CheckoutController.php`, `CartService.php`, `InventoryService.php`, `Order.php`, `SepayGateway.php`, `VnPayGateway.php`, `ZaloPayGateway.php`, `MomoGateway.php`, các payment controller và `RefundService.php`.
 - Bảng: `orders`, `order_items`, `payment_transactions`, `shipments`, `order_status_histories`, `inventory_adjustments`, `coupons`, `return_requests`.
 - Method: `CheckoutController::store`, `InventoryService::deductForOrder`, `Order::allowedAdminTransitions`, các `validSignature/validCallback`, `RefundService::request/applyCallback`.
 
@@ -460,19 +555,19 @@ Nếu mạng/cổng online lỗi: demo COD hoàn chỉnh, mở QR SePay bằng d
 - Không nói COD paid ngay khi tạo đơn.
 - Không nói transaction bao gồm cả cuộc gọi cổng online sau redirect; order transaction kết thúc trước nhánh gateway.
 - Không nói route model binding tự bảo vệ ownership.
-- Không nói mọi test hiện đã pass trong lần kiểm tra này khi MySQL đang không kết nối.
+- Không đọc số test cũ; số hiện tại là 168 test, 1.778 assertion (26/09/2026).
 
-# PHẦN III - NGUYỄN NGỌC MINH THU
+# PHẦN III - SẢN PHẨM VÀ GIỎ HÀNG (NGUYỄN TIẾN ĐẠT)
 
 ## A. Phạm vi phụ trách
 
-Minh Thu phụ trách trải nghiệm mua sắm trước checkout: dữ liệu trang chủ, danh mục, catalog, tìm kiếm, lọc loại thú cưng/khoảng giá, sắp xếp, phân trang, chi tiết sản phẩm, biến thể, đánh giá phía khách và toàn bộ giỏ session. Thu không phụ trách Admin và không chịu trách nhiệm callback thanh toán.
+Đạt phụ trách backend của bước **Sản phẩm** và **Giỏ hàng**: dữ liệu trang chủ, danh mục, catalog, tìm kiếm, lọc loại thú cưng/khoảng giá, sắp xếp, phân trang, chi tiết sản phẩm, biến thể, đánh giá phía khách và toàn bộ giỏ session. Giao diện các trang này (Blade/CSS/JS) do Ngân làm; Đạt không phụ trách Admin.
 
-Điểm giao với Đạt là `CartService::lines()`; Thu phải đảm bảo mỗi line có product/variant/quantity hợp lệ, còn Đạt vẫn tái kiểm database ở checkout. Điểm giao với Bình Minh là dữ liệu Product/Category/Variant do Admin quản lý. Điểm giao với Ngân là layout, responsive và tài khoản đăng nhập để đánh giá.
+`CartService::lines()` nối phần giỏ hàng với checkout: mỗi line phải có product/variant/quantity hợp lệ, và checkout vẫn tái kiểm database. Điểm giao với Bình Minh là dữ liệu Product/Category/Variant do Admin quản lý. Điểm giao với Ngân là tên trường form, biến truyền sang view, JSON trả về cho AJAX giỏ hàng và responsive.
 
 ## B. Bài nói mở đầu 3-5 phút
 
-“Em là Nguyễn Ngọc Minh Thu, phụ trách sản phẩm, danh mục, đánh giá phía khách và giỏ hàng. Ở trang chủ, controller lấy danh mục active, sản phẩm mới và sản phẩm bán chạy. Sản phẩm bán chạy được tính từ tổng quantity trong OrderItem, sau đó ưu tiên featured và rating.
+“Phần sản phẩm và giỏ hàng em phụ trách backend: danh mục, catalog, đánh giá phía khách và giỏ hàng. Ở trang chủ, controller lấy danh mục active, sản phẩm mới và sản phẩm bán chạy. Sản phẩm bán chạy được tính từ tổng quantity trong OrderItem, sau đó ưu tiên featured và rating.
 
 Trang danh sách sản phẩm dùng một Eloquent query có điều kiện. Trước tiên hệ thống chuẩn hóa đầu vào: chỉ chấp nhận pet type dog hoặc cat, sort thuộc danh sách cho phép, từ khóa tối đa 100 ký tự và giá bị giới hạn trong khoảng an toàn. Sau đó query áp dụng tìm kiếm theo tên hoặc mô tả, danh mục, loại thú cưng, khoảng giá và cách sắp xếp. Kết quả phân trang 12 sản phẩm và giữ lại query string khi chuyển trang.
 
@@ -480,7 +575,7 @@ Trang chi tiết chỉ lấy sản phẩm active theo slug, nạp category và c
 
 Giỏ hàng được lưu trong session chứ chưa ghi database. `CartService` tạo line key từ product ID và variant ID, nên cùng một sản phẩm nhưng khác size hoặc màu là các dòng riêng. Khi thêm, controller kiểm tra trạng thái product, variant active, tồn kho và quantity. Khi render cart, service đọc lại Product/Variant từ database, lấy giá hiện tại, giới hạn quantity theo kho và tính subtotal. Khi cập nhật hoặc xóa, hệ thống kiểm tra line key phải đúng với product trên URL, tránh sửa nhầm dòng.
 
-Phần của em kết thúc tại dữ liệu giỏ đã chuẩn hóa. Checkout của bạn Đạt không tin giá ở giỏ mà tiếp tục khóa và tính lại trong database. Đây là hai lớp kiểm tra để giao diện đúng và nghiệp vụ thanh toán an toàn.”
+Giỏ hàng kết thúc tại dữ liệu đã chuẩn hóa. Sang checkout, hệ thống không tin giá ở giỏ mà tiếp tục khóa và tính lại trong database. Đây là hai lớp kiểm tra để giao diện đúng và nghiệp vụ thanh toán an toàn.”
 
 ## C. Luồng xử lý chi tiết
 
@@ -651,10 +746,10 @@ Nếu dữ liệu thiếu, dùng seeder/test factory trên database test đã ch
 | Giá/tồn thay đổi | Đọc DB hiện tại, cap kho | Nên hiển thị thông báo thay đổi giá/quantity. |
 | Review chưa mua/chưa delivered | Lỗi `review` | Có Feature Test trong `ProductReviewTest.php`. |
 | Review lặp | Update bản cũ + unique DB | Test concurrent insert hiếm nhưng DB unique bảo vệ. |
-| Best seller tính đơn hủy | Chưa lọc state trong `home()` | Đây là khoảng trống logic cần cân nhắc sửa trước bảo vệ. |
+| Best seller tính đơn hủy | Đã lọc trong `home()`: chỉ tính đơn không bị hủy và đã thanh toán (`paid`, `refund_pending`, `refunded`) | Có test `test_bestsellers_ignore_cancelled_and_unpaid_orders`. |
 | Responsive grid | Nhiều media query trong `app.css` | Vẫn phải test thật 390/640/767/1024px. |
 
-## I. Bài kiểm tra nhanh cho Minh Thu
+## I. Bài kiểm tra nhanh cho Đạt (sản phẩm và giỏ hàng)
 
 ### I1. 15 câu trắc nghiệm
 
@@ -710,7 +805,7 @@ Nếu dữ liệu thiếu, dùng seeder/test factory trên database test đã ch
 - Luồng: catalog, thêm variant, cập nhật cart, trang chi tiết và review phải theo đúng năm đáp án ở I3.
 - Tìm code: filter ở `StoreController.php:34-93`; line key/tổng tiền ở `CartService.php:10-24`, `99-136`; verified purchase ở `ProductReviewController.php:41-78`.
 
-## J. Tờ học nhanh của Minh Thu
+## J. Tờ học nhanh của Đạt (sản phẩm và giỏ hàng)
 
 ### 10 ý bắt buộc nhớ
 
@@ -750,8 +845,9 @@ Nếu dữ liệu thiếu, dùng seeder/test factory trên database test đã ch
 - Không nói JavaScript là nơi kiểm tra tồn kho cuối cùng.
 - Không nói filter dog loại product `all`.
 - Không nói mọi review đang chờ duyệt; controller hiện lưu `approved`.
-- Không nói best seller hiện đã lọc đơn canceled; query hiện chưa có điều kiện đó.
-- Không nhận phần Admin là phạm vi của Minh Thu.
+- Không nói best seller tính cả đơn hủy hoặc chưa thanh toán; query đã lọc và có test.
+- Không nhận phần Admin là phạm vi của Đạt.
+- Không nhận làm giao diện Blade/CSS; giao diện do Ngân làm.
 
 # PHẦN IV - LÊ NGỌC BÌNH MINH
 
@@ -759,7 +855,7 @@ Nếu dữ liệu thiếu, dùng seeder/test factory trên database test đã ch
 
 Bình Minh chỉ phụ trách khu vực Admin. Phạm vi gồm route group, authentication/2FA/permission, dashboard và báo cáo, sản phẩm/danh mục/variant/tồn kho, coupon, khách hàng/tài khoản, đơn hàng, vận chuyển, thanh toán/hoàn tiền, đổi trả, đánh giá, liên hệ/chat, cài đặt và audit log. Bình Minh không trình bày catalog, cart, checkout hay tài khoản khách như phần chính.
 
-Điểm giao với Đạt là Admin tiêu thụ Order/payment/shipment state do backend quy định. Điểm giao với Minh Thu là Admin tạo dữ liệu Product/Category/Variant. Điểm giao với Ngân là kiểm thử quyền, responsive Admin và đóng gói.
+Bình Minh làm Admin trọn gói, kể cả giao diện Admin (`resources/views/admin`, `layouts/admin.blade.php`). Điểm giao với Đạt là Admin tiêu thụ Order/payment/coupon state do backend quy định và tạo dữ liệu Product/Category/Variant/Coupon cho storefront. Điểm giao với Ngân là Ngân kiểm thử quyền và responsive Admin. Điểm giao với Minh Thu là ERD và tên bảng.
 
 ## B. Bài nói mở đầu 3-5 phút
 
@@ -1059,31 +1155,32 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 - Không nói tracking code do client quyết định.
 - Không nhận phần storefront/cart/checkout là phạm vi chính của Bình Minh.
 
-# PHẦN V - TRẦN THỊ MỸ NGÂN
+# PHẦN V - GIAO DIỆN VÀ KIỂM THỬ (TRẦN THỊ MỸ NGÂN)
 
 ## A. Phạm vi phụ trách
 
-Mỹ Ngân phụ trách authentication, hồ sơ, đổi mật khẩu, avatar, địa chỉ đã lưu, layout chung, nhận diện Pawora, trang giới thiệu/liên hệ, responsive, checklist nghiệm thu, README, SQL và đóng gói. Ngân không chịu trách nhiệm giải thích sâu gateway/payment hoặc CRUD Admin.
+Mỹ Ngân phụ trách hai bước **Giao diện** và **Kiểm thử**.
 
-Ngân là đầu mối nghiệm thu: nhận module từ ba bạn, chạy kịch bản Lab 8, ghi bằng chứng, nhưng lỗi nghiệp vụ phải trả lại đúng owner sửa. Ngân chỉ được nói “toàn bộ test đạt” sau khi chạy thật với database test hoạt động.
+- **Giao diện:** một mình làm toàn bộ giao diện phía khách: layout chung (`layouts/app`, `layouts/auth`), header/footer, nhận diện Pawora, trang chủ, danh sách và chi tiết sản phẩm, giỏ hàng, checkout (kể cả ô nhập mã giảm giá), xác nhận đơn, thanh toán demo, đơn hàng của tôi, đăng nhập/đăng ký, hồ sơ, địa chỉ, liên hệ, trang giới thiệu; CSS/JS và responsive. Giao diện Admin do Bình Minh làm.
+- **Kiểm thử:** chạy `php artisan test`, lập bảng test case đúng/sai theo Lab 8, visual QA ở nhiều viewport, viết README và thử cài máy sạch.
+
+Ngân không giải thích sâu logic backend (tính giá, transaction, callback) hoặc CRUD Admin. Với đăng nhập, hồ sơ, địa chỉ, liên hệ: Ngân trả lời phần form và giao diện, Đạt trả lời phần backend. Các mục C-E bên dưới vẫn giữ luồng backend để Ngân hiểu khi viết test case.
+
+Ngân là đầu mối nghiệm thu: nhận module từ ba bạn, chạy kịch bản Lab 8, ghi bằng chứng; lỗi nghiệp vụ trả lại đúng owner sửa. Ngân chỉ được nói “toàn bộ test đạt” sau khi chạy thật với database test hoạt động.
 
 ## B. Bài nói mở đầu 3-5 phút
 
-“Em là Trần Thị Mỹ Ngân, phụ trách tài khoản người dùng, giao diện chung, responsive, kiểm thử nghiệm thu và đóng gói. Phần authentication gồm đăng ký, đăng nhập, đăng xuất, quên mật khẩu, đặt lại mật khẩu và đăng nhập mạng xã hội. Khi đăng nhập bằng email, backend validate, chỉ cho tài khoản active, dùng `Auth::attempt`, rồi regenerate session để chống session fixation. Khi đăng xuất, hệ thống invalidate session và tạo lại CSRF token.
+“Em là Trần Thị Mỹ Ngân, phụ trách giao diện và kiểm thử.
 
-Đăng ký kiểm tra email unique, số điện thoại và password tối thiểu tám ký tự có confirmation; password luôn được hash. Quên mật khẩu dùng Laravel Password Broker và trả thông điệp chung để hạn chế lộ email có tồn tại hay không. Tài khoản Admin có thể được yêu cầu mã 2FA sáu số, có hạn dùng, giới hạn số lần sai và route throttle.
+Về giao diện, em dùng Blade layout chung cho cửa hàng và trang đăng nhập. Header, footer, logo, menu và nút giỏ hàng nằm trong layout nên các trang chỉ cần kế thừa, không phải copy. Mỗi trang lấy dữ liệu từ biến controller truyền sang; giao diện chỉ hiển thị, không tự tính giá hay tồn kho. Mọi form POST/PATCH/DELETE đều có `@csrf` và `@method`, lỗi validation được hiển thị ngay dưới từng ô nhập. CSS có các breakpoint cho tablet/mobile và tôn trọng `prefers-reduced-motion`; JavaScript chỉ làm menu, AJAX giỏ hàng và hiệu ứng, không thay backend validation.
 
-Khu vực tài khoản cho phép cập nhật hồ sơ, avatar tối đa 2 MB, đổi mật khẩu bằng current password và quản lý nhiều địa chỉ. Mỗi địa chỉ thuộc đúng user; mọi thao tác update/delete kiểm ownership. Việc đặt địa chỉ mặc định chạy trong transaction và khóa user/address để tại một thời điểm chỉ có một địa chỉ default.
-
-Phần giao diện dùng các layout Blade chung cho cửa hàng, authentication và Admin. Header, footer, logo, navigation và form logout được tái sử dụng thay vì copy. CSS có các breakpoint cho tablet/mobile và `prefers-reduced-motion`; JavaScript bổ sung menu, form, animation và phản hồi nhưng không thay backend validation.
-
-Phần nghiệm thu của em kiểm cả happy path và tình huống sai theo Lab 8: đăng nhập sai, customer vào Admin, xem order khác, giỏ rỗng, quantity sai, vượt kho, giá đổi, thiếu form, ID không tồn tại, callback của order khác, F5 và mobile. Hiện source có nhiều Feature Test nhưng lần kiểm tra tài liệu này MySQL không kết nối nên em phải bật database, chạy lại migration status và toàn bộ test, lưu ảnh kết quả. README vẫn mặc định Laravel và chưa có SQL export, nên đây là hai đầu việc bắt buộc trước khi nộp.”
+Về kiểm thử, project có các Feature Test trong `tests/Feature` cho giỏ hàng, checkout, thanh toán demo, đơn hàng, voucher, đánh giá và Admin. Em chạy `php artisan test` trên database test riêng, rồi kiểm thủ công theo Lab 8 cả đường đúng và đường sai: đăng nhập sai, customer vào Admin, xem đơn người khác, giỏ rỗng, số lượng sai, vượt kho, mã giảm giá hết hạn, thiếu form, F5 và mobile. Kết quả được ghi vào báo cáo kiểm thử và ảnh chụp. Cuối cùng em viết README và thử cài lại project từ đầu để chắc chắn máy khác chạy được.”
 
 ## C. Luồng xử lý chi tiết
 
 | Chức năng | Luồng chính xác |
 |---|---|
-| Đăng nhập | GET form guest → POST `/dang-nhap` throttle → validate → Auth attempt với `is_active=true` → regenerate → nếu Admin 2FA thì logout tạm/challenge, nếu không redirect intended. |
+| Đăng nhập | GET form guest → POST `/dang-nhap` throttle 20/phút → validate → nếu sai ≥5 lần/phút cho cùng email + IP thì báo chờ → Auth attempt với `is_active=true` → regenerate → nếu Admin 2FA thì logout tạm/challenge, nếu không redirect intended. |
 | Đăng ký | GET/POST guest → validate name/email/phone/password confirmed → hash password → create customer → login → regenerate → home/intended. |
 | Đăng xuất | POST `/dang-xuat` auth → logout → invalidate session → regenerate CSRF token → home. |
 | Quên mật khẩu | GET form → POST throttle → validate email → Password Broker gửi link → thông điệp chung/throttle/error. |
@@ -1240,7 +1337,7 @@ Chuẩn bị ảnh/video ngắn của auth email, responsive và test suite ch�
 |---|---|---|---|---|
 | 41 | Password có trả ra JSON không? | Model hidden password/remember token. | `User.php:41-44`. | Hidden có mã hóa DB không? |
 | 42 | Upload avatar giới hạn gì? | Image jpg/jpeg/png/webp, tối đa 2MB. | Account 121. | MIME spoofing cần lưu ý gì? |
-| 43 | Login brute force giảm thế nào? | Route throttle 5/phút. | `routes/web.php:85`. | Cần thêm lockout/IP monitoring không? |
+| 43 | Login brute force giảm thế nào? | Sai 5 lần/phút theo email + IP thì khóa và báo số giây phải chờ; đăng nhập đúng xóa bộ đếm. Route còn throttle 20 request/phút theo IP. | `AuthController::login()` (`RateLimiter`); `routes/web.php` route `POST /dang-nhap`. | Vì sao không đếm lần đăng nhập đúng? |
 | 44 | 2FA sai nhiều lần? | Tối đa 5 attempts rồi yêu cầu login lại; route throttle. | Auth 68-77. | Code được lưu dạng gì trong session? |
 | 45 | Contact spam giảm thế nào? | Throttle, honeypot, validation. | Route 164; Contact 35-55. | CAPTCHA có bắt buộc không? |
 
@@ -1322,34 +1419,34 @@ Chuẩn bị ảnh/video ngắn của auth email, responsive và test suite ch�
 
 ### 10 ý bắt buộc nhớ
 
-1. Login chỉ account active.
-2. Password luôn hash.
-3. Login/register regenerate session.
-4. Logout invalidate session + regenerate CSRF token.
-5. Reset dùng Broker và message chung.
-6. Avatar validate type/size và storage public.
-7. Address luôn kiểm ownership.
-8. Default address dùng transaction/lock.
-9. Responsive cần test thủ công, không chỉ Feature Test.
-10. README và SQL hiện là khoảng trống bắt buộc.
+1. Layout Blade chung (`@extends`/`@yield`/`@section`) giúp không copy header/footer.
+2. Giao diện chỉ hiển thị dữ liệu controller truyền sang; không tự tính giá/tồn kho.
+3. Form thay đổi dữ liệu luôn có `@csrf`; PATCH/DELETE dùng `@method`.
+4. Lỗi validation hiển thị bằng `@error`/`$errors`, giữ lại dữ liệu cũ bằng `old()`.
+5. Logout là form POST, không phải link GET.
+6. CSS có breakpoint cho tablet/mobile và `prefers-reduced-motion`.
+7. Vite build CSS/JS: `npm run dev` khi code, `npm run build` khi nộp.
+8. Kiểm thử gồm test tự động (`php artisan test`) và kiểm thủ công (viewport, keyboard, lỗi form).
+9. Test case phải có cả đường đúng và đường sai theo Lab 8.
+10. Chỉ nói “test đạt” khi đã chạy thật và có ảnh/log.
 
 ### File/bảng/method trọng tâm
 
-- File: `AuthController.php`, `AccountController.php`, `ContactController.php`, `User.php`, auth/account/layout Blade, CSS/JS, README/composer/package/phpunit.
-- Bảng: users, password_reset_tokens, user_addresses, contact_messages.
-- Method: login/register/reset/logout, profile/updatePassword, address CRUD/default, contact store.
+- Giao diện: `resources/views/layouts/app.blade.php`, `layouts/auth.blade.php`, `resources/views/store/*`, `resources/views/account/*`, `resources/views/auth/*`, `resources/views/components/*`, `resources/css/app.css`, `resources/js/app.js`.
+- Kiểm thử: `tests/Feature/*`, `phpunit.xml`, `docs/testing-report.md`, `docs/submission-checklist.md`, `README.md`.
+- Lệnh: `php artisan test`, `npm run build`, `php artisan route:list`.
 
 ### 10 câu dễ bị hỏi nhất
 
-1. Authentication khác authorization?
-2. Password lưu thế nào?
-3. Vì sao regenerate session?
-4. Vì sao logout POST?
-5. Inactive account chặn ở đâu?
-6. Reset password dùng gì?
-7. Upload avatar bảo vệ sao?
-8. Address user khác chặn sao?
-9. Responsive đã test như thế nào?
+1. Layout chung được dùng lại thế nào?
+2. `@csrf` để làm gì? Thiếu thì sao?
+3. Lỗi validation hiển thị lên form bằng cách nào?
+4. Vì sao logout phải là POST?
+5. Số lượng trong giỏ trên header lấy từ đâu?
+6. Responsive đã test ở những kích thước nào, bằng cách nào?
+7. Feature Test khác kiểm thử thủ công thế nào?
+8. Kể 5 tình huống sai đã test và kết quả.
+9. Chạy test cần database nào? Vì sao tách database test?
 10. Cài project trên máy khác theo bước nào?
 
 ### Tuyệt đối không trả lời sai
@@ -1359,7 +1456,7 @@ Chuẩn bị ảnh/video ngắn của auth email, responsive và test suite ch�
 - Không nói DB tự đảm bảo một default address bằng unique constraint hiện có.
 - Không nói Feature Test thay thế visual responsive QA.
 - Không đưa `.env` hoặc secret vào README/SQL/video.
-- Không nói migrate/test hiện đã hoàn tất khi MySQL chưa phản hồi.
+- Không đọc số test cũ; dùng số trong `docs/testing-report.md`.
 
 # PHẦN VI - TỔNG KẾT VÀ LUYỆN BẢO VỆ NHÓM
 
@@ -1368,33 +1465,33 @@ Chuẩn bị ảnh/video ngắn của auth email, responsive và test suite ch�
 | # | Câu hỏi | Người trả lời chính | Câu trả lời chuẩn ngắn | Bằng chứng code |
 |---|---|---|---|---|
 | 1 | Từ URL sản phẩm đến DB đi qua đâu? | Minh Thu | Route → StoreController → Product Model → MySQL → Blade. | `routes/web.php:37-38`, `StoreController.php`. |
-| 2 | Cart chuyển dữ liệu gì sang checkout? | Thu/Đạt | Line product_id, variant_id, quantity; checkout không nhận giá client. | `CartService.php:54-60`, Checkout 144-169. |
-| 3 | Ai tạo Product, ai dùng Product? | Bình Minh/Thu | Admin quản trị; storefront chỉ đọc active product. | Admin products methods; Product active scope. |
-| 4 | Vì sao cả cart và checkout đều kiểm kho? | Thu/Đạt | Cart cho UX đúng; checkout quyết định cuối dưới transaction/lock. | Cart Controller/Service; Checkout 146-167. |
+| 2 | Cart chuyển dữ liệu gì sang checkout? | Đạt | Line product_id, variant_id, quantity; checkout không nhận giá client. | `CartService.php:54-60`, Checkout 144-169. |
+| 3 | Ai tạo Product, ai dùng Product? | Bình Minh/Đạt | Admin quản trị; storefront chỉ đọc active product. | Admin products methods; Product active scope. |
+| 4 | Vì sao cả cart và checkout đều kiểm kho? | Đạt | Cart cho UX đúng; checkout quyết định cuối dưới transaction/lock. | Cart Controller/Service; Checkout 146-167. |
 | 5 | Khi checkout thành công Admin thấy gì? | Đạt/Bình Minh | Order/items/payment state/history; Admin list/show theo filter. | Checkout 184-189; Admin 441-460. |
-| 6 | Authentication và Admin permission nối thế nào? | Ngân/Bình Minh | Auth tạo identity; Admin/permission middleware kiểm role và capability. | Auth login; route Admin 107-158. |
-| 7 | User thường xem order bằng đâu? | Đạt/Ngân | Owner account route hoặc order route có owner/session/token. | Account 103-109; Checkout 249-256. |
-| 8 | Product đổi giá sau khi mua ảnh hưởng đâu? | Thu/Đạt | Catalog dùng giá mới; order cũ giữ unit_price snapshot. | Product price; `order_items.unit_price`. |
+| 6 | Authentication và Admin permission nối thế nào? | Minh Thu/Bình Minh | Auth tạo identity; Admin/permission middleware kiểm role và capability. | Auth login; route Admin 107-158. |
+| 7 | User thường xem order bằng đâu? | Đạt | Owner account route hoặc order route có owner/session/token. | Account 103-109; Checkout 249-256. |
+| 8 | Product đổi giá sau khi mua ảnh hưởng đâu? | Đạt/Minh Thu | Catalog dùng giá mới; order cũ giữ unit_price snapshot. | Product price; `order_items.unit_price`. |
 | 9 | Admin hủy order tác động module nào? | Bình Minh/Đạt | Order state, inventory restore, shipment cancel, refund nếu paid, audit. | Admin 463-533. |
 | 10 | Customer xác nhận nhận hàng tác động gì? | Đạt/Bình Minh | Ghi customer_received_at; Admin mới được delivered; COD mới paid. | Account `confirmOrderReceived`; Admin shipment 587-637. |
-| 11 | Review xác minh mua hàng bằng gì? | Thu | User order delivered có OrderItem product đó. | ProductReviewController 41-51. |
-| 12 | Admin moderation review ảnh hưởng catalog sao? | Bình Minh/Thu | Status đổi; ProductReview model đồng bộ rating/count. | AdminReviewController; ProductReview 51-113. |
-| 13 | Layout chung lấy cart count từ đâu? | Thu/Ngân | Layout gọi trực tiếp `CartService::count()` và header hiển thị count đã chuẩn hóa từ session. | `resources/views/layouts/app.blade.php:23-25`, `59-65`; `CartService.php:59-64`. |
+| 11 | Review xác minh mua hàng bằng gì? | Đạt | User order delivered có OrderItem product đó. | ProductReviewController 41-51. |
+| 12 | Admin moderation review ảnh hưởng catalog sao? | Bình Minh/Đạt | Status đổi; ProductReview model đồng bộ rating/count. | AdminReviewController; ProductReview 51-113. |
+| 13 | Layout chung lấy cart count từ đâu? | Ngân/Đạt | Layout gọi trực tiếp `CartService::count()` và header hiển thị count đã chuẩn hóa từ session. | `resources/views/layouts/app.blade.php:23-25`, `59-65`; `CartService.php:59-64`. |
 | 14 | Tại sao POST/PATCH/DELETE cần CSRF? | Ngân | Chống request thay đổi state từ origin khác dùng session nạn nhân. | Blade forms và VerifyCsrf middleware. |
 | 15 | Tại sao webhook không dựa CSRF? | Đạt | Không có browser session; dùng HMAC/API key của provider. | Gateway verify methods. |
 | 16 | Tại sao Admin UI ẩn nút chưa đủ? | Bình Minh | Có thể gọi URL trực tiếp; route middleware/backend phải chặn. | EnsurePermission. |
-| 17 | Database bảo vệ trùng giao dịch ra sao? | Đạt | Unique request ID và provider transaction key; controller upsert/status check. | Migration payment transactions. |
-| 18 | Database bảo vệ trùng SKU ra sao? | Thu/Bình Minh | Unique products.sku và product_variants.sku, cộng validation. | Migrations + Admin validation. |
+| 17 | Database bảo vệ trùng giao dịch ra sao? | Minh Thu/Đạt | Unique request ID và provider transaction key; controller upsert/status check. | Migration payment transactions. |
+| 18 | Database bảo vệ trùng SKU ra sao? | Minh Thu/Bình Minh | Unique products.sku và product_variants.sku, cộng validation. | Migrations + Admin validation. |
 | 19 | Responsive thuộc ai nhưng ai phải test? | Ngân chủ trì, cả nhóm | Ngân nghiệm thu chung; mỗi owner kiểm màn của mình. | CSS/Blade từng module. |
 | 20 | README ai viết, ai xác minh? | Ngân chủ trì, cả nhóm | Ngân tổng hợp; mỗi owner xác minh env/function/test module. | README cần viết lại. |
 | 21 | Nếu MySQL down thì route:list vẫn chạy vì sao? | Ngân | Route registration không nhất thiết query DB; migrate/test cần connection. | Kết quả kiểm tra phần 0. |
 | 22 | Nếu coupon preview thành công rồi checkout fail? | Đạt | Store kiểm lại coupon dưới lock; trạng thái có thể đã đổi. | Checkout 173-181. |
-| 23 | Nếu variant bị Admin disable khi đang trong cart? | Thu/Đạt/Bình Minh | Cart bỏ/từ chối line; checkout 422; Admin là nguồn thay đổi catalog. | CartService 105-117; Checkout 150-163. |
-| 24 | Nếu account bị Admin khóa trong lúc đã đăng nhập? | Ngân/Bình Minh | Login mới bị chặn; cần đánh giá middleware/session hiện tại cho phiên cũ. | User active + Auth login; điểm cần test thêm. |
-| 25 | Doanh thu và số bán chạy có cùng điều kiện? | Bình Minh/Thu | Không hoàn toàn; dashboard lọc payment/status/time, home sold count hiện chỉ sum OrderItem. | Admin dashboard 43-69; Store home 15-23. |
-| 26 | Tại sao order state và shipment state tách? | Đạt/Bình Minh | Order là cam kết thương mại; shipment là logistics/provider/tracking. | Order/Shipment models. |
+| 23 | Nếu variant bị Admin disable khi đang trong cart? | Đạt/Bình Minh | Cart bỏ/từ chối line; checkout 422; Admin là nguồn thay đổi catalog. | CartService 105-117; Checkout 150-163. |
+| 24 | Nếu account bị Admin khóa trong lúc đã đăng nhập? | Đạt/Bình Minh | Login mới bị chặn; cần đánh giá middleware/session hiện tại cho phiên cũ. | User active + Auth login; điểm cần test thêm. |
+| 25 | Doanh thu và số bán chạy có cùng điều kiện? | Bình Minh/Đạt | Không hoàn toàn; dashboard lọc payment/status/time, home sold count hiện chỉ sum OrderItem. | Admin dashboard 43-69; Store home 15-23. |
+| 26 | Tại sao order state và shipment state tách? | Minh Thu/Đạt | Order là cam kết thương mại; shipment là logistics/provider/tracking. | Order/Shipment models. |
 | 27 | Ai chịu trách nhiệm lỗi callback? | Đạt | Đạt phân tích controller/gateway/test; Bình Minh chỉ vận hành transaction trong Admin. | Payment controllers/services. |
-| 28 | Ai chịu trách nhiệm lỗi Admin catalog? | Bình Minh | Bình Minh quản trị/permission/audit; Thu xác nhận tác động storefront. | AdminController + StoreController. |
+| 28 | Ai chịu trách nhiệm lỗi Admin catalog? | Bình Minh | Bình Minh quản trị/permission/audit; Đạt xác nhận tác động storefront. | AdminController + StoreController. |
 | 29 | Ai chịu trách nhiệm cài lại máy khác? | Ngân | Ngân chủ trì dependencies/env/DB/storage/build/test, owner xác minh module. | Composer/package/.env.example/README. |
 | 30 | Khi không biết câu hỏi ngoài phạm vi nên làm gì? | Cả nhóm | Nói đúng phần biết, chỉ owner và mở code; không đoán table/method. | Bảng phân công và file evidence. |
 
@@ -1539,54 +1636,56 @@ erDiagram
 
 | Mốc bàn giao | Owner | Người nhận | Tiêu chí chấp nhận |
 |---|---|---|---|
-| Catalog/cart → checkout | Minh Thu | Tiến Đạt | Hai variant thành hai line; quantity hợp lệ; product/variant IDs đúng; không truyền giá làm nguồn tin. |
-| Checkout/order/payment → Admin | Tiến Đạt | Bình Minh | Order totals/items/history/payment state đúng; state constants được thống nhất; test owner/callback/stock có bằng chứng. |
-| Admin catalog → storefront | Bình Minh | Minh Thu | Product/category/variant active, SKU unique, ảnh/giá/tồn hợp lệ; archived không xuất hiện. |
-| Auth/layout → mọi module | Mỹ Ngân | Cả nhóm | Account demo, login/logout, CSRF, header/footer, viewport và asset build hoạt động. |
-| Mỗi module → nghiệm thu | Ba owner | Mỹ Ngân | Test case, dữ liệu demo, file code trọng tâm, lỗi đã biết và cách tái hiện. |
-| Nghiệm thu → bản nộp | Mỹ Ngân | Cả nhóm | README, SQL, `.env.example`, storage/build, test report, demo script và gói chạy máy sạch. |
+| Nghiệp vụ/ERD/MVC → cả nhóm | Minh Thu | Cả nhóm | Use case, ERD, tên bảng/trạng thái thống nhất; migration chạy được; SQL export khớp migration. |
+| Backend → giao diện | Tiến Đạt | Mỹ Ngân | Mỗi trang có route, tên trường form, biến view, JSON AJAX; không truyền giá làm nguồn tin. |
+| Giao diện → backend | Mỹ Ngân | Tiến Đạt | Form đúng `@csrf`/`@method`/tên trường; hiển thị lỗi validation và flash. |
+| Checkout/order/payment → Admin | Tiến Đạt | Bình Minh | Order totals/items/history/payment state đúng; coupon usage đúng; test owner/callback/stock có bằng chứng. |
+| Admin catalog/coupon → storefront | Bình Minh | Tiến Đạt | Product/category/variant/coupon active, SKU/code unique, ảnh/giá/tồn hợp lệ; archived không xuất hiện. |
+| Mỗi phần → nghiệm thu | Ba thành viên | Mỹ Ngân | Test case, dữ liệu demo, file code trọng tâm, lỗi đã biết và cách tái hiện. |
+| Nghiệm thu → bản nộp | Mỹ Ngân | Cả nhóm | README, `.env.example`, storage/build, test report, demo script và gói chạy máy sạch; SQL do Minh Thu cung cấp. |
 
 ## 5. Kịch bản bảo vệ nhóm trong 15 phút
 
-### 0:00-1:00 - Mỹ Ngân mở đầu
+Thứ tự trình bày đi theo chuỗi 11 bước của giảng viên.
 
-“Nhóm em xây dựng Pawora, website thương mại điện tử phụ kiện chó mèo bằng Laravel 10, Blade, MySQL và Vite. Luồng chính là catalog → giỏ → checkout → thanh toán → đơn hàng → Admin/vận chuyển → hoàn tất. Nhóm phân công theo module và sẽ demo một luồng mua hoàn chỉnh.”
+### 0:00-3:00 - Minh Thu: phân tích nghiệp vụ, database, MVC
 
-Chiếu một slide kiến trúc MVC và ERD, không đọc toàn bộ bảng.
+“Nhóm em xây dựng Pawora, website thương mại điện tử phụ kiện chó mèo bằng Laravel 12, Blade, MySQL và Vite. Nhóm chia việc theo 11 bước: em làm phân tích nghiệp vụ, database và MVC; Ngân làm giao diện và kiểm thử; Đạt làm sản phẩm, giỏ hàng, checkout, thanh toán, đơn hàng; Bình Minh làm Admin.”
 
-### 1:00-3:30 - Minh Thu: sản phẩm và giỏ
+1. Tác nhân và use case; luồng mua hàng chính.
+2. ERD, bảng `orders` ở tâm; unique/FK quan trọng.
+3. Sơ đồ Route → Middleware → Controller → Model → View với ví dụ trang sản phẩm.
 
-1. Trang chủ/category/catalog.
-2. Tìm kiếm + một filter + sort.
-3. Mở product có variant; thêm hai variant.
-4. Mở cart; giải thích line key/session/giá DB.
-5. Mở nhanh `StoreController::index()` và `CartService::details()`.
+### 3:00-4:30 - Mỹ Ngân: giao diện
 
-### 3:30-8:30 - Tiến Đạt: checkout, payment, order
+1. Layout chung, brand, trang chủ.
+2. Chuyển mobile viewport: header/cart/checkout không overflow.
 
-1. Checkout địa chỉ/coupon/ship/COD.
-2. Đặt order; chỉ Order/Item/stock/history.
-3. Mở transaction/lock/price tại `CheckoutController.php:146-195`.
-4. Giải thích QR/online callback bằng sơ đồ, demo một phương thức.
-5. Nói order status vs payment status và bảo mật order.
+### 4:30-9:30 - Tiến Đạt: sản phẩm, giỏ hàng, checkout, thanh toán, đơn hàng
 
-### 8:30-12:00 - Bình Minh: Admin
+1. Tìm kiếm + lọc; mở sản phẩm có biến thể; thêm hai biến thể vào giỏ.
+2. Giải thích session cart và giá lấy lại từ DB.
+3. Checkout: địa chỉ, phí ship, **mã giảm giá**, chọn COD, chuyển khoản QR hoặc VNPay.
+4. Mở transaction/lock/tính lại giá trong `CheckoutController::store()`.
+5. Order status vs payment status; chặn xem đơn người khác.
 
-1. Customer 403 hoặc nói ngắn route protection.
-2. Dashboard net revenue.
-3. Mở order vừa tạo, confirm/process.
-4. Shipment packed/shipped; giải thích delivered cần customer receipt.
-5. Mở audit/inventory ledger và permission config.
+### 9:30-12:30 - Bình Minh: Admin
 
-### 12:00-13:30 - Mỹ Ngân: tài khoản/responsive/QA
+1. Customer vào Admin bị 403 hoặc nói ngắn route protection.
+2. Dashboard doanh thu.
+3. Mở đơn vừa tạo, xác nhận/xử lý; quản lý mã giảm giá.
+4. Giải thích delivered cần khách xác nhận nhận hàng.
+5. Mở inventory ledger và permission config.
 
-1. Profile/address hoặc login error nhanh.
-2. Chuyển mobile viewport; header/cart/checkout không overflow.
-3. Trình test report, README/SQL và quy trình cài máy khác.
+### 12:30-14:00 - Mỹ Ngân: kiểm thử
 
-### 13:30-15:00 - Tổng kết
+1. Chạy/trình kết quả `php artisan test`.
+2. Bảng test case đúng/sai theo Lab 8.
+3. README và quy trình cài máy khác.
 
-“Điểm nhóm em tập trung là tính nhất quán dữ liệu và bảo mật: server tính lại giá, transaction và row lock cho tồn kho, state machine cho order/shipment, chữ ký và amount cho callback, ownership cho dữ liệu người dùng, permission/audit cho Admin.”
+### 14:00-15:00 - Tổng kết
+
+“Điểm nhóm em tập trung là tính nhất quán dữ liệu và bảo mật: server tính lại giá, transaction và row lock cho tồn kho, state machine cho đơn hàng, chữ ký và số tiền cho callback, kiểm tra chủ sở hữu dữ liệu và phân quyền cho Admin.”
 
 Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính trả lời trước, người liên quan bổ sung tối đa 20 giây.
 
@@ -1616,7 +1715,7 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 - Vẽ ERD bằng tay từ trí nhớ.
 - Mỗi người mở đúng 10 điểm code trong tờ học nhanh dưới 30 giây.
-- Đạt luyện transaction/lock/payment; Bình Minh luyện permission/state; Thu luyện query/cart; Ngân luyện auth/address/install.
+- Thu luyện ERD/migration/MVC; Đạt luyện query/cart/transaction/lock/payment; Bình Minh luyện permission/state; Ngân luyện Blade/CSRF/responsive/test/install.
 
 ### Ngày 5 - demo module
 
@@ -1656,19 +1755,27 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 ### Vòng 1 - Nguyễn Ngọc Minh Thu
 
+**Giảng viên:** “Vì sao `order_items` phải lưu giá, không lấy giá từ bảng `products`?”
+
+**Thu:** “Vì giá sản phẩm có thể đổi sau khi khách mua. `order_items` lưu `unit_price` và `line_total` tại thời điểm đặt hàng, nên đơn cũ luôn đúng số tiền khách đã trả.”
+
+**Giảng viên:** “Giỏ hàng có bảng không?”
+
+**Thu:** “Không. Giỏ nằm trong session, chỉ lưu product ID, variant ID và số lượng. Khi đặt hàng mới ghi xuống `orders` và `order_items`.”
+
+**Giảng viên:** “Mở trang sản phẩm thì request đi qua đâu?”
+
+**Thu:** “Route `/san-pham` trong `routes/web.php` gọi `StoreController::index()`. Controller dùng Model `Product` để query MySQL, rồi trả view `store.products`. Nếu route cần đăng nhập thì middleware `auth` chặn trước khi vào controller.”
+
+### Vòng 2 - Nguyễn Tiến Đạt
+
 **Giảng viên:** “Em nói cart lưu trong session. Vậy giá trong session có được dùng để thanh toán không?”
 
-**Thu:** “Không. Session chỉ lưu product ID, variant ID và quantity. `CartService::details()` đọc giá DB để hiển thị, và phần checkout của bạn Đạt tiếp tục khóa Product/Variant rồi lấy lại giá tại `CheckoutController.php:149-169`.”
+**Đạt:** “Không. Session chỉ lưu product ID, variant ID và quantity. `CartService::details()` đọc giá DB để hiển thị, và checkout tiếp tục khóa Product/Variant rồi lấy lại giá trong transaction.”
 
 **Giảng viên:** “Hai màu của cùng sản phẩm có ghi đè nhau không?”
 
-**Thu:** “Không. Line key là `productId:variantId` tại `CartService.php:10-12`, nên mỗi variant là một line. Update/delete còn parse line key và kiểm nó thuộc đúng Product trên URL.”
-
-**Giảng viên:** “Sản phẩm bán chạy có loại đơn hủy chưa?”
-
-**Thu:** “Query trang chủ hiện sum quantity trên OrderItem nhưng chưa lọc trạng thái Order tại `StoreController.php:15-23`. Đây là điểm nhóm cần cải thiện; dashboard Admin thì đã lọc theo trạng thái thanh toán và thời gian.”
-
-### Vòng 2 - Nguyễn Tiến Đạt
+**Đạt:** “Không. Line key là `productId:variantId` trong `CartService`, nên mỗi variant là một line. Update/delete còn kiểm line key thuộc đúng Product trên URL.”
 
 **Giảng viên:** “Tại sao phải dùng transaction?”
 
@@ -1698,25 +1805,25 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 ### Vòng 4 - Trần Thị Mỹ Ngân
 
-**Giảng viên:** “Đăng nhập thành công phải regenerate session để làm gì?”
+**Giảng viên:** “Form trong Blade thiếu `@csrf` thì sao?”
 
-**Mỹ Ngân:** “Để chống session fixation. Project gọi `session()->regenerate()` sau email login, register và social login.”
+**Mỹ Ngân:** “Laravel trả lỗi 419 và không xử lý request. `@csrf` chèn token để chống website khác gửi request thay người dùng. Với PATCH/DELETE em dùng thêm `@method` vì HTML form chỉ có GET/POST.”
 
-**Giảng viên:** “Database có tự đảm bảo mỗi user một default address không?”
+**Giảng viên:** “Giao diện có tự tính tổng tiền không?”
 
-**Mỹ Ngân:** “Migration chỉ index `is_default`, chưa có partial unique constraint. Tính đúng hiện được bảo vệ ở application bằng transaction, lock user/address và reset các địa chỉ khác trong `AccountController.php:150-223`.”
+**Mỹ Ngân:** “Không. Giao diện chỉ hiển thị số controller truyền sang hoặc JSON trả về khi cập nhật giỏ. Tổng tiền cuối cùng do backend tính lại lúc đặt hàng.”
 
 **Giảng viên:** “Các em nói test đạt chưa?”
 
-**Mỹ Ngân:** “Trong lần kiểm tra tài liệu này, route list thành công nhưng MySQL từ chối kết nối nên migrate status và toàn bộ Feature Test chưa hoàn tất. Nhóm chỉ được kết luận đạt sau khi bật database test, chạy hết suite với exit code 0 và lưu bằng chứng.”
+**Mỹ Ngân:** “Rồi ạ. Ngày 26/09/2026 nhóm chạy lại trên MariaDB của XAMPP: 168 test, 1.778 assertion, không lỗi; 27/27 migration đã chạy; build pass. Ngoài test tự động, nhóm còn chạy thủ công luồng COD, QR Demo, Admin và các tình huống 403/404. Kết quả ghi trong `docs/testing-report.md`.”
 
 ### Vòng hỏi chéo cuối
 
 **Giảng viên:** “Admin disable variant trong khi khách đang checkout thì sao?”
 
-**Thu:** “Cart render sẽ bỏ hoặc từ chối variant không active.”
+**Đạt:** “Cart render sẽ bỏ hoặc từ chối variant không active; checkout còn truy vấn active Variant dưới lock và trả 422 nếu line không còn hợp lệ.”
 
-**Đạt:** “Checkout còn truy vấn active Variant dưới lock và trả 422 nếu line không còn hợp lệ.”
+**Thu:** “Về database, variant có cột trạng thái active nên không cần xóa bản ghi; đơn cũ vẫn giữ tham chiếu và giá đã lưu.”
 
 **Bình Minh:** “Thao tác disable của Admin cần permission và audit.”
 
@@ -1726,10 +1833,10 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 | Mục Lab 8 | Hiện trạng source | Còn phải làm |
 |---|---|---|
-| 25 - Checklist chức năng | Có routes/controllers/views/tests cho hầu hết chức năng | Chạy lại toàn bộ suite với MySQL; lập bảng pass/fail có ngày và người test. |
-| 26 - Tình huống sai | Có nhiều test quyền, kho, giá, callback, workflow | Bổ sung/đánh dấu rõ test giỏ rỗng, quantity 0/âm, ID 404, double submit/F5, từng QR ownership và responsive manual. |
-| 27 - Đóng gói | Có composer/package/.env.example/storage link/build manifest | README chưa đúng; SQL chưa có; kiểm file root thừa và clean-install. |
-| 28 - README | File tồn tại nhưng là mặc định Laravel | Viết README Pawora đầy đủ cài đặt, env, DB, build, test, demo account an toàn. |
+| 25 - Checklist chức năng | Đủ 27 chức năng; 168 test pass ngày 26/09/2026 | Giữ báo cáo `docs/testing-report.md` cập nhật. |
+| 26 - Tình huống sai | Có test cho 11/12 tình huống; đã chạy thủ công 403/404 | Thử trên điện thoại thật. |
+| 27 - Đóng gói | README, SQL export mới, `.env.example`, storage link, build | Giải nén thử gói vào thư mục mới và làm theo README. |
+| 28 - README | README Pawora đầy đủ | Không. |
 | 29-31 - Đề tài riêng | Brand Pawora, dog/cat, variants, stock, shipping, payment, CSKH rõ | Chốt mô tả nghiệp vụ đặc thù và giải thích thuộc tính pet/size/color. |
 | 32 - Mức hoàn thành | Kiến trúc và chức năng vượt Lab cơ bản | Đảm bảo mọi thành viên hiểu phần mình thay vì chỉ có code. |
 | 33 - Sản phẩm cuối | Có chuỗi catalog→cart→checkout→payment→order→Admin | Chuẩn bị bài nói, demo, code evidence và ERD theo tài liệu này. |
@@ -1738,38 +1845,37 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 ### Những khoảng trống kỹ thuật cần nói thật
 
-1. `migrate:status` hiện không kết nối được MySQL; test suite chưa hoàn tất trong lần kiểm tra này.
-2. README là bản Laravel mặc định.
-3. Chưa có file SQL export được xác nhận trong repo.
-4. Query best seller trang chủ hiện chưa loại đơn canceled/unpaid.
-5. Checkout chưa thấy idempotency key cho double-submit tạo Order; POST/Redirect/GET giảm F5 nhưng không thay thế idempotency phía server.
-6. Luồng callback của từng gateway không có mức coverage giống nhau; cần chạy/bổ sung test cho SePay, VNPay, ZaloPay và duplicate callback.
-7. Responsive có nhiều CSS rule nhưng vẫn cần visual QA thật.
-8. Một địa chỉ default được bảo vệ ở application, chưa phải invariant độc lập ở DB.
-9. File root có tài nguyên/tệp tạm cần xác minh dùng hay bỏ trước đóng gói.
+Đã đóng (không còn là khoảng trống): README Pawora, SQL export đủ 27 migration, best seller lọc đơn hủy/chưa thanh toán, idempotency chống double-submit, dọn file thừa ở thư mục gốc.
+
+Còn lại, nói thật nếu bị hỏi:
+
+1. Các cổng thanh toán (SePay, VNPay, ZaloPay, MoMo) có mức test callback không đồng đều; phạm vi bảo vệ gồm COD, QR chuyển khoản SePay và VNPay sandbox. OnePay đã được gỡ ngày 26/09/2026 vì sandbox dừng ở bước 3D Secure (mã `F`).
+2. Responsive đã kiểm bằng giả lập viewport; cần thử thêm trên điện thoại thật.
+3. Một địa chỉ mặc định được bảo vệ ở tầng ứng dụng (transaction + lock), chưa có ràng buộc riêng trong DB.
+4. SQL export là ảnh chụp tại một thời điểm; thêm migration mới thì phải export lại.
 
 ## 10. Thứ tự ưu tiên sửa trước ngày nộp
 
 | Ưu tiên | Việc | Owner | Điều kiện hoàn thành |
 |---|---|---|---|
-| P0 | Khôi phục MySQL, tạo/kiểm `pawora_testing`, chạy migration status và toàn suite | Mỹ Ngân phối hợp cả nhóm | Exit code 0 hoặc danh sách lỗi cụ thể có owner; không còn lệnh treo. |
-| P0 | Viết README Pawora | Mỹ Ngân | Máy/thư mục sạch làm theo README chạy được. |
-| P0 | Export SQL và thử import | Mỹ Ngân | Import thành công; số bảng và dữ liệu demo đúng; không chứa secret. |
+| P0 | ~~Khôi phục MySQL, chạy migration status và toàn suite~~ | Mỹ Ngân | Đã xong 26/09: 27/27 migration, 168 test pass. |
+| P0 | ~~Viết README Pawora~~ | Mỹ Ngân | Đã xong. |
+| P0 | ~~Export SQL và thử import~~ | Minh Thu | Đã xong 26/09: đủ 26 bảng/27 migration, import khớp schema. |
 | P0 | Xác minh checkout/payment/order/stock/security | Tiến Đạt | COD + một QR/online demo; test race/amount/ownership/idempotency quan trọng. |
-| P1 | Sửa best seller loại đơn không hợp lệ | Minh Thu | Query chỉ tính order phù hợp; test chứng minh canceled không được tính. |
-| P1 | Bổ sung double-submit/idempotency checkout | Tiến Đạt | Cùng logical request không tạo hai Order; test tự động. |
+| P1 | ~~Sửa best seller loại đơn không hợp lệ~~ | Tiến Đạt | Đã xong, có regression test. |
+| P1 | ~~Bổ sung double-submit/idempotency checkout~~ | Tiến Đạt | Đã xong, có regression test. |
 | P1 | Rà permission và dangerous actions | Bình Minh | Customer/Staff gọi URL trái phép đều 403; audit có bản ghi đúng. |
-| P1 | Visual responsive QA | Mỹ Ngân + từng owner | Không overflow/clipping ở viewport đã chốt; lưu ảnh checklist. |
-| P2 | Dọn file root/tài nguyên không dùng | Mỹ Ngân, owner xác nhận | Chỉ dọn file đã xác minh không tham chiếu; build/test vẫn đạt. |
+| P1 | Visual responsive QA | Mỹ Ngân (Admin: Bình Minh) | Không overflow/clipping ở viewport đã chốt; lưu ảnh checklist. |
+| P2 | ~~Dọn file root/tài nguyên không dùng~~ | Mỹ Ngân | Đã xong; khi nén bỏ thêm `projects/`, `output/`, `.agents/`, `design-system/`, `scripts/`. |
 | P2 | Quay video/ảnh dự phòng | Cả nhóm | Có COD, QR/payment, Admin, responsive và test report. |
 
 ## 11. Checklist nghiệm thu chi tiết mục 25-26
 
 | Case | Người chạy | Kết quả mong đợi |
 |---|---|---|
-| Trang chủ/catalog/detail/search/filter/sort/page | Minh Thu | Dữ liệu đúng, query giữ, 404 slug sai, mobile không overflow. |
-| Add cùng variant, hai variant, update, delete | Minh Thu | Quantity/line/subtotal/count đúng, không vượt kho. |
-| Add quantity 0/âm/quá 20, variant khác product | Minh Thu | Validation/422/404 phù hợp, session không hỏng. |
+| Trang chủ/catalog/detail/search/filter/sort/page | Đạt + Ngân | Dữ liệu đúng, query giữ, 404 slug sai, mobile không overflow. |
+| Add cùng variant, hai variant, update, delete | Đạt + Ngân | Quantity/line/subtotal/count đúng, không vượt kho. |
+| Add quantity 0/âm/quá 20, variant khác product | Đạt + Ngân | Validation/422/404 phù hợp, session không hỏng. |
 | Guest checkout, cart rỗng, form thiếu | Tiến Đạt | Redirect login hoặc validation/422, không tạo Order. |
 | Giá/stock/coupon đổi giữa cart-checkout | Tiến Đạt | Tính lại DB, không oversell, coupon tái kiểm. |
 | COD complete | Đạt/Bình Minh | Order/items/history/stock/shipment/COD paid đúng. |
@@ -1778,26 +1884,27 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 | Customer xem order khác/Admin route | Đạt/Bình Minh | 403. |
 | Admin/Staff permission | Bình Minh | Đúng ma trận; dangerous action bị chặn/audit. |
 | Order/shipment skip/revive/cancel/refund | Bình Minh/Đạt | Backend state machine từ chối bước sai; stock/refund đúng. |
-| Login sai/inactive/reset/avatar/address ownership | Mỹ Ngân | Error an toàn, session/file/DB đúng. |
-| Responsive/reduced motion/keyboard/errors | Mỹ Ngân + owner | Dùng được ở 390/640/767/1024px và keyboard. |
+| Login sai/inactive/reset/avatar/address ownership | Ngân (backend: Đạt) | Error an toàn, session/file/DB đúng. |
+| Responsive/reduced motion/keyboard/errors | Mỹ Ngân (Admin: Bình Minh) | Dùng được ở 390/640/767/1024px và keyboard. |
 | Clean install | Mỹ Ngân | README đủ để chạy home, auth, DB, assets, tests. |
+| Migration chạy sạch, SQL import khớp schema | Minh Thu | Đã đạt 26/09/2026: `migrate --seed` trên DB trống thành công; SQL đủ 26 bảng, gồm `coupon_usages`. |
 
 ## 12. Tóm tắt phân công cuối cùng
 
-- **Nguyễn Tiến Đạt:** checkout → phí/coupon → payment/QR/gateway → Order/Item → inventory/order security → cancel/refund. Đây là phần khó nhất.
-- **Nguyễn Ngọc Minh Thu:** home/catalog/category/product/variant/search/filter/sort/page/review → cart session. Không làm Admin.
-- **Lê Ngọc Bình Minh:** toàn bộ Admin và chỉ Admin: middleware/permission/2FA, dashboard, catalog, stock, users, order, shipment, payment/refund, CSKH, settings, audit.
-- **Trần Thị Mỹ Ngân:** auth/profile/address/layout/brand/responsive/contact → QA Lab 8 → README/SQL/package/clean install.
+- **Nguyễn Ngọc Minh Thu (bước 1-3):** phân tích nghiệp vụ → thiết kế database (ERD, migration, SQL export) → Laravel MVC. Không code chức năng cụ thể, không làm Admin.
+- **Trần Thị Mỹ Ngân (bước 4, 11):** một mình làm toàn bộ giao diện phía khách (layout, trang chủ, sản phẩm, giỏ, checkout, xác nhận, đơn hàng, tài khoản, responsive) → kiểm thử, README, cài máy sạch.
+- **Nguyễn Tiến Đạt (bước 5-9, chỉ backend):** sản phẩm → giỏ hàng → checkout + mã giảm giá → thanh toán COD/QR chuyển khoản/VNPay → đơn hàng; kèm backend đăng nhập/tài khoản/liên hệ. Không làm giao diện.
+- **Lê Ngọc Bình Minh (bước 10):** toàn bộ Admin, cả giao diện lẫn xử lý: permission, dashboard, sản phẩm/danh mục, tồn kho, mã giảm giá, người dùng, đơn hàng/vận chuyển.
 
-## 13. 10 việc nhóm cần làm ngay
+## 13. Việc nhóm cần làm trước buổi bảo vệ
 
-1. Bật và ổn định MySQL/XAMPP; xác minh database `pawora` và `pawora_testing`.
-2. Chạy `php artisan migrate:status` và toàn bộ `php artisan test`; lưu log/ảnh kết quả.
-3. Viết lại `README.md` theo Pawora và thử hướng dẫn ở môi trường sạch.
-4. Export SQL, import thử và đối chiếu schema/dữ liệu.
-5. Đạt chốt một luồng COD và một luồng QR/online có callback an toàn để demo.
-6. Thu kiểm tra và sửa logic best seller không tính đơn canceled/unpaid, kèm test.
-7. Đạt đánh giá/bổ sung idempotency cho double-submit checkout, kèm test.
-8. Bình Minh chạy ma trận Customer/Staff/Admin trên các action nguy hiểm và kiểm audit.
-9. Ngân chủ trì visual QA ở bốn viewport, reduced motion, keyboard và lỗi form.
-10. Cả nhóm chạy bảo vệ giả lập 15 phút ít nhất hai lần và hoàn thành flashcard câu hỏi của từng người.
+Đã xong ngày 26/09/2026: chạy lại migration/test trên XAMPP, export lại SQL, gỡ QR Demo và OnePay, cập nhật README và `docs/testing-report.md`; best seller và idempotency đã có test.
+
+1. Cả nhóm: trước khi demo bật Apache + MySQL trong XAMPP; nếu `php artisan` báo `Access denied` thì chạy `$env:DB_PASSWORD = $null` trong PowerShell.
+2. Thu: vẽ ERD và sơ đồ use case cho slide; nếu nhóm thêm migration mới thì export lại SQL theo lệnh trong README.
+3. Đạt: tập demo COD, QR chuyển khoản (đặt đơn → trang QR → Admin xác nhận đã nhận thanh toán) và VNPay (thẻ test NCB); kiểm tra `.env` máy demo đã có `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER` và cấu hình VNPay sandbox.
+4. Đạt: gửi Ngân danh sách route, tên trường form và biến view của các trang sản phẩm/giỏ/checkout/đơn hàng.
+5. Bình Minh: chạy ma trận Customer/Staff/Admin trên các action nguy hiểm; tập demo quản lý mã giảm giá.
+6. Ngân: thử trên một điện thoại thật; cập nhật slide 25 theo số liệu mới (129 route, 27 migration, 168 test/1.778 assertion).
+7. Ngân: nén gói theo `docs/submission-checklist.md`, giải nén vào thư mục mới và làm đúng README một lần.
+8. Cả nhóm chạy bảo vệ giả lập 15 phút ít nhất hai lần.
