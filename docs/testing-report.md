@@ -53,6 +53,22 @@ Chạy website trên database seed sạch, đăng nhập bằng tài khoản dem
 | Khách xem đơn của user khác / đơn không tồn tại / sản phẩm không tồn tại | Pass: 403 / 404 / 404 |
 | Mobile 375 x 812: danh sách sản phẩm, danh sách đơn Admin | Pass: không có overflow ngang |
 
+## Kiểm tra bản deploy Railway (26/09/2026)
+
+Link: https://petshopnew-production.up.railway.app. Các mục cần đăng nhập do nhóm tự thử trên giao diện.
+
+| Hạng mục | Cách kiểm tra | Kết quả |
+| --- | --- | --- |
+| Trang public | `/`, `/san-pham`, chi tiết sản phẩm, `/gio-hang`, `/dang-nhap`, `/dang-ky`, `/ve-pawora`, `/lien-he` | Pass: 200, mỗi trang khoảng 0,3–0,6 giây |
+| Dữ liệu demo | Đếm sản phẩm ở `/san-pham` | Pass: 32 sản phẩm sau khi chạy `pawora:seed-if-empty` |
+| CSS/JS/ảnh | Tải file `build/assets/*` và ảnh `media/products` | Pass: 200 |
+| HTTPS sau proxy | Link trong trang, redirect của `/thanh-toan`, `/admin` | Pass: không còn link `http://`; chưa đăng nhập bị chuyển về `https://…/dang-nhap` |
+| Cookie | Header `Set-Cookie` | Pass: `pawora_session` có `secure`, `httponly` |
+| Trang lỗi | Sản phẩm/đơn không tồn tại | Pass: 404, không lộ trang debug |
+| Đăng nhập mạng xã hội | Trang `/dang-nhap` khi chưa cấu hình Google/Facebook | Pass: nút tự ẩn |
+| GHN | Lệnh tinker đếm quận/huyện của Thành phố Hà Nội trên Console Railway | Pass: 30 quận/huyện, server Railway (US West) gọi được GHN sandbox |
+| Đăng nhập, COD, VNPay, ZaloPay, MoMo, Admin đổi trạng thái | Nhóm thử trên giao diện với tài khoản demo | Chờ nhóm xác nhận |
+
 ## Kiểm tra giao diện
 
 | Viewport | Luồng | Kết quả |

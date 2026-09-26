@@ -14,6 +14,8 @@
 | File SQL | `database/export/pawora_demo.sql`, export lại 26/09/2026, đủ 26 bảng/27 migration; import thử khớp schema | Là file SQL duy nhất để nộp. Thêm migration mới thì phải export lại. |
 | Thanh toán QR | QR Demo đã gỡ (26/09/2026). QR là chuyển khoản SePay/VietQR, cần `SEPAY_BANK` + `SEPAY_ACCOUNT_NUMBER` trong `.env` | Xác nhận bằng webhook SePay hoặc Admin bấm “Xác nhận đã nhận thanh toán”. Máy chưa cấu hình SePay chỉ chạy COD. |
 
+Bản online cho giảng viên: https://petshopnew-production.up.railway.app (Railway, MySQL riêng, GHN sandbox, COD/VNPay/ZaloPay/MoMo sandbox). Nếu mạng lớp ổn có thể demo trên link này; XAMPP là phương án dự phòng.
+
 Lưu ý trên máy của nhóm: phải bật Apache và MySQL trong XAMPP Control Panel trước khi chạy. Nếu Windows có sẵn biến môi trường `DB_PASSWORD` của project khác, chạy `$env:DB_PASSWORD = $null` trong PowerShell trước các lệnh `php artisan`.
 
 ## 1. Phân công chính thức

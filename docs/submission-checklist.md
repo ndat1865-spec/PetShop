@@ -55,6 +55,14 @@ Ngày chuẩn bị: 31/08/2026, cập nhật 26/09/2026 (Asia/Ho_Chi_Minh)
 - [ ] Kiểm tra trên ít nhất một điện thoại vật lý: menu, tìm kiếm, giỏ hàng, checkout, bàn phím form, QR và nút giả lập.
 - [ ] Kiểm tra thêm trình duyệt sẽ dùng khi chấm (Chrome/Edge mới nhất trên máy nhận bài).
 
+## Bản deploy Railway
+
+- [x] Link chạy: https://petshopnew-production.up.railway.app (trang public, 32 sản phẩm, HTTPS, 404).
+- [x] GHN bật trên Railway; Console trả 30 quận/huyện Hà Nội.
+- [ ] Đăng nhập khách demo, checkout thấy Quận/Huyện → Phường/Xã từ GHN và phí ship GHN.
+- [ ] COD, VNPay (thẻ NCB), ZaloPay, MoMo chuyển đúng sang cổng sandbox; Admin đổi trạng thái đơn.
+- [ ] Ghi nhớ hạn gói dùng thử Railway ($5 / 30 ngày) so với ngày chấm.
+
 ## Đóng gói cuối
 
 - [ ] Chạy `php artisan optimize:clear`.

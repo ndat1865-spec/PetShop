@@ -3,7 +3,7 @@
 ## Nguyên tắc vận hành
 
 - Tổng thời lượng mục tiêu: **14 phút 10 giây nội dung + 50 giây đệm**, không tính Q&A.
-- Demo thật: **3 phút 30 giây**, dùng XAMPP tại `http://localhost/PetShopnew/public`.
+- Demo thật: **3 phút 30 giây**, dùng XAMPP tại `http://localhost/PetShopnew/public`; bản online dự phòng/đưa giảng viên: https://petshopnew-production.up.railway.app (có GHN sandbox cho Quận/Huyện và phí ship).
 - Không mở `.env`, token, API key, payload chứa secret hoặc email thật.
 - Dùng tài khoản demo: `khach@pawora.vn` và `admin@pawora.vn`, mật khẩu `Pawora@2026`.
 - Chuẩn bị sẵn ba tab: trang chủ, checkout khách đã có cart, dashboard Admin. Không tạo thanh toán sandbox thật nếu credential chưa cấu hình.

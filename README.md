@@ -102,26 +102,39 @@ Sau đó mở `http://127.0.0.1:8000` và đặt `APP_URL=http://127.0.0.1:8000`
 
 `railway.json` đã cấu hình sẵn: Railway build bằng Railpack (Composer, `npm run build`, FrankenPHP với document root `public/`), trước mỗi lần deploy chạy `php artisan migrate --force && php artisan pawora:seed-if-empty` (chỉ seed dữ liệu demo khi database còn trống), rồi kiểm tra sức khỏe tại `/`.
 
-1. Đẩy code lên GitHub.
-2. Trên Railway: **New Project → Deploy from GitHub repo** và chọn repo này.
+Bản đang chạy: https://petshopnew-production.up.railway.app
+
+1. Đẩy code lên GitHub. Repo private thì cấp quyền cho GitHub App của Railway: **Configure GitHub App → Only select repositories → PetShopnew**.
+2. Trên Railway: **New Project → Deploy from GitHub repo** và chọn repo này từ danh sách (không dán link).
 3. Trong project: **+ New → Database → MySQL**, giữ tên service là `MySQL`.
-4. Ở service web: **Variables → Raw Editor**, dán các biến dưới đây rồi **Deploy**.
-5. **Settings → Networking → Generate Domain** để lấy link `https://...up.railway.app`.
+4. Ở service web: **Variables → Raw Editor**, dán các biến dưới đây rồi **Deploy**. Lần build đầu có thể lỗi `Invalid URI` ở bước `php artisan config:cache` vì chưa có domain nên `APP_URL` còn rỗng; đây là bình thường.
+5. **Settings → Networking → Generate Domain** với cổng `8080`, rồi **Deploy** lại.
+6. Nếu trang sản phẩm báo 0 sản phẩm, mở tab **Console** của service web và chạy `php artisan pawora:seed-if-empty`.
 
 Biến cần đặt (không commit giá trị thật):
 
 | Nhóm | Biến |
 | --- | --- |
-| Ứng dụng | `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` (tạo bằng `php artisan key:generate --show`), `APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUSTED_PROXIES=*`, `LOG_CHANNEL=stderr` |
+| Ứng dụng | `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` (tạo bằng `php artisan key:generate --show`), `APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUSTED_PROXIES=*`, `LOG_CHANNEL=stderr`, `PORT=8080` (FrankenPHP nghe cổng `$PORT`, phải trùng cổng của domain) |
 | Database | `DB_CONNECTION=mysql`, `DB_HOST=${{MySQL.MYSQLHOST}}`, `DB_PORT=${{MySQL.MYSQLPORT}}`, `DB_DATABASE=${{MySQL.MYSQLDATABASE}}`, `DB_USERNAME=${{MySQL.MYSQLUSER}}`, `DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}` |
 | Phiên, mail | `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `CACHE_DRIVER=file`, `QUEUE_CONNECTION=sync`, `MAIL_MAILER=log`, `ADMIN_REQUIRE_TWO_FACTOR=false` |
 | Thanh toán | `VNPAY_*`, `ZALOPAY_*`, `MOMO_*` như mục "Biến môi trường thanh toán"; để trống các biến `*_RETURN_URL`, `*_REDIRECT_URL`, `*_CALLBACK_URL`, `*_IPN_URL` để hệ thống tự dùng tên miền Railway |
+| Vận chuyển (GHN) | `GHN_ENABLED=true`, `GHN_TOKEN`, `GHN_SHOP_ID` (token/shop môi trường thử nghiệm của GHN), `GHN_API_URL=https://dev-online-gateway.ghn.vn/shiip/public-api/v2`, `GHN_SSL_VERIFY=true` |
 
 Lưu ý:
 
 - Checkout chỉ hiện cổng đã cấu hình đủ; không đặt biến SePay thì lựa chọn chuyển khoản tự ẩn.
 - Nút đăng nhập Google/Facebook chỉ hiện khi có client ID/secret; nếu bật, phải khai báo redirect URI theo tên miền Railway trong Google Cloud/Facebook Developers.
 - Ổ đĩa container không lưu lâu dài: ảnh Admin upload mới sẽ mất sau mỗi lần deploy lại. Ảnh sản phẩm demo nằm trong `public/media` nên không bị ảnh hưởng.
+- GHN cung cấp danh sách Quận/Huyện → Phường/Xã ở checkout và tính phí ship. Khi GHN tắt hoặc gọi lỗi, Quận/Huyện để trống, Phường/Xã lấy từ danh bạ công khai và phí ship theo bảng giá nội bộ; checkout vẫn đặt hàng được.
+- Kiểm tra GHN ngay trên server (tab **Console**), kết quả khoảng `30` là GHN đang chạy, `0` là chưa:
+
+  ```bash
+  php artisan tinker --execute="echo count(app(App\Services\AddressDirectory::class)->districts('Thành phố Hà Nội'));"
+  ```
+
+- Trong **Variables**, biến hiện `<empty string>` nghĩa là chưa có giá trị (thường do dán thiếu). Sửa lại rồi **Deploy**; không deploy khi `GHN_TOKEN` hoặc `GHN_SHOP_ID` còn trống.
+- Gói dùng thử Railway là $5 / 30 ngày; hết hạn mà không nâng cấp thì link ngừng chạy.
 
 ## Tài khoản demo
 
