@@ -3,6 +3,10 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -43,6 +47,26 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        // Phiên hết hạn (419): không để khách thấy trang lỗi trống. Đăng xuất vẫn hoàn tất,
+        // các form khác quay lại trang trước kèm thông báo và dữ liệu đã nhập (trừ mật khẩu).
+        $this->renderable(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419 || ! $e->getPrevious() instanceof TokenMismatchException || $request->expectsJson()) {
+                return null;
+            }
+
+            if ($request->routeIs('logout')) {
+                Auth::guard()->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()->route('home');
+            }
+
+            return redirect()->back()
+                ->withInput($request->except($this->dontFlash))
+                ->withErrors(['session' => 'Phiên làm việc đã hết hạn nên thao tác chưa được thực hiện. Vui lòng thử lại.']);
         });
     }
 }

@@ -25,7 +25,7 @@ Ngày chuẩn bị: 31/08/2026, cập nhật 26/09/2026 (Asia/Ho_Chi_Minh)
 - [x] Toàn bộ migration chạy trên database sạch.
 - [x] `DatabaseSeeder` chạy thành công và có tài khoản/sản phẩm/dữ liệu demo.
 - [x] Có `database/export/pawora_demo.sql` không chứa `DEFINER`, đường dẫn cá nhân hoặc secret.
-- [x] SQL export đã được export lại ngày 26/09/2026 (đủ 27 migration) và import thành công vào database trống; schema trùng khớp bản migrate.
+- [x] SQL export đã được export lại ngày 26/09/2026 (đủ 28 migration) và import thành công vào database trống; schema trùng khớp bản migrate.
 - [x] Chỉ còn một file SQL: `database/export/pawora_demo.sql`.
 - [ ] Trên máy nhận bài, chọn **một** cách: `php artisan migrate --seed` hoặc import SQL; không chạy cả hai chồng lên nhau.
 - [ ] Đăng nhập thử `admin@pawora.vn` và `khach@pawora.vn` bằng mật khẩu demo trong README.

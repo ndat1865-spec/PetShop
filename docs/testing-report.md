@@ -4,7 +4,7 @@ Ngày chạy lại gần nhất: 26/09/2026 (Asia/Ho_Chi_Minh). Lần chạy tr�
 
 ## Môi trường
 
-- Windows/XAMPP, PHP 8.2.32, Laravel 12.68.0, Composer 2.10.2; 129 route, 27 migration.
+- Windows/XAMPP, PHP 8.2.32, Laravel 12.68.0, Composer 2.10.2; 129 route, 28 migration.
 - MariaDB 10.4.32; suite tự động dùng database `pawora_testing` được tạo lại cho mỗi test phù hợp.
 - Node.js 24.19.0, npm 12.0.2; trình duyệt kiểm tra bằng Chromium qua Playwright.
 
@@ -14,10 +14,10 @@ Ngày chạy lại gần nhất: 26/09/2026 (Asia/Ho_Chi_Minh). Lần chạy tr�
 | --- | --- |
 | `composer validate --strict` | Pass |
 | `composer audit` | Pass, không có advisory bảo mật |
-| `php artisan test` (MariaDB 10.4.32 của XAMPP) | Pass: 168 tests, 1.778 assertions, 0 failures |
+| `php artisan test` (MariaDB 10.4.32 của XAMPP) | Pass: 171 tests, 1.800 assertions, 0 failures |
 | `npm run build` | Pass, tạo build production |
-| `php artisan migrate --seed --force` trên database trống | Pass: 26 bảng, 27/27 migration |
-| `php artisan migrate:status` trên database `pawora` | 27/27 `Ran`, không có `Pending` |
+| `php artisan migrate --seed --force` trên database trống | Pass: 27 bảng, 27/28 migration |
+| `php artisan migrate:status` trên database `pawora` | 28/28 `Ran`, không có `Pending` |
 | Export lại `database/export/pawora_demo.sql` rồi import vào database trống | Pass: schema trùng khớp bản migrate (so sánh `information_schema.columns`), `migrate:status` không còn `Pending`; có `coupon_usages` và `orders.idempotency_key` |
 
 Bản SQL trước ngày 26/09 thiếu 6 migration cuối (kể cả `orders.idempotency_key` và bảng `coupon_usages`), nên import xong checkout sẽ lỗi. Bản hiện tại đã được export lại và thay thế; file trùng `database/pawora-demo.sql` đã bị xoá.
@@ -67,6 +67,7 @@ Link: https://petshopnew-production.up.railway.app. Các mục cần đăng nh�
 | Trang lỗi | Sản phẩm/đơn không tồn tại | Pass: 404, không lộ trang debug |
 | Đăng nhập mạng xã hội | Trang `/dang-nhap` trước và sau khi đặt biến Google/Facebook | Pass: chưa cấu hình thì nút tự ẩn; sau khi cấu hình thì hiện hai nút, `redirect_uri` gửi đi đúng `/auth/{provider}/callback` trên tên miền Railway |
 | Đăng nhập Google | Nhóm đăng nhập bằng Gmail trên link Railway | Pass sau khi sửa redirect URI trong Google Cloud (trước đó lỗi `redirect_uri_mismatch` do thiếu `/auth/google/callback`); consent screen đã publish |
+| Phiên hết hạn (419) | Bấm Đăng xuất trên trang mở từ trước lần deploy; test mô phỏng token CSRF cũ | Trước khi sửa: trang 419 do session lưu file bị xóa khi deploy. Sau khi sửa: session lưu MySQL (`SESSION_DRIVER=database`), đăng xuất vẫn hoàn tất, form khác quay lại kèm thông báo |
 | Đăng nhập Facebook | Nhóm đăng nhập bằng tài khoản quản trị app | Pass; app Facebook chưa đăng nên người khác phải được thêm làm Người thử nghiệm |
 | GHN | Lệnh tinker đếm quận/huyện của Thành phố Hà Nội trên Console Railway | Pass: 30 quận/huyện, server Railway (US West) gọi được GHN sandbox |
 | Đăng nhập, COD, VNPay, ZaloPay, MoMo, Admin đổi trạng thái | Nhóm thử trên giao diện với tài khoản demo | Chờ nhóm xác nhận |

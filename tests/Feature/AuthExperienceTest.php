@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Facades\Socialite;
@@ -75,6 +76,28 @@ class AuthExperienceTest extends TestCase
             ->assertDontSee('Hoặc</span>', false);
     }
 
+    public function test_logout_with_an_expired_session_token_still_signs_out(): void
+    {
+        $this->enforceCsrf();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('logout'), ['_token' => 'stale-token'])
+            ->assertRedirect(route('home'));
+        $this->assertGuest();
+    }
+
+    public function test_expired_session_token_on_a_form_returns_back_with_a_message(): void
+    {
+        $this->enforceCsrf();
+
+        $this->from(route('login'))->post(route('login'), ['_token' => 'stale-token', 'email' => 'someone@example.com', 'password' => 'secret-password'])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('session')
+            ->assertSessionHasInput('email', 'someone@example.com')
+            ->assertSessionMissing('_old_input.password');
+        $this->assertGuest();
+    }
+
     public function test_repeated_successful_logins_are_not_rate_limited(): void
     {
         $user = User::factory()->create();
@@ -107,6 +130,20 @@ class AuthExperienceTest extends TestCase
         $this->post(route('login'), ['email' => $other->email, 'password' => 'password'])
             ->assertRedirect(route('home'));
         $this->assertAuthenticatedAs($other);
+    }
+
+    /**
+     * Laravel bỏ qua kiểm tra CSRF khi chạy test; bật lại để mô phỏng phiên hết hạn (419).
+     */
+    private function enforceCsrf(): void
+    {
+        $this->app->bind(VerifyCsrfToken::class, fn ($app) => new class($app, $app['encrypter']) extends VerifyCsrfToken
+        {
+            protected function runningUnitTests()
+            {
+                return false;
+            }
+        });
     }
 
     public function test_social_login_failure_does_not_expose_provider_exception_details(): void

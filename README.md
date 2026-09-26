@@ -117,7 +117,7 @@ Biến cần đặt (không commit giá trị thật):
 | --- | --- |
 | Ứng dụng | `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` (tạo bằng `php artisan key:generate --show`), `APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUSTED_PROXIES=*`, `LOG_CHANNEL=stderr`, `PORT=8080` (FrankenPHP nghe cổng `$PORT`, phải trùng cổng của domain) |
 | Database | `DB_CONNECTION=mysql`, `DB_HOST=${{MySQL.MYSQLHOST}}`, `DB_PORT=${{MySQL.MYSQLPORT}}`, `DB_DATABASE=${{MySQL.MYSQLDATABASE}}`, `DB_USERNAME=${{MySQL.MYSQLUSER}}`, `DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}` |
-| Phiên, mail | `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `CACHE_DRIVER=file`, `QUEUE_CONNECTION=sync`, `MAIL_MAILER=log`, `ADMIN_REQUIRE_TWO_FACTOR=false` |
+| Phiên, mail | `SESSION_DRIVER=database` (phiên lưu trong MySQL nên deploy lại không làm mất phiên), `SESSION_SECURE_COOKIE=true`, `CACHE_DRIVER=file`, `QUEUE_CONNECTION=sync`, `MAIL_MAILER=log`, `ADMIN_REQUIRE_TWO_FACTOR=false` |
 | Thanh toán | `VNPAY_*`, `ZALOPAY_*`, `MOMO_*` như mục "Biến môi trường thanh toán"; để trống các biến `*_RETURN_URL`, `*_REDIRECT_URL`, `*_CALLBACK_URL`, `*_IPN_URL` để hệ thống tự dùng tên miền Railway |
 | Vận chuyển (GHN) | `GHN_ENABLED=true`, `GHN_TOKEN`, `GHN_SHOP_ID` (token/shop môi trường thử nghiệm của GHN), `GHN_API_URL=https://dev-online-gateway.ghn.vn/shiip/public-api/v2`, `GHN_SSL_VERIFY=true` |
 | Đăng nhập mạng xã hội | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI=https://${{RAILWAY_PUBLIC_DOMAIN}}/auth/google/callback`, `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI=https://${{RAILWAY_PUBLIC_DOMAIN}}/auth/facebook/callback`, `SOCIALITE_SSL_VERIFY=true` |
@@ -136,6 +136,7 @@ Lưu ý:
 
 - Trong **Variables**, biến hiện `<empty string>` nghĩa là chưa có giá trị (thường do dán thiếu). Sửa lại rồi **Deploy**; không deploy khi `GHN_TOKEN` hoặc `GHN_SHOP_ID` còn trống.
 - Gói dùng thử Railway là $5 / 30 ngày; hết hạn mà không nâng cấp thì link ngừng chạy.
+- Nếu phiên đăng nhập hết hạn (ví dụ trang mở từ trước lần deploy), đăng xuất vẫn hoàn tất và các form khác quay lại trang trước kèm thông báo "Phiên làm việc đã hết hạn" thay vì trang lỗi 419.
 
 ### Đăng nhập Google/Facebook trên Railway
 
@@ -217,7 +218,7 @@ Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`
 
 ## Database export
 
-`database/export/pawora_demo.sql` là file SQL duy nhất để nộp. File được tạo ngày 26/09/2026 từ database sạch sau `php artisan migrate --seed`, gồm đủ 26 bảng và 27 migration (kể cả `coupon_usages` và `orders.idempotency_key`) cùng dữ liệu demo: 10 user, 32 sản phẩm, 192 biến thể, 8 mã giảm giá, 8 đơn mẫu, đánh giá, liên hệ và chat. File không chứa `DEFINER`, đường dẫn máy cá nhân hoặc API key/secret. Snapshot đã được import thử vào database trống: schema trùng khớp bản migrate và `php artisan migrate:status` không còn migration `Pending`.
+`database/export/pawora_demo.sql` là file SQL duy nhất để nộp. File được tạo ngày 26/09/2026 từ database sạch sau `php artisan migrate --seed`, gồm đủ 27 bảng và 28 migration (kể cả `coupon_usages`, `orders.idempotency_key` và bảng `sessions`) cùng dữ liệu demo: 10 user, 32 sản phẩm, 192 biến thể, 8 mã giảm giá, 8 đơn mẫu, đánh giá, liên hệ và chat. File không chứa `DEFINER`, đường dẫn máy cá nhân hoặc API key/secret. Snapshot đã được import thử vào database trống: schema trùng khớp bản migrate và `php artisan migrate:status` không còn migration `Pending`.
 
 Mỗi khi thêm migration mới phải export lại để SQL không bị lệch với code:
 

@@ -1,6 +1,6 @@
 # Ma trận phủ sóng slide bảo vệ Lab 08 – Pawora
 
-> Đối chiếu baseline tại commit `93fcef6` ngày 31/08/2026 và working tree đã hoàn thiện ngày 01/09/2026. Receipt chạy lại ngày 26/09/2026 trên XAMPP: `php artisan route:list` trả 129 route; 27/27 migration ở trạng thái `Ran`; `php artisan test` đạt **168 test, 1.778 assertion**. README Pawora, SQL demo sạch, checkout idempotency, best seller và visual QA đã được bổ sung, kiểm chứng trước khi dựng slide.
+> Đối chiếu baseline tại commit `93fcef6` ngày 31/08/2026 và working tree đã hoàn thiện ngày 01/09/2026. Receipt chạy lại ngày 26/09/2026 trên XAMPP: `php artisan route:list` trả 129 route; 27/28 migration ở trạng thái `Ran`; `php artisan test` đạt **171 test, 1.800 assertion**. README Pawora, SQL demo sạch, checkout idempotency, best seller và visual QA đã được bổ sung, kiểm chứng trước khi dựng slide.
 
 | Nội dung cần bảo vệ | Thành viên | Slide chính | Slide dự phòng | Code làm bằng chứng | Database liên quan | Trạng thái |
 |---|---|---:|---:|---|---|---|
@@ -58,10 +58,10 @@
 | Layout, header, footer, branding | Mỹ Ngân | 24 | — | `resources/views/layouts/app.blade.php:26-120`; `public/media/pawora-p-logo.png` | Không áp dụng | Đã gán slide 24 |
 | Responsive và visual QA | Mỹ Ngân | 24 | 32 | `resources/css/app.css`; `output/playwright/`; Playwright kiểm tra home/catalog/product/cart/checkout/admin tại 390/640/767/1024, thêm desktop 1440 | Không áp dụng | Đã gán slide 24; không còn tràn ngang sau sửa |
 | Accessibility cơ bản | Mỹ Ngân | 24 | 32 | `layouts/app.blade.php:26-103`; `resources/js/app.js:57-80,537-645`; reduced motion CSS | Không áp dụng | Đã gán slide 24 |
-| Kiểm thử mục 25–26 | Mỹ Ngân | 25 | 32 | Receipt `php artisan test`: 168 passed, 1.778 assertions (26/09/2026); `phpunit.xml`; `docs/testing-report.md` | `pawora_testing` hoạt động | Đã gán slide 25; đã chạy thành công |
+| Kiểm thử mục 25–26 | Mỹ Ngân | 25 | 32 | Receipt `php artisan test`: 168 passed, 1.800 assertions (26/09/2026); `phpunit.xml`; `docs/testing-report.md` | `pawora_testing` hoạt động | Đã gán slide 25; đã chạy thành công |
 | README mục 27–28 | Mỹ Ngân | 25–26 | 32 | `README.md`: cài XAMPP, migrate/seed hoặc import SQL, tài khoản demo, gateway, Reverb, test và checklist đóng gói | Không áp dụng | Đã gán slide 25/26; đã hoàn thiện |
-| SQL export | Minh Thu | 25–26 | 32 | `database/export/pawora_demo.sql`, export lại 26/09/2026 từ DB seed sạch, không chứa DEFINER/secret/email thật | 26 bảng, 27 migration, 10 user demo, 32 product, có `coupon_usages` và `orders.idempotency_key` | Đã gán slide 25/26; import kiểm chứng thành công |
-| Clean install/đóng gói | Mỹ Ngân | 25–26 | 32 | `README.md`; `database/export/pawora_demo.sql`; `composer.json`; `package.json`; `.env.example` | 27 migration; SQL import đủ 26 bảng, schema khớp migration | Đã gán slide 25/26; đã xác nhận |
+| SQL export | Minh Thu | 25–26 | 32 | `database/export/pawora_demo.sql`, export lại 26/09/2026 từ DB seed sạch, không chứa DEFINER/secret/email thật | 27 bảng, 28 migration, 10 user demo, 32 product, có `coupon_usages` và `orders.idempotency_key` | Đã gán slide 25/26; import kiểm chứng thành công |
+| Clean install/đóng gói | Mỹ Ngân | 25–26 | 32 | `README.md`; `database/export/pawora_demo.sql`; `composer.json`; `package.json`; `.env.example` | 28 migration; SQL import đủ 27 bảng, schema khớp migration | Đã gán slide 25/26; đã xác nhận |
 | Lab 08 mục 29–31: đề tài riêng | Minh Thu | 2, 24–26 | 32 | brand Pawora, pet type, variant, stock trong source | `products.pet_type`, variants | Đã gán slide 2/24/26 |
 | Lab 08 mục 32–33: mức hoàn thành/sản phẩm | Cả nhóm | 26 | 32 | Chuỗi route/controller/model/view/test hiện có | Toàn schema | Đã gán slide 26 |
 | Lab 08 mục 34–35: nghiệm thu/kết luận | Mỹ Ngân/Cả nhóm | 25–26 | 32 | `docs/lab08-source.md:488-535`; bằng chứng source ở trên | Toàn schema | Đã gán slide 25/26 |

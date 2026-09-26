@@ -7,11 +7,11 @@
 | Kiểm tra | Kết quả | Ý nghĩa khi bảo vệ |
 |---|---|---|
 | `php artisan route:list` | 129 route | Chứng minh đủ route cửa hàng, tài khoản, thanh toán, webhook và Admin. |
-| `php artisan migrate:status` | 27/27 migration `Ran` trên MariaDB 10.4.32 của XAMPP | Database đúng với code. |
-| `php artisan test` | 168 test, 1.778 assertion, 0 lỗi | Nói đúng con số này; chi tiết trong `docs/testing-report.md`. |
+| `php artisan migrate:status` | 27/28 migration `Ran` trên MariaDB 10.4.32 của XAMPP | Database đúng với code. |
+| `php artisan test` | 171 test, 1.800 assertion, 0 lỗi | Nói đúng con số này; chi tiết trong `docs/testing-report.md`. |
 | `npm run build`, `composer validate --strict` | Pass | Frontend build được, `composer.json` hợp lệ. |
 | README | README Pawora đầy đủ cài đặt, tài khoản demo, COD, QR chuyển khoản, test, export SQL | Đạt mục 27-28 Lab 8. |
-| File SQL | `database/export/pawora_demo.sql`, export lại 26/09/2026, đủ 26 bảng/27 migration; import thử khớp schema | Là file SQL duy nhất để nộp. Thêm migration mới thì phải export lại. |
+| File SQL | `database/export/pawora_demo.sql`, export lại 26/09/2026, đủ 27 bảng/28 migration; import thử khớp schema | Là file SQL duy nhất để nộp. Thêm migration mới thì phải export lại. |
 | Thanh toán QR | QR Demo đã gỡ (26/09/2026). QR là chuyển khoản SePay/VietQR, cần `SEPAY_BANK` + `SEPAY_ACCOUNT_NUMBER` trong `.env` | Xác nhận bằng webhook SePay hoặc Admin bấm “Xác nhận đã nhận thanh toán”. Máy chưa cấu hình SePay chỉ chạy COD. |
 
 Bản online cho giảng viên: https://petshopnew-production.up.railway.app (Railway, MySQL riêng, GHN sandbox, COD/VNPay/ZaloPay/MoMo sandbox). Nếu mạng lớp ổn có thể demo trên link này; XAMPP là phương án dự phòng.
@@ -30,7 +30,7 @@ PHÂN TÍCH NGHIỆP VỤ → THIẾT KẾ DATABASE → LARAVEL MVC → GIAO DI�
 | # | Bước | Thành viên | Sản phẩm cần có khi bảo vệ |
 |---|---|---|---|
 | 1 | Phân tích nghiệp vụ | Nguyễn Ngọc Minh Thu | Tác nhân Khách/Admin/Staff, use case, luồng mua hàng chính, trạng thái đơn và thanh toán |
-| 2 | Thiết kế Database | Nguyễn Ngọc Minh Thu | ERD, giải thích PK/FK/unique, 27 migration, file `database/export/pawora_demo.sql` |
+| 2 | Thiết kế Database | Nguyễn Ngọc Minh Thu | ERD, giải thích PK/FK/unique, 28 migration, file `database/export/pawora_demo.sql` |
 | 3 | Laravel MVC | Nguyễn Ngọc Minh Thu | Luồng Route → Middleware → Controller → Service → Model → View, ví dụ thật trong source |
 | 4 | Giao diện | Trần Thị Mỹ Ngân | Layout chung, brand, toàn bộ trang phía khách (trang chủ, sản phẩm, giỏ, checkout, xác nhận, đơn hàng, tài khoản), responsive |
 | 5 | Sản phẩm | Nguyễn Tiến Đạt | Catalog, tìm kiếm/lọc/sắp xếp/phân trang, chi tiết, biến thể, đánh giá (backend) |
@@ -232,7 +232,7 @@ Về kiến trúc, project dùng Laravel 12 theo mô hình MVC. Một request đ
 4. Bảng trung tâm là `orders`; `order_items` lưu giá lúc mua (snapshot) nên đổi giá sau này không làm sai đơn cũ.
 5. Product 1-n Variant; Category 1-n Product; User 1-n Order; Order 1-n OrderItem.
 6. Giỏ hàng **không có bảng** riêng; nó nằm trong session.
-7. Database được tạo bằng migration (27 file trong `database/migrations`) và có bản export `database/export/pawora_demo.sql`.
+7. Database được tạo bằng migration (28 file trong `database/migrations`) và có bản export `database/export/pawora_demo.sql`.
 8. Unique quan trọng: `users.email`, `products.slug`, `products.sku`, `product_variants.sku`, `orders.number`, `coupons.code`.
 9. MVC: Route nhận URL → Middleware kiểm tra (đăng nhập, quyền) → Controller điều phối → Model đọc/ghi DB → View hiển thị.
 10. Service (`CartService`, `CouponService`, `InventoryService`...) là nơi gom nghiệp vụ dùng lại, giúp controller gọn.
@@ -557,7 +557,7 @@ Nếu mạng/cổng online lỗi: demo COD hoàn chỉnh, mở QR SePay bằng d
 - Không nói COD paid ngay khi tạo đơn.
 - Không nói transaction bao gồm cả cuộc gọi cổng online sau redirect; order transaction kết thúc trước nhánh gateway.
 - Không nói route model binding tự bảo vệ ownership.
-- Không đọc số test cũ; số hiện tại là 168 test, 1.778 assertion (26/09/2026).
+- Không đọc số test cũ; số hiện tại là 171 test, 1.800 assertion (26/09/2026).
 
 # PHẦN III - SẢN PHẨM VÀ GIỎ HÀNG (NGUYỄN TIẾN ĐẠT)
 
@@ -1817,7 +1817,7 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 **Giảng viên:** “Các em nói test đạt chưa?”
 
-**Mỹ Ngân:** “Rồi ạ. Ngày 26/09/2026 nhóm chạy lại trên MariaDB của XAMPP: 168 test, 1.778 assertion, không lỗi; 27/27 migration đã chạy; build pass. Ngoài test tự động, nhóm còn chạy thủ công luồng COD, QR Demo, Admin và các tình huống 403/404. Kết quả ghi trong `docs/testing-report.md`.”
+**Mỹ Ngân:** “Rồi ạ. Ngày 26/09/2026 nhóm chạy lại trên MariaDB của XAMPP: 171 test, 1.800 assertion, không lỗi; 27/28 migration đã chạy; build pass. Ngoài test tự động, nhóm còn chạy thủ công luồng COD, QR Demo, Admin và các tình huống 403/404. Kết quả ghi trong `docs/testing-report.md`.”
 
 ### Vòng hỏi chéo cuối
 
@@ -1835,7 +1835,7 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 | Mục Lab 8 | Hiện trạng source | Còn phải làm |
 |---|---|---|
-| 25 - Checklist chức năng | Đủ 27 chức năng; 168 test pass ngày 26/09/2026 | Giữ báo cáo `docs/testing-report.md` cập nhật. |
+| 25 - Checklist chức năng | Đủ 27 chức năng; 171 test pass ngày 26/09/2026 | Giữ báo cáo `docs/testing-report.md` cập nhật. |
 | 26 - Tình huống sai | Có test cho 11/12 tình huống; đã chạy thủ công 403/404 | Thử trên điện thoại thật. |
 | 27 - Đóng gói | README, SQL export mới, `.env.example`, storage link, build | Giải nén thử gói vào thư mục mới và làm theo README. |
 | 28 - README | README Pawora đầy đủ | Không. |
@@ -1847,7 +1847,7 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 ### Những khoảng trống kỹ thuật cần nói thật
 
-Đã đóng (không còn là khoảng trống): README Pawora, SQL export đủ 27 migration, best seller lọc đơn hủy/chưa thanh toán, idempotency chống double-submit, dọn file thừa ở thư mục gốc.
+Đã đóng (không còn là khoảng trống): README Pawora, SQL export đủ 28 migration, best seller lọc đơn hủy/chưa thanh toán, idempotency chống double-submit, dọn file thừa ở thư mục gốc.
 
 Còn lại, nói thật nếu bị hỏi:
 
@@ -1860,9 +1860,9 @@ Còn lại, nói thật nếu bị hỏi:
 
 | Ưu tiên | Việc | Owner | Điều kiện hoàn thành |
 |---|---|---|---|
-| P0 | ~~Khôi phục MySQL, chạy migration status và toàn suite~~ | Mỹ Ngân | Đã xong 26/09: 27/27 migration, 168 test pass. |
+| P0 | ~~Khôi phục MySQL, chạy migration status và toàn suite~~ | Mỹ Ngân | Đã xong 26/09: 27/28 migration, 171 test pass. |
 | P0 | ~~Viết README Pawora~~ | Mỹ Ngân | Đã xong. |
-| P0 | ~~Export SQL và thử import~~ | Minh Thu | Đã xong 26/09: đủ 26 bảng/27 migration, import khớp schema. |
+| P0 | ~~Export SQL và thử import~~ | Minh Thu | Đã xong 26/09: đủ 27 bảng/28 migration, import khớp schema. |
 | P0 | Xác minh checkout/payment/order/stock/security | Tiến Đạt | COD + một QR/online demo; test race/amount/ownership/idempotency quan trọng. |
 | P1 | ~~Sửa best seller loại đơn không hợp lệ~~ | Tiến Đạt | Đã xong, có regression test. |
 | P1 | ~~Bổ sung double-submit/idempotency checkout~~ | Tiến Đạt | Đã xong, có regression test. |
@@ -1889,7 +1889,7 @@ Còn lại, nói thật nếu bị hỏi:
 | Login sai/inactive/reset/avatar/address ownership | Ngân (backend: Đạt) | Error an toàn, session/file/DB đúng. |
 | Responsive/reduced motion/keyboard/errors | Mỹ Ngân (Admin: Bình Minh) | Dùng được ở 390/640/767/1024px và keyboard. |
 | Clean install | Mỹ Ngân | README đủ để chạy home, auth, DB, assets, tests. |
-| Migration chạy sạch, SQL import khớp schema | Minh Thu | Đã đạt 26/09/2026: `migrate --seed` trên DB trống thành công; SQL đủ 26 bảng, gồm `coupon_usages`. |
+| Migration chạy sạch, SQL import khớp schema | Minh Thu | Đã đạt 26/09/2026: `migrate --seed` trên DB trống thành công; SQL đủ 27 bảng, gồm `coupon_usages`. |
 
 ## 12. Tóm tắt phân công cuối cùng
 
@@ -1907,6 +1907,6 @@ Còn lại, nói thật nếu bị hỏi:
 3. Đạt: tập demo COD, QR chuyển khoản (đặt đơn → trang QR → Admin xác nhận đã nhận thanh toán) và VNPay (thẻ test NCB); kiểm tra `.env` máy demo đã có `SEPAY_BANK`, `SEPAY_ACCOUNT_NUMBER` và cấu hình VNPay sandbox.
 4. Đạt: gửi Ngân danh sách route, tên trường form và biến view của các trang sản phẩm/giỏ/checkout/đơn hàng.
 5. Bình Minh: chạy ma trận Customer/Staff/Admin trên các action nguy hiểm; tập demo quản lý mã giảm giá.
-6. Ngân: thử trên một điện thoại thật; cập nhật slide 25 theo số liệu mới (129 route, 27 migration, 168 test/1.778 assertion).
+6. Ngân: thử trên một điện thoại thật; cập nhật slide 25 theo số liệu mới (129 route, 28 migration, 171 test/1.800 assertion).
 7. Ngân: nén gói theo `docs/submission-checklist.md`, giải nén vào thư mục mới và làm đúng README một lần.
 8. Cả nhóm chạy bảo vệ giả lập 15 phút ít nhất hai lần.

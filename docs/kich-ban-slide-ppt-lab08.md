@@ -1,6 +1,6 @@
 # Kịch bản chi tiết 32 slide – Bảo vệ Lab 08 Pawora
 
-> Quy ước: 26 slide `CORE`, 6 slide `BACKUP`; canvas 16:9; chữ hiển thị tối đa khoảng 45 từ/slide. Baseline source là commit `93fcef6`; receipt runtime chạy lại ngày 26/09/2026 trên XAMPP: 129 route, 27 migration `Ran`, 168 test/1.778 assertion, build pass; visual QA 375–1440 px. Chỉ dùng screenshot chụp từ XAMPP đang chạy.
+> Quy ước: 26 slide `CORE`, 6 slide `BACKUP`; canvas 16:9; chữ hiển thị tối đa khoảng 45 từ/slide. Baseline source là commit `93fcef6`; receipt runtime chạy lại ngày 26/09/2026 trên XAMPP: 129 route, 28 migration `Ran`, 171 test/1.800 assertion, build pass; visual QA 375–1440 px. Chỉ dùng screenshot chụp từ XAMPP đang chạy.
 
 ## Slide 1 – Pawora: từ phụ kiện thú cưng đến đơn hàng an toàn
 
@@ -830,7 +830,7 @@
 
 **Thông điệp chính:** Pawora không chỉ “chạy trên máy nhóm”; package có receipt và đường cài sạch.
 
-**Nội dung hiển thị:** `129 ROUTES` · `27/27 MIGRATIONS RAN` · `168 TESTS / 1,778 ASSERTIONS` · `VITE BUILD PASS` · `SQL IMPORT: 26 TABLES`.
+**Nội dung hiển thị:** `129 ROUTES` · `28/28 MIGRATIONS RAN` · `171 TESTS / 1,800 ASSERTIONS` · `VITE BUILD PASS` · `SQL IMPORT: 27 TABLES`.
 
 **Bố cục:** Năm con số lớn; dưới mỗi số là lệnh tái chạy tương ứng.
 
@@ -840,7 +840,7 @@
 
 **Database liên quan:** DB chính `pawora`, DB test `pawora_testing`, DB tạm export/import đã xóa sau kiểm chứng.
 
-**Lời thuyết trình:** “Sau khi bật XAMPP, nhóm chạy lại toàn bộ: 129 route, 27 migration đều đã chạy, 168 test với 1.778 assertion không lỗi, Vite build pass. SQL demo được export lại và import vào database trống: đủ 26 bảng, 10 user demo và 32 sản phẩm, schema khớp với migration.”
+**Lời thuyết trình:** “Sau khi bật XAMPP, nhóm chạy lại toàn bộ: 129 route, 28 migration đều đã chạy, 171 test với 1.800 assertion không lỗi, Vite build pass. SQL demo được export lại và import vào database trống: đủ 27 bảng, 10 user demo và 32 sản phẩm, schema khớp với migration.”
 
 **Câu chuyển slide:** “Vì vậy package bàn giao đã đóng các khoảng trống thật trước khi kết luận.”
 
@@ -1076,7 +1076,7 @@
 
 **Code làm bằng chứng:** `README.md`; `database/export/pawora_demo.sql`; `.env.example`; `docs/testing-report.md`; `docs/submission-checklist.md`.
 
-**Database liên quan:** 27 migration, 26 bảng import, seed demo.
+**Database liên quan:** 28 migration, 27 bảng import, seed demo.
 
 **Lời thuyết trình:** “README ghi rõ XAMPP, dependency, hai cách dựng DB, tài khoản demo, gateway, Reverb, test và checklist. SQL đã được import ngược vào DB trống để xác nhận.”
 

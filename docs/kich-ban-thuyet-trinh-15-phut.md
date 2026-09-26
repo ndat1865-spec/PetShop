@@ -195,7 +195,7 @@
 
 **Slide 25 (60 giây)**
 
-“Receipt ngày 26/09/2026 trên XAMPP: 129 route; 27/27 migration Ran; 168 test, 1.778 assertion, không lỗi; Vite build pass. SQL demo export lại từ database seed sạch và import ngược thành công: 26 bảng, 10 user demo, 32 sản phẩm, schema khớp migration. README ghi đầy đủ XAMPP, hai cách dựng DB, tài khoản, gateway, Reverb, test và checklist.”
+“Receipt ngày 26/09/2026 trên XAMPP: 129 route; 27/28 migration Ran; 171 test, 1.800 assertion, không lỗi; Vite build pass. SQL demo export lại từ database seed sạch và import ngược thành công: 27 bảng, 10 user demo, 32 sản phẩm, schema khớp migration. README ghi đầy đủ XAMPP, hai cách dựng DB, tài khoản, gateway, Reverb, test và checklist.”
 
 **Slide 26 (35 giây)**
 
