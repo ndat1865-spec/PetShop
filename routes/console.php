@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 
@@ -17,3 +18,13 @@ use Illuminate\Support\Facades\Artisan;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('pawora:seed-if-empty', function () {
+    if (User::query()->exists()) {
+        $this->info('Database đã có dữ liệu, bỏ qua seed.');
+
+        return;
+    }
+
+    $this->call('db:seed', ['--force' => true]);
+})->purpose('Seed dữ liệu demo lần đầu khi database còn trống (dùng khi deploy)');

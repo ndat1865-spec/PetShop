@@ -25,4 +25,12 @@ class TrustProxies extends Middleware
         Request::HEADER_X_FORWARDED_PORT |
         Request::HEADER_X_FORWARDED_PROTO |
         Request::HEADER_X_FORWARDED_AWS_ELB;
+
+    /**
+     * Railway/PaaS đứng sau proxy HTTPS nên cần TRUSTED_PROXIES=*; máy local để trống.
+     */
+    protected function proxies()
+    {
+        return parent::proxies() ?: config('app.trusted_proxies');
+    }
 }
