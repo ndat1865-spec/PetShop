@@ -31,7 +31,7 @@
                         <p>Đã ghi nhận lúc <strong>{{ $shipment->customer_received_at->format('H:i d/m/Y') }}</strong>. Đơn vẫn ở trạng thái “Đang giao hàng” cho đến khi admin đối chiếu và hoàn tất.</p>
                     @else
                         <h2>Bạn đã nhận được kiện hàng?</h2>
-                        <p>Chỉ xác nhận sau khi kiện hàng đã đến tay bạn. Sau bước này, admin mới có thể hoàn tất đơn và bắt đầu thời hạn đổi trả.</p>
+                        <p>Chỉ xác nhận sau khi kiện hàng đã đến tay bạn để Pawora hoàn tất đơn sớm hơn. Nếu bạn không bấm, Pawora vẫn hoàn tất đơn khi đơn vị vận chuyển báo giao thành công.</p>
                         <form method="post" action="{{ route('account.orders.received', $order) }}">
                             @csrf @method('patch')
                             <button class="button primary" type="submit">Tôi đã nhận được hàng</button>

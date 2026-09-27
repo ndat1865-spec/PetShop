@@ -4,7 +4,6 @@
     $shipmentSteps = ['ready', 'packed', 'shipped', 'delivered'];
     $shipmentStep = $shipment ? array_search($shipment->status, $shipmentSteps, true) : false;
     $useOldInput = (string) old('form_order_id') === (string) $order->id;
-    $awaitingCustomerReceipt = $shipment?->status === 'shipped' && ! $shipment?->customer_received_at;
     $currentProvider = $useOldInput ? old('provider') : ($shipment?->provider ?: config('pawora.shipping.default_provider', 'Pawora nội bộ'));
     $shippingProviders = collect([
         config('pawora.shipping.default_provider', 'Pawora nội bộ'),
@@ -30,19 +29,19 @@
     @endforeach
 </div>
 
-@if($awaitingCustomerReceipt)
-    <div class="shipment-awaiting-customer" role="status">
-        <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M4 12a8 8 0 1 0 16 0 8 8 0 1 0-16 0Z"/></svg></span>
-        <div><strong>Đang chờ khách xác nhận đã nhận hàng</strong><p>Admin có thể cập nhật đơn vị vận chuyển; mã vận đơn đã phát hành sẽ được giữ nguyên. Khi khách xác nhận, bước hoàn tất sẽ tự xuất hiện tại đây.</p></div>
-    </div>
-@elseif($shipment?->customer_received_at && $shipment?->status === 'shipped')
+@if($shipment?->status === 'shipped' && $shipment->customer_received_at)
     <div class="shipment-customer-confirmed" role="status">
         <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7 12 3 3 7-7M4 12a8 8 0 1 0 16 0 8 8 0 1 0-16 0Z"/></svg></span>
-        <div><strong>Khách đã xác nhận nhận hàng</strong><p>Lúc {{ $shipment->customer_received_at->format('H:i d/m/Y') }}. Admin có thể chọn “Đã giao hàng” để hoàn tất đơn.</p></div>
+        <div><strong>Khách đã xác nhận nhận hàng</strong><p>Lúc {{ $shipment->customer_received_at->format('H:i d/m/Y') }}. Chọn “Đã giao hàng” để hoàn tất đơn.</p></div>
+    </div>
+@elseif($shipment?->status === 'shipped')
+    <div class="shipment-awaiting-customer" role="status">
+        <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M4 12a8 8 0 1 0 16 0 8 8 0 1 0-16 0Z"/></svg></span>
+        <div><strong>Khách chưa bấm xác nhận nhận hàng</strong><p>Không cần chờ khách. Khi đơn vị vận chuyển báo giao thành công, chọn “Đã giao hàng” để hoàn tất đơn.</p></div>
     </div>
 @endif
 
-<form class="shipment-control" method="post" action="{{ route('admin.shipments.update', $order) }}" data-shipment-form data-awaiting-customer-receipt="{{ $awaitingCustomerReceipt ? 'true' : 'false' }}">
+<form class="shipment-control" method="post" action="{{ route('admin.shipments.update', $order) }}" data-shipment-form>
     @csrf @method('patch')
     <input type="hidden" name="form_order_id" value="{{ $order->id }}">
     <div class="shipment-control__fields">
@@ -92,6 +91,6 @@
         Hệ thống sẽ lưu thông tin vận chuyển và đồng bộ trạng thái đơn hàng ở bước phù hợp.
     </div>
     <button class="button primary" type="submit" data-shipment-submit>
-        {{ $awaitingCustomerReceipt ? 'Lưu thông tin vận chuyển' : ($shipment ? 'Lưu và đồng bộ đơn hàng' : 'Khởi tạo vận chuyển') }}
+        {{ $shipment ? 'Lưu và đồng bộ đơn hàng' : 'Khởi tạo vận chuyển' }}
     </button>
 </form>

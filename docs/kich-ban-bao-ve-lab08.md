@@ -128,8 +128,8 @@ flowchart TD
     O --> P[processing]
     P --> Q[packed]
     Q --> R[shipped]
-    R --> S[Khách xác nhận đã nhận]
-    S --> T[Admin delivered]
+    R -.-> S[Khách xác nhận đã nhận - tùy chọn]
+    R --> T[Admin delivered]
     T --> U[Nếu COD thì payment paid]
 ```
 
@@ -281,7 +281,7 @@ Sau đó hệ thống kiểm tra lại coupon, tính phí vận chuyển, tạo 
 
 Với COD, đơn được tạo ở trạng thái chờ xử lý và chưa thanh toán. Với chuyển khoản QR, hệ thống hiển thị mã VietQR chứa đúng số tiền và nội dung là mã đơn. Tiền về thì webhook SePay gọi vào, hệ thống kiểm tra API key, mã đơn và số tiền, webhook lặp không cập nhật lần hai, rồi mới đổi `payment_status` thành `paid`. Khi demo trên lớp không có tiền thật, Admin bấm “Xác nhận đã nhận thanh toán”, thao tác được ghi lịch sử và audit. Với VNPay, khách được chuyển sang cổng sandbox, thanh toán bằng thẻ test NCB; khi trình duyệt quay về, Pawora kiểm chữ ký HMAC-SHA512 và số tiền rồi mới ghi `paid`. ZaloPay và MoMo dùng cùng nguyên tắc; nhóm giữ trong code nhưng không demo. OnePay đã được gỡ khỏi dự án vì sandbox dừng ở bước 3D Secure.
 
-Em phân biệt rõ trạng thái đơn và trạng thái thanh toán. Trạng thái đơn mô tả quá trình xử lý hàng; trạng thái thanh toán mô tả dòng tiền. Hai trạng thái liên quan nhưng không đồng nhất. Ví dụ COD có thể đã xác nhận đơn nhưng chưa thu tiền. Khi khách xác nhận nhận hàng và Admin hoàn tất giao hàng, hệ thống mới ghi COD đã thanh toán.
+Em phân biệt rõ trạng thái đơn và trạng thái thanh toán. Trạng thái đơn mô tả quá trình xử lý hàng; trạng thái thanh toán mô tả dòng tiền. Hai trạng thái liên quan nhưng không đồng nhất. Ví dụ COD có thể đã xác nhận đơn nhưng chưa thu tiền. Khi Admin hoàn tất giao hàng, hệ thống mới ghi COD đã thanh toán; khách có bấm xác nhận nhận hàng hay không đều được.
 
 Phần bảo mật của em kiểm tra chủ sở hữu hoặc token công khai khi xem đơn, không cho truy cập đơn của người khác. Hủy đơn sẽ hoàn tồn kho, còn đơn đã trả tiền sẽ tạo yêu cầu hoàn tiền có khóa idempotency. Các callback hoàn tiền cũng khóa bản ghi, đối chiếu số tiền và nếu đã thành công thì trả lại kết quả cũ thay vì cộng tiền hai lần.”
 
@@ -293,7 +293,7 @@ Phần bảo mật của em kiểm tra chủ sở hữu hoặc token công khai 
 | Báo giá vận chuyển | GET `/phi-van-chuyen` → `auth`, throttle → validate tỉnh/district/ward/coupon → chi tiết giỏ server → `ShippingCalculator::quote()` → JSON fee/zone/estimate/discount/total. |
 | Kiểm tra coupon | GET `/ma-uu-dai/kiem-tra` → validate code → `Coupon::isValidFor()` và `discountFor()` → JSON. Khi đặt hàng, coupon bị kiểm tra lại trong transaction. |
 | Tạo đơn | POST `/thanh-toan` → `auth`, throttle → validate → kiểm tra gateway enabled → lấy line giỏ → transaction → lock Product/Variant/Coupon → lấy lại giá → tính tổng → tạo Order/Items → `InventoryService::deductForOrder()` → history → tăng coupon usage → commit → xóa cart → redirect. |
-| COD | `payment_method=cod`; checkout đặt payment `unpaid`, order `pending`; Admin xử lý; khi shipment delivered sau xác nhận nhận hàng thì payment thành `paid`. |
+| COD | `payment_method=cod`; checkout đặt payment `unpaid`, order `pending`; Admin xử lý; khi Admin chuyển shipment sang delivered thì payment thành `paid` (không cần chờ khách xác nhận). |
 | QR SePay | Checkout redirect `/thanh-toan/sepay/{order}?token={public_token}` → kiểm tra quyền/token và method → `SepayGateway::qrUrl()` → webhook `/api/webhooks/sepay` kiểm tra Authorization, mã đơn, số tiền, trạng thái đã paid → cập nhật Order và PaymentTransaction. |
 | VNPay | `VnPayGateway::paymentUrl()` tạo tham số + HMAC; return/IPN tìm order, kiểm tra HMAC và amount; `updateOrCreate` giao dịch; paid thì xác nhận order. |
 | ZaloPay | `createPayment()` tạo app transaction, MAC và PaymentTransaction; return/callback kiểm tra checksum/MAC, transaction, order, amount rồi paid. |
@@ -489,7 +489,7 @@ Nếu mạng/cổng online lỗi: demo COD hoàn chỉnh, mở QR SePay bằng d
 3. Transaction bảo vệ những ghi nào? **Đáp:** Order, items, kho, history và coupon usage.
 4. Phân biệt return và callback. **Đáp:** Return đưa browser về; callback/webhook là server-to-server xác nhận kết quả.
 5. Vì sao kiểm amount ngoài signature? **Đáp:** Chữ ký hợp lệ chưa chứng minh số tiền đúng với order nếu ghép sai giao dịch.
-6. COD paid lúc nào? **Đáp:** Khi giao hàng hoàn tất sau xác nhận nhận hàng.
+6. COD paid lúc nào? **Đáp:** Khi Admin hoàn tất giao hàng (delivered), không cần chờ khách xác nhận.
 7. `lockForUpdate` cần điều kiện gì? **Đáp:** Phải chạy trong transaction có kết nối DB hỗ trợ row lock.
 8. Hủy paid order tạo gì? **Đáp:** Refund PaymentTransaction và payment status `refund_pending`.
 9. Callback refund lặp xử lý sao? **Đáp:** Nếu status succeeded thì trả bản ghi cũ, không cộng lại.
@@ -867,7 +867,7 @@ Dashboard tổng hợp dữ liệu theo khoảng ngày. Doanh thu không cộng 
 
 Khi quản lý sản phẩm, Admin validate tên, category, SKU, giá, tồn, nội dung cấu trúc và trạng thái. Thay đổi tồn kho bắt buộc có lý do, dùng InventoryService và ghi InventoryAdjustment. Các thao tác quan trọng đều gọi AdminAuditLogger để lưu người thực hiện, event, dữ liệu trước/sau, IP và user agent nhưng loại các trường bí mật.
 
-Quản lý đơn hàng dùng state machine ở Model Order. Admin không thể chuyển tùy ý; backend gọi `canAdminTransitionTo`. Đơn online chưa paid không được xác nhận. Khi confirm order, hệ thống có thể tạo shipment; khi hủy thì hoàn tồn kho và nếu đơn đã paid sẽ tạo refund. Từ bước đóng gói trở đi, shipment điều khiển trạng thái packed, shipped, delivered. Delivered chỉ hợp lệ sau khi khách xác nhận nhận hàng; với COD, lúc đó hệ thống mới ghi paid.
+Quản lý đơn hàng dùng state machine ở Model Order. Admin không thể chuyển tùy ý; backend gọi `canAdminTransitionTo`. Đơn online chưa paid không được xác nhận. Khi confirm order, hệ thống có thể tạo shipment; khi hủy thì hoàn tồn kho và nếu đơn đã paid sẽ tạo refund. Từ bước đóng gói trở đi, shipment điều khiển trạng thái packed, shipped, delivered. Delivered do Admin xác nhận khi đơn vị vận chuyển báo giao xong, không cần chờ khách bấm xác nhận vì khách có thể quên; với COD, lúc đó hệ thống mới ghi paid.
 
 Admin và Staff không giống nhau. Admin có wildcard permission, còn Staff chỉ có danh sách quyền trong config và không có các quyền nguy hiểm như xóa catalog, quản lý user, refund, settings hoặc audit. Vì thế việc ẩn nút ở giao diện chỉ là UX; quyết định thật nằm ở middleware permission và backend validation.”
 
@@ -882,7 +882,7 @@ Admin và Staff không giống nhau. Admin có wildcard permission, còn Staff c
 | Variant/tồn kho | validate SKU/price/stock/reason → update variant hoặc `InventoryService::setProductStock()` → sync tổng product → InventoryAdjustment + audit. |
 | Người dùng | list/filter → role/status update → chặn tự đổi quyền/khóa bản thân → audit. |
 | Đơn hàng | list/filter → show load items/history/payment/shipment/returns → update status → lock Order → state rule → shipment/restore/refund/history/audit. |
-| Vận chuyển | shipment update → lock Order/Shipment → kiểm state và customer receipt → tracking code → đồng bộ Order → COD paid khi delivered → audit. |
+| Vận chuyển | shipment update → lock Order/Shipment → kiểm state → tracking code → đồng bộ Order → COD paid khi delivered → audit. |
 | Thanh toán/đổi trả | xem transaction; refund demo cần permission; update return theo state; refund_pending cần payment permission và amount → RefundService → audit. |
 | Đánh giá | AdminReviewController index/filter/stats → update status/note/reply → audit; model đồng bộ rating. |
 | Liên hệ/chat | controller riêng → permission view/manage/reply/assign → validate, cập nhật, broadcast/audit. |
@@ -906,7 +906,7 @@ Admin và Staff không giống nhau. Admin có wildcard permission, còn Staff c
 | Chuyển trạng thái order | `AdminController.php:463-533` | `updateOrder()` | Lock, Model state rule, shipment, restore stock, refund, history, audit. |
 | State machine | `app/Models/Order.php:10-25`, `100-143` | transition methods | Backend là nguồn duy nhất cho bước hợp lệ; online chưa paid bị khóa. |
 | Xác nhận payment | `AdminController.php:535-553` | `markOrderPaid()` | Lock/idempotent, chỉ method/order phù hợp, history và audit. |
-| Shipment | `AdminController.php:556-663`, `app/Models/Shipment.php:9-53` | update + transitions | Không nhảy bước; delivered đòi customer receipt; sync Order/COD. |
+| Shipment | `AdminController.php:556-663`, `app/Models/Shipment.php:9-53` | update + transitions | Không nhảy bước; delivered không đòi customer receipt; sync Order/COD. |
 | Refund/return | `AdminController.php:665-714` | payment/refund/return | Demo refund rõ ràng; return state + permission + gateway. |
 | Settings/audit | `AdminController.php:716-761` | settings/auditLogs | Settings transaction; audit filter actor/event. |
 | Audit logger | `app/Services/AdminAuditLogger.php:11-41` | `record()` | Ghi actor/event/old/new/IP/user agent, loại secret. |
@@ -993,7 +993,7 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 | 16 | Xác nhận order tạo gì? | Có thể tạo shipment tự động. | `updateOrder()` 474-476. | Audit shipment ở đâu? |
 | 17 | Hủy order làm gì với stock? | Restore từng OrderItem, chống lặp bằng history note. | Dòng 477-480 và 854-861. | Paid order còn làm gì? |
 | 18 | Mark paid idempotent ra sao? | Nếu đã paid thì return trong lock. | Dòng 538-546. | COD có dùng method này không? |
-| 19 | Delivered cần điều kiện gì? | Shipment shipped và customer_received_at có giá trị. | `Shipment.php:36-52`, Admin 587-612. | Ai set customer_received_at? |
+| 19 | Delivered cần điều kiện gì? | Shipment đang shipped; `customer_received_at` không bắt buộc (khách có thể quên bấm), chỉ ghi vào lịch sử. | `Shipment.php:36-52`, Admin 587-612. | Ai set customer_received_at? |
 | 20 | Settings lưu thế nào? | Key/value/type/updated_by trong transaction. | Admin 727-743; migration settings. | Vì sao không chỉ dùng config file? |
 
 ### G3. 10 câu khó hoặc gài
@@ -1071,7 +1071,7 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 7. Chỉnh stock cần? A reason B password customer C coupon D QR.
 8. Order transition kiểm ở? A CSS B Model/backend C Blade only D README.
 9. Online unpaid pending được? A confirm B chỉ cancel C deliver D refund succeeded.
-10. Shipment shipped→delivered cần? A email B customer receipt C coupon D category.
+10. Ai chuyển shipment shipped→delivered? A khách bắt buộc bấm B Admin, khách xác nhận là tùy chọn C coupon D category.
 11. COD paid lúc? A tạo order B add cart C delivered D register.
 12. Audit lưu? A password B old/new và actor C card secret D session cart.
 13. Tracking code do ai tạo? A client B server C CSS D customer.
@@ -1098,7 +1098,7 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 1. Admin access: **Đáp:** auth → active role admin/staff → 2FA nếu bật → permission → controller.
 2. Product update stock: **Đáp:** validate → reason → row lock/service → ledger → product update → audit.
 3. Order confirm: **Đáp:** validate → lock → state rule → confirmed → shipment → history → audit.
-4. Shipment delivered: **Đáp:** lock → shipped + customer receipt → delivered → sync Order → COD paid → history/audit.
+4. Shipment delivered: **Đáp:** lock → shipped → Admin chọn delivered (không cần customer receipt) → sync Order → COD paid → history/audit.
 5. Paid cancel: **Đáp:** lock → cancel/restore → history → refund idempotent → callback → refunded.
 
 ### I4. 3 tình huống tìm code
@@ -1126,7 +1126,7 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 6. Không xóa product có lịch sử đơn.
 7. Order transition do Model/backend quyết định.
 8. Shipment tách state và không nhảy bước.
-9. COD paid khi delivered sau customer receipt.
+9. COD paid khi Admin chuyển delivered; customer receipt là tùy chọn.
 10. Hành động quan trọng phải audit.
 
 ### File/bảng/method trọng tâm
@@ -1475,7 +1475,7 @@ Chuẩn bị ảnh/video ngắn của auth email, responsive và test suite ch�
 | 7 | User thường xem order bằng đâu? | Đạt | Owner account route hoặc order route có owner/session/token. | Account 103-109; Checkout 249-256. |
 | 8 | Product đổi giá sau khi mua ảnh hưởng đâu? | Đạt/Minh Thu | Catalog dùng giá mới; order cũ giữ unit_price snapshot. | Product price; `order_items.unit_price`. |
 | 9 | Admin hủy order tác động module nào? | Bình Minh/Đạt | Order state, inventory restore, shipment cancel, refund nếu paid, audit. | Admin 463-533. |
-| 10 | Customer xác nhận nhận hàng tác động gì? | Đạt/Bình Minh | Ghi customer_received_at; Admin mới được delivered; COD mới paid. | Account `confirmOrderReceived`; Admin shipment 587-637. |
+| 10 | Customer xác nhận nhận hàng tác động gì? | Đạt/Bình Minh | Ghi customer_received_at và lịch sử; không tự hoàn tất đơn. Admin vẫn delivered được khi khách quên bấm; COD paid lúc delivered. | Account `confirmOrderReceived`; Admin shipment 587-637. |
 | 11 | Review xác minh mua hàng bằng gì? | Đạt | User order delivered có OrderItem product đó. | ProductReviewController 41-51. |
 | 12 | Admin moderation review ảnh hưởng catalog sao? | Bình Minh/Đạt | Status đổi; ProductReview model đồng bộ rating/count. | AdminReviewController; ProductReview 51-113. |
 | 13 | Layout chung lấy cart count từ đâu? | Ngân/Đạt | Layout gọi trực tiếp `CartService::count()` và header hiển thị count đã chuẩn hóa từ session. | `resources/views/layouts/app.blade.php:23-25`, `59-65`; `CartService.php:59-64`. |
@@ -1525,7 +1525,7 @@ sequenceDiagram
     end
     Admin->>DB: Confirm → processing
     Admin->>Ship: packed → shipped
-    Khach->>DB: Xác nhận đã nhận
+    Khach-->>DB: Xác nhận đã nhận (tùy chọn)
     Admin->>Ship: delivered
     Ship->>DB: Order delivered; COD paid
 ```
@@ -1676,7 +1676,7 @@ Thứ tự trình bày đi theo chuỗi 11 bước của giảng viên.
 1. Customer vào Admin bị 403 hoặc nói ngắn route protection.
 2. Dashboard doanh thu.
 3. Mở đơn vừa tạo, xác nhận/xử lý; quản lý mã giảm giá.
-4. Giải thích delivered cần khách xác nhận nhận hàng.
+4. Giải thích vì sao Admin hoàn tất delivered mà không chờ khách xác nhận nhận hàng.
 5. Mở inventory ledger và permission config.
 
 ### 12:30-14:00 - Mỹ Ngân: kiểm thử
@@ -1799,7 +1799,7 @@ Mỗi người đứng đúng phần; câu hỏi giao thoa thì owner chính tr�
 
 **Giảng viên:** “Admin có thể chuyển pending thẳng delivered không?”
 
-**Bình Minh:** “Không. `Order::ADMIN_TRANSITIONS` chỉ cho pending sang confirmed hoặc cancelled. Từ bước đóng gói trở đi Shipment có state machine riêng và delivered còn cần khách xác nhận nhận hàng.”
+**Bình Minh:** “Không. `Order::ADMIN_TRANSITIONS` chỉ cho pending sang confirmed hoặc cancelled. Từ bước đóng gói trở đi Shipment có state machine riêng; delivered do Admin xác nhận, không cần chờ khách bấm nhận hàng.”
 
 **Giảng viên:** “Doanh thu dashboard lấy mọi order phải không?”
 

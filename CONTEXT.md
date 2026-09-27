@@ -5,9 +5,9 @@ Pawora Commerce quản lý vòng đời đơn hàng của cửa hàng thú cưng
 ## Language
 
 **Xác nhận nhận hàng của khách**:
-Mốc cho biết khách hàng xác nhận đã nhận được kiện hàng. Mốc này không tự hoàn tất đơn hàng và phải có trước khi admin xác nhận giao thành công.
+Mốc tùy chọn cho biết khách hàng xác nhận đã nhận được kiện hàng. Mốc này không tự hoàn tất đơn hàng và không bắt buộc trước khi admin xác nhận giao thành công, vì khách có thể quên bấm.
 _Avoid_: Đã giao hàng, hoàn tất đơn
 
 **Giao hàng hoàn tất**:
-Trạng thái cuối của giao nhận, được admin xác nhận sau khi khách đã xác nhận nhận hàng. Mốc này bắt đầu thời hạn đổi trả và hoàn tất thanh toán COD.
+Trạng thái cuối của giao nhận, do admin xác nhận khi đơn vị vận chuyển báo giao thành công, dù khách đã bấm xác nhận nhận hàng hay chưa. Mốc này bắt đầu thời hạn đổi trả và hoàn tất thanh toán COD.
 _Avoid_: Khách xác nhận nhận hàng

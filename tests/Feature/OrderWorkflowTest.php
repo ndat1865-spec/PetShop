@@ -135,18 +135,47 @@ class OrderWorkflowTest extends TestCase
         $this->assertSame('shipped', $order->fresh()->status);
         $this->assertNotNull($order->shipments()->firstOrFail()->shipped_at);
 
-        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'delivered'])
-            ->assertStatus(422);
-        $this->assertSame('shipped', $order->fresh()->status);
-        $this->assertNull($order->shipments()->firstOrFail()->delivered_at);
-
         $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
             ->assertSee('Tôi đã nhận được hàng');
+
+        // Khách có thể quên bấm xác nhận, nên admin vẫn hoàn tất được đơn đang giao.
         $this->actingAs($admin)->get(route('admin.orders.show', $order))
             ->assertOk()
-            ->assertSee('Chờ khách xác nhận đã nhận hàng')
-            ->assertDontSee('value="delivered"', false);
+            ->assertSee('Hoàn tất giao hàng')
+            ->assertSee('Khách chưa bấm xác nhận nhận hàng')
+            ->assertSee('value="delivered"', false);
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'delivered'])
+            ->assertRedirect();
+        $this->assertNull($order->shipments()->firstOrFail()->customer_received_at);
+        $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertNotNull($order->shipments()->firstOrFail()->delivered_at);
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id' => $order->id,
+            'from_status' => 'shipped',
+            'to_status' => 'delivered',
+            'note' => 'Đồng bộ từ vận chuyển: Đã giao hàng. Admin xác nhận giao thành công khi khách chưa bấm xác nhận nhận hàng.',
+        ]);
+
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Đã giao hàng')
+            ->assertDontSee('Tôi đã nhận được hàng');
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertStatus(422);
+    }
+
+    public function test_customer_receipt_confirmation_is_recorded_once_and_does_not_complete_the_order(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid']);
+        $order->shipments()->create([
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-RECEIPT-01',
+            'status' => 'shipped',
+            'fee' => 30000,
+            'shipped_at' => now(),
+        ]);
 
         $this->actingAs($customer)->patch(route('account.orders.received', $order))
             ->assertRedirect()
@@ -160,21 +189,19 @@ class OrderWorkflowTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.orders.show', $order))
             ->assertOk()
-            ->assertSee('Hoàn tất giao hàng')
-            ->assertSee('value="delivered"', false);
-        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [...$shipmentData, 'status' => 'delivered'])
-            ->assertRedirect();
+            ->assertSee('Khách đã xác nhận nhận hàng');
+        $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
+            'provider' => 'GHN',
+            'status' => 'delivered',
+            'fee' => 30000,
+        ])->assertRedirect();
+
         $this->assertSame('delivered', $order->fresh()->status);
-        $this->assertNotNull($order->shipments()->firstOrFail()->delivered_at);
         $this->assertDatabaseHas('order_status_histories', [
             'order_id' => $order->id,
-            'from_status' => 'shipped',
             'to_status' => 'delivered',
+            'note' => 'Đồng bộ từ vận chuyển: Đã giao hàng. Khách đã xác nhận nhận hàng.',
         ]);
-
-        $this->actingAs($customer)->get(route('account.orders.show', $order))
-            ->assertOk()
-            ->assertSee('Đã giao hàng');
     }
 
     public function test_only_the_order_owner_can_confirm_receipt_and_only_while_shipping(): void
@@ -199,7 +226,7 @@ class OrderWorkflowTest extends TestCase
         $this->assertNull($shipment->fresh()->customer_received_at);
     }
 
-    public function test_cod_is_marked_paid_only_when_admin_completes_after_customer_confirmation(): void
+    public function test_cod_is_marked_paid_only_when_admin_completes_delivery(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create();
@@ -222,9 +249,7 @@ class OrderWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('COD được ghi nhận ở bước hoàn tất giao hàng')
             ->assertDontSee('Xác nhận đã nhận thanh toán');
-        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertRedirect();
         $this->assertSame('unpaid', $order->fresh()->payment_status);
-        $this->assertSame('shipped', $order->fresh()->status);
 
         $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
             'provider' => 'GHN',

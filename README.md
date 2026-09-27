@@ -172,7 +172,7 @@ Seeder và SQL export cùng tạo hai tài khoản sau:
 1. Đăng nhập `khach@pawora.vn`, thêm một sản phẩm còn hàng vào giỏ.
 2. Mở checkout, nhập/chọn địa chỉ hợp lệ và chọn **Thanh toán khi nhận hàng**.
 3. Nhấn **Xác nhận đặt hàng**. Hệ thống chỉ tạo một đơn ngay cả khi form bị gửi lại với cùng checkout token; F5 trang xác nhận không tạo thêm đơn.
-4. Trong admin, xác nhận và xử lý vận chuyển. COD chỉ chuyển sang đã thanh toán khi khách đã xác nhận nhận hàng và admin hoàn tất giao hàng.
+4. Trong admin, xác nhận và xử lý vận chuyển. COD chỉ chuyển sang đã thanh toán khi admin hoàn tất giao hàng (chọn “Đã giao hàng”). Khách có thể bấm “Tôi đã nhận được hàng” nhưng không bắt buộc; admin không cần chờ khách.
 
 ## Trình diễn thanh toán QR (chuyển khoản SePay)
 

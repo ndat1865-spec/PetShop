@@ -1212,7 +1212,7 @@ document.querySelectorAll('[data-shipment-form]').forEach((form) => {
     const helper = form.querySelector('[data-tracking-help]');
     const impact = form.querySelector('[data-shipment-impact]');
     const submit = form.querySelector('[data-shipment-submit]');
-    const awaitingCustomerReceipt = form.dataset.awaitingCustomerReceipt === 'true';
+    const defaultSubmitLabel = submit?.textContent.trim() || '';
     if (!status || !provider || !tracking) return;
 
     const originalTrackingCode = tracking.value;
@@ -1249,14 +1249,13 @@ document.querySelectorAll('[data-shipment-form]').forEach((form) => {
         ready: 'Khởi tạo hồ sơ giao nhận. Trạng thái đơn vẫn là “Đang chuẩn bị” và khách chưa thấy đơn đang được giao.',
         packed: 'Xác nhận kiện đã đóng gói. Trạng thái đơn phía khách sẽ đổi thành “Đã đóng gói”.',
         shipped: 'Bắt đầu giao hàng. Hệ thống tự cấp mã vận đơn và khách sẽ thấy đơn ở trạng thái “Đang giao hàng”.',
-        delivered: 'Xác nhận giao thành công. Hệ thống lưu thời điểm giao và bắt đầu tính hạn đổi trả.',
+        delivered: 'Xác nhận giao thành công và hoàn tất đơn, kể cả khi khách chưa bấm xác nhận. Hệ thống lưu thời điểm giao, bắt đầu tính hạn đổi trả, ghi nhận COD đã thanh toán và không thể đổi lại trạng thái.',
     };
 
     const updateShipmentGuidance = () => {
         updateTrackingPreview();
-        if (impact) impact.textContent = awaitingCustomerReceipt
-            ? 'Khách chưa xác nhận nhận hàng. Lần lưu này chỉ cập nhật thông tin vận chuyển và không thể hoàn tất đơn.'
-            : (messages[status.value] || 'Hệ thống sẽ lưu thông tin vận chuyển và đồng bộ trạng thái đơn hàng.');
+        if (impact) impact.textContent = messages[status.value] || 'Hệ thống sẽ lưu thông tin vận chuyển và đồng bộ trạng thái đơn hàng.';
+        if (submit) submit.textContent = status.value === 'delivered' ? 'Xác nhận đã giao và hoàn tất đơn' : defaultSubmitLabel;
     };
 
     status.addEventListener('change', updateShipmentGuidance);

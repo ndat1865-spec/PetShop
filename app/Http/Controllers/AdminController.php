@@ -682,13 +682,6 @@ class AdminController extends Controller
                 $previousProvider = $shipment?->provider;
                 $previousStatus = $shipment?->status;
                 if ($shipment) {
-                    if ($data['status'] === 'delivered') {
-                        abort_unless(
-                            $shipment->customerHasConfirmedReceipt(),
-                            422,
-                            'Khách hàng chưa xác nhận đã nhận hàng. Admin chưa thể hoàn tất đơn.'
-                        );
-                    }
                     abort_unless($shipment->canTransitionTo($data['status']), 422, 'Không thể chuyển vận chuyển sang trạng thái này.');
                 } else {
                     abort_unless(in_array($data['status'], $lockedOrder->initialShipmentStatuses(), true), 422, 'Trạng thái vận chuyển khởi tạo không phù hợp với đơn hàng.');
@@ -729,10 +722,17 @@ class AdminController extends Controller
                     $orderChanges = ['status' => $targetOrderStatus];
                     $historyNote = 'Đồng bộ từ vận chuyển: '.$shipment->statusLabel().'.';
 
+                    if ($targetOrderStatus === 'delivered') {
+                        // Khách có thể quên bấm "Tôi đã nhận được hàng", nên admin được hoàn tất đơn trực tiếp.
+                        $historyNote .= $shipment->customerHasConfirmedReceipt()
+                            ? ' Khách đã xác nhận nhận hàng.'
+                            : ' Admin xác nhận giao thành công khi khách chưa bấm xác nhận nhận hàng.';
+                    }
+
                     if ($targetOrderStatus === 'delivered' && $lockedOrder->payment_method === 'cod' && $lockedOrder->payment_status !== 'paid') {
                         $orderChanges['payment_status'] = 'paid';
                         $orderChanges['paid_at'] = now();
-                        $historyNote .= ' Khách đã xác nhận nhận hàng; thanh toán COD được ghi nhận hoàn tất.';
+                        $historyNote .= ' Thanh toán COD được ghi nhận hoàn tất.';
                     }
 
                     $lockedOrder->update($orderChanges);

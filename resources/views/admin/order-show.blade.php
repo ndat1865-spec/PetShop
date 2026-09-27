@@ -25,8 +25,8 @@
         $order->status === 'processing' && !$shipment => ['Vận chuyển', 'Khởi tạo hồ sơ vận chuyển', 'Chọn đơn vị giao hàng. Mã vận đơn chưa bắt buộc ở bước này.', '#shipment-control', 'Khởi tạo vận chuyển'],
         $order->status === 'processing' => ['Kho hàng', 'Xác nhận đã đóng gói', 'Kiểm tra kiện hàng rồi chuyển trạng thái vận chuyển sang “Đã đóng gói”.', '#shipment-control', 'Mở vận chuyển'],
         $order->status === 'packed' => ['Vận chuyển', 'Nhập mã và bắt đầu giao', 'Mã vận đơn bắt buộc ở bước “Đang giao hàng” để khách có thông tin tra cứu.', '#shipment-control', 'Bàn giao vận chuyển'],
-        $order->status === 'shipped' && !$shipment?->customer_received_at => ['Khách hàng', 'Chờ khách xác nhận đã nhận hàng', 'Admin chưa thể hoàn tất đơn. Khách cần mở chi tiết đơn và bấm “Tôi đã nhận được hàng”.', '#shipment-control', 'Xem trạng thái xác nhận'],
-        $order->status === 'shipped' => ['Admin giao nhận', 'Hoàn tất giao hàng', 'Khách đã xác nhận nhận kiện hàng. Kiểm tra lại rồi chọn “Đã giao hàng” để hoàn tất đơn.', '#shipment-control', 'Hoàn tất đơn'],
+        $order->status === 'shipped' && $shipment?->customer_received_at => ['Admin giao nhận', 'Hoàn tất giao hàng', 'Khách đã xác nhận nhận kiện hàng. Chọn “Đã giao hàng” để hoàn tất đơn.', '#shipment-control', 'Hoàn tất đơn'],
+        $order->status === 'shipped' => ['Admin giao nhận', 'Hoàn tất giao hàng', 'Khi đơn vị vận chuyển báo giao thành công, chọn “Đã giao hàng” để hoàn tất đơn. Không cần chờ khách bấm xác nhận.', '#shipment-control', 'Hoàn tất đơn'],
         $order->status === 'delivered' => ['Hoàn tất', 'Đơn đã giao thành công', 'Quy trình giao hàng đã khóa. Thời hạn đổi trả được tính từ thời điểm giao.', '#shipment-summary', 'Xem bàn giao'],
         default => ['Kiểm tra', 'Kiểm tra trạng thái đơn', 'Mở lịch sử để đối chiếu các thay đổi đã thực hiện.', '#order-history', 'Xem lịch sử'],
     };
@@ -126,7 +126,7 @@
             @elseif($order->payment_method === 'cod' && in_array($order->payment_status, ['unpaid', 'pending', 'failed'], true))
                 <div class="admin-action-state">
                     <strong>COD được ghi nhận ở bước hoàn tất giao hàng</strong>
-                    <p>Khách xác nhận đã nhận kiện trước, sau đó admin chọn “Đã giao hàng”. Hệ thống sẽ tự chuyển thanh toán sang “Đã thanh toán”.</p>
+                    <p>Khi admin chọn “Đã giao hàng”, hệ thống tự chuyển thanh toán sang “Đã thanh toán”.</p>
                 </div>
             @elseif($order->payment_status === 'refund_pending')
                 <div class="admin-action-state">
@@ -151,7 +151,7 @@
                 <div><dt>Mã vận đơn</dt><dd>@if($shipment?->tracking_code)<code>{{ $shipment->tracking_code }}</code>@else<span class="missing-value">Chưa có mã</span>@endif</dd></div>
                 <div><dt>Phí vận chuyển</dt><dd>{{ number_format($shipment?->fee ?: $order->shipping_fee, 0, ',', '.') }}đ</dd></div>
                 <div><dt>Bàn giao lúc</dt><dd>{{ $shipment?->shipped_at?->format('H:i d/m/Y') ?: 'Chưa bàn giao' }}</dd></div>
-                <div><dt>Khách xác nhận</dt><dd>{{ $shipment?->customer_received_at?->format('H:i d/m/Y') ?: ($shipment?->status === 'shipped' ? 'Đang chờ khách' : 'Chưa đến bước') }}</dd></div>
+                <div><dt>Khách xác nhận</dt><dd>{{ $shipment?->customer_received_at?->format('H:i d/m/Y') ?: (match ($shipment?->status) { 'shipped' => 'Khách chưa bấm', 'delivered' => 'Khách không bấm', default => 'Chưa đến bước' }) }}</dd></div>
                 <div><dt>Giao thành công</dt><dd>{{ $shipment?->delivered_at?->format('H:i d/m/Y') ?: 'Chưa giao' }}</dd></div>
             </dl>
             @if($order->status === 'delivered' && !$shipment?->tracking_code)
@@ -201,7 +201,7 @@
     <article class="admin-panel shipment-control-panel" id="shipment-control">
         <div class="panel-title"><div><p class="eyebrow">Kho & giao nhận</p><h2>Điều khiển vận chuyển</h2></div>@if($shipment)<span class="admin-badge {{ $shipment->status }}">{{ $shipment->statusLabel() }}</span>@endif</div>
         @if($order->canManageShipment() && $shipmentTransitions)
-            <p class="control-intro">Đây là nơi duy nhất điều khiển các bước đóng gói, đang giao và đã giao. Riêng bước hoàn tất chỉ mở sau khi khách xác nhận đã nhận kiện hàng.</p>
+            <p class="control-intro">Đây là nơi duy nhất điều khiển các bước đóng gói, đang giao và đã giao. Khi đơn vị vận chuyển báo giao thành công, admin chọn “Đã giao hàng” để hoàn tất đơn, không cần chờ khách bấm xác nhận.</p>
             @include('admin._shipment-form', ['formContext' => 'order-detail'])
         @else
             <div class="shipment-closed-state">

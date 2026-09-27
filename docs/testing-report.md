@@ -32,7 +32,7 @@ Bản SQL trước ngày 26/09 thiếu 6 migration cuối (kể cả `orders.ide
 | Phân quyền đơn hàng | Người dùng khác mở order hoặc trang QR chuyển khoản | Pass: bị từ chối; chủ đơn/admin mới được thao tác |
 | Đăng nhập sai nhiều lần | Sai mật khẩu 5 lần liên tiếp cho cùng email; đăng nhập đúng 7 lần liên tiếp | Pass: lần sai thứ 6 bị khóa kèm thông báo số giây phải chờ (không còn trang 429); đăng nhập đúng không bị tính vào giới hạn |
 | Chống double-submit/F5 | POST checkout hai lần cùng `checkout_token` | Pass: chỉ một order/order item, stock chỉ trừ một lần; trang xác nhận refresh không tạo thêm đơn |
-| COD và vòng đời đơn | Suite `OrderWorkflowTest` kiểm tra thanh toán COD sau xác nhận nhận hàng, shipment và các bước hợp lệ | Pass |
+| COD và vòng đời đơn | Suite `OrderWorkflowTest` kiểm tra thanh toán COD khi admin hoàn tất giao hàng (không cần khách xác nhận), shipment và các bước hợp lệ | Pass |
 | QR chuyển khoản (SePay) | Đặt đơn chuyển khoản, mở trang QR bằng chủ đơn và bằng user khác | Pass: chủ đơn thấy đúng mã đơn/số tiền; user khác hoặc sai token nhận 403 |
 | Webhook SePay | Sai API key, sai số tiền, webhook lặp | Pass: sai key 401, sai tiền 422 và đơn vẫn chưa thanh toán; webhook hợp lệ chỉ tạo một transaction, lần lặp trả "Already processed" |
 | QR Demo đã gỡ | Gửi checkout với `payment_method=qr_demo` | Pass: bị từ chối, không tạo đơn |

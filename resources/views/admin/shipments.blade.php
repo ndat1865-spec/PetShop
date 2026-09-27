@@ -49,7 +49,7 @@
                 <div><small>Giao đến</small><strong>{{ $order->shipping_address }}</strong></div>
                 <div><small>Đơn vị vận chuyển</small><strong>{{ $shipment?->provider ?: 'Chưa chọn' }}</strong></div>
                 <div><small>Mã vận đơn</small><strong>@if($shipment?->tracking_code)<code>{{ $shipment->tracking_code }}</code>@else<span class="missing-value">Chưa có mã</span>@endif</strong></div>
-                <div><small>Xác nhận của khách</small><strong>@if($shipment?->customer_received_at)Đã xác nhận {{ $shipment->customer_received_at->format('H:i d/m/Y') }}@elseif($shipment?->status === 'shipped')<span class="missing-value">Đang chờ khách</span>@else Chưa đến bước @endif</strong></div>
+                <div><small>Xác nhận của khách</small><strong>@if($shipment?->customer_received_at)Đã xác nhận {{ $shipment->customer_received_at->format('H:i d/m/Y') }}@elseif($shipment?->status === 'shipped')<span class="missing-value">Khách chưa bấm</span>@else Chưa đến bước @endif</strong></div>
                 <div><small>Phí giao hàng</small><strong>{{ number_format($shipment?->fee ?: $order->shipping_fee, 0, ',', '.') }}đ</strong></div>
             </div>
 

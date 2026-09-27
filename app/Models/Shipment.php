@@ -35,10 +35,6 @@ class Shipment extends Model
 
     public function allowedTransitions(): array
     {
-        if ($this->status === 'shipped' && ! $this->customer_received_at) {
-            return [];
-        }
-
         return self::TRANSITIONS[$this->status] ?? [];
     }
 
