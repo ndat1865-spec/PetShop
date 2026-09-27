@@ -746,7 +746,7 @@
 
 **Câu giảng viên có thể hỏi:** (1) Admin gửi tracking code tùy ý? (2) COD paid khi nào?
 
-**Đáp án:** (1) Input gửi lên bị bỏ qua; hệ thống sinh unique code. (2) Khi hoàn tất sau xác nhận nhận hàng theo workflow.
+**Đáp án:** (1) Input gửi lên bị bỏ qua; hệ thống sinh unique code. (2) Khi admin hoàn tất giao hàng (delivered); khách xác nhận nhận hàng là tùy chọn.
 
 **Bản 10 phút:** Giữ.
 
@@ -1018,7 +1018,7 @@
 
 **Câu giảng viên có thể hỏi:** Customer xác nhận nhận hàng lúc nào?
 
-**Đáp án:** Chỉ khi shipment đang shipping và order thuộc chính customer.
+**Đáp án:** Chỉ khi shipment đang shipping và order thuộc chính customer. Bước này tùy chọn: admin vẫn hoàn tất đơn được nếu khách quên bấm.
 
 **Bản 10 phút:** Không dùng.
 

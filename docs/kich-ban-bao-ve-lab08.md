@@ -951,7 +951,7 @@ Admin và Staff không giống nhau. Admin có wildcard permission, còn Staff c
 1. Chuẩn bị một COD pending và một online pending chưa paid.
 2. Online chưa paid không được confirm; COD được pending→confirmed.
 3. Confirm tự tạo shipment; order processing → shipment packed → shipped.
-4. Thử delivered trước khách xác nhận: 422. Khách xác nhận rồi Admin delivered: order delivered, COD paid.
+4. Thử Admin delivered khi khách chưa bấm xác nhận: thành công, order delivered, COD paid, lịch sử ghi rõ khách chưa xác nhận.
 5. Mở history và audit log để chứng minh ai thay đổi.
 
 ### Demo hủy/refund
@@ -979,7 +979,7 @@ Nếu cổng thanh toán không hoạt động, dùng dữ liệu COD và refund
 | 7 | Audit log ghi gì? | Actor, event, object, before/after, IP, UA. | `AdminAuditLogger.php:19-29`. | Có ghi password không? |
 | 8 | Admin cập nhật order ở method nào? | `AdminController::updateOrder()`. | Dòng 463-533. | Ai kiểm transition? |
 | 9 | Shipment có trạng thái gì? | ready, packed, shipped, delivered, cancelled. | `Shipment.php:9-25`. | Được nhảy ready→shipped không? |
-| 10 | COD paid khi nào? | Khi delivered sau khách xác nhận. | `AdminController.php:634-637`. | Admin mark paid thủ công COD được không? |
+| 10 | COD paid khi nào? | Khi Admin chuyển delivered, khách có bấm xác nhận hay chưa đều được. | `AdminController.php:634-637`. | Admin mark paid thủ công COD được không? |
 
 ### G2. 10 câu trung bình
 
