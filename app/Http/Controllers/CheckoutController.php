@@ -11,6 +11,7 @@ use App\Services\CartService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\MomoGateway;
+use App\Services\OnePayGateway;
 use App\Services\ResendMailer;
 use App\Services\SepayGateway;
 use App\Services\ShippingCalculator;
@@ -55,6 +56,7 @@ class CheckoutController extends Controller
                 'vnpay' => app(VnPayGateway::class)->enabled(),
                 'zalopay' => app(ZaloPayGateway::class)->enabled(),
                 'momo' => app(MomoGateway::class)->enabled(),
+                'onepay' => app(OnePayGateway::class)->enabled(),
             ],
             'defaultAddress' => [
                 'receiver_name' => $savedDefault?->receiver_name ?? $request->user()?->name,
@@ -136,7 +138,7 @@ class CheckoutController extends Controller
             'address_line' => 'required|string|max:255',
             'note' => 'nullable|string|max:500',
             'coupon_code' => 'nullable|string|max:30',
-            'payment_method' => 'required|in:cod,bank_transfer,vnpay,zalopay,momo',
+            'payment_method' => 'required|in:cod,bank_transfer,vnpay,zalopay,momo,onepay',
             'terms' => 'accepted',
             'idempotency_key' => 'nullable|uuid',
             'checkout_token' => 'nullable|uuid',
@@ -169,6 +171,9 @@ class CheckoutController extends Controller
         }
         if ($data['payment_method'] === 'momo' && ! app(MomoGateway::class)->enabled()) {
             return back()->withInput()->withErrors(['payment_method' => 'MoMo chưa được cấu hình trong file .env.']);
+        }
+        if ($data['payment_method'] === 'onepay' && ! app(OnePayGateway::class)->enabled()) {
+            return back()->withInput()->withErrors(['payment_method' => 'OnePay chưa được cấu hình trong file .env.']);
         }
         if ($data['payment_method'] === 'bank_transfer' && ! app(SepayGateway::class)->enabled()) {
             return back()->withInput()->withErrors(['payment_method' => 'SePay chưa được cấu hình thông tin tài khoản nhận tiền.']);
@@ -218,7 +223,7 @@ class CheckoutController extends Controller
                 }
                 $shippingQuote = app(ShippingCalculator::class)->quote($data['province'], $subtotal - $discount, $data['district_id'] ?? null, $data['ward_code'] ?? null);
                 $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
-                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
+                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee']]);
                 foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
                     $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
                     app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
@@ -285,6 +290,9 @@ class CheckoutController extends Controller
             return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])->withErrors(['payment_method' => $payment['message'] ?? 'Không tạo được phiên thanh toán MoMo.']);
         }
 
+        if ($order->payment_method === 'onepay' && app(OnePayGateway::class)->enabled()) {
+            return redirect()->away(app(OnePayGateway::class)->paymentUrl($order, $request));
+        }
         return redirect()->route('orders.confirmation', $order);
     }
 

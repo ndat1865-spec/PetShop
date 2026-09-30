@@ -13,5 +13,5 @@
     </div>
     <button class="button primary" type="submit">Lưu cài đặt</button>
 </form>
-<section class="admin-bento"><div class="admin-panel"><h2>Cổng thanh toán</h2>@foreach(['vnpay','zalopay','momo'] as $provider)<div class="mini-row"><span>{{ strtoupper($provider) }}</span><strong>{{ config('services.'.$provider.'.enabled') ? 'Bật' : 'Tắt' }}</strong></div>@endforeach</div><div class="admin-panel"><h2>Bảo mật cấu hình</h2><p class="fine">API key, token và secret tiếp tục được quản lý qua biến môi trường. Chỉ trạng thái kết nối được hiển thị tại đây.</p></div></section>
+<section class="admin-bento"><div class="admin-panel"><h2>Cổng thanh toán</h2>@foreach(['vnpay','zalopay','momo','onepay'] as $provider)<div class="mini-row"><span>{{ strtoupper($provider) }}</span><strong>{{ config('services.'.$provider.'.enabled') ? 'Bật' : 'Tắt' }}</strong></div>@endforeach</div><div class="admin-panel"><h2>Bảo mật cấu hình</h2><p class="fine">API key, token và secret tiếp tục được quản lý qua biến môi trường. Chỉ trạng thái kết nối được hiển thị tại đây.</p></div></section>
 @endsection

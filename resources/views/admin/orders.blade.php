@@ -12,7 +12,7 @@
     <label>Tìm đơn<input name="q" value="{{ request('q') }}" placeholder="Mã đơn, tên khách hoặc SĐT"></label>
     <label>Trạng thái đơn<select name="status"><option value="">Tất cả</option>@foreach(\App\Models\Order::STATUSES as $status)<option value="{{ $status }}" @selected(request('status') === $status)>{{ \App\Models\Order::STATUS_LABELS[$status] }}</option>@endforeach</select></label>
     <label>Thanh toán<select name="payment_status"><option value="">Tất cả</option>@foreach(\App\Models\Order::PAYMENT_STATUS_LABELS as $status => $label)<option value="{{ $status }}" @selected(request('payment_status') === $status)>{{ $label }}</option>@endforeach</select></label>
-    <label>Phương thức<select name="payment_method"><option value="">Tất cả</option>@foreach(['cod', 'bank_transfer', 'vnpay', 'zalopay', 'momo', 'sepay'] as $method)<option value="{{ $method }}" @selected(request('payment_method') === $method)>{{ strtoupper($method) }}</option>@endforeach</select></label>
+    <label>Phương thức<select name="payment_method"><option value="">Tất cả</option>@foreach(['cod', 'bank_transfer', 'vnpay', 'zalopay', 'momo', 'onepay', 'sepay'] as $method)<option value="{{ $method }}" @selected(request('payment_method') === $method)>{{ strtoupper($method) }}</option>@endforeach</select></label>
     <button class="button secondary">Áp dụng bộ lọc</button>
 </form>
 

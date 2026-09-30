@@ -118,6 +118,11 @@
                             height="44"></span><span><strong>Thanh toán MoMo</strong><small>Sẵn sàng kết nối khi có MoMo
                             Business Sandbox.</small></span></label>
                 @endif
+                @if($paymentMethods['onepay'])
+                <label class="payment-option onepay"><input type="radio" name="payment_method" value="onepay"><span
+                        class="pay-card-stack" aria-hidden="true"><b>VISA</b><b>MC</b><b>JCB</b></span><span><strong>Thẻ
+                            quốc tế OnePay</strong><small>Visa, Mastercard, JCB qua OnePay Sandbox.</small></span></label>
+                @endif
             </div>
         </fieldset>
     </div>

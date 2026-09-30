@@ -12,6 +12,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CustomerChatController;
 use App\Http\Controllers\MomoController;
+use App\Http\Controllers\OnePayController;
 use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\RefundWebhookController;
 use App\Http\Controllers\SepayController;
@@ -52,6 +53,8 @@ Route::get('/thanh-toan/vnpay/return', [VnPayController::class, 'return'])->name
 Route::get('/thanh-toan/vnpay/ipn', [VnPayController::class, 'ipn'])->name('payments.vnpay.ipn');
 Route::get('/thanh-toan/zalopay/return', [ZaloPayController::class, 'return'])->name('payments.zalopay.return');
 Route::post('/thanh-toan/zalopay/callback', [ZaloPayController::class, 'callback'])->name('payments.zalopay.callback');
+Route::get('/thanh-toan/onepay/return', [OnePayController::class, 'return'])->name('payments.onepay.return');
+Route::match(['get', 'post'], '/thanh-toan/onepay/callback', [OnePayController::class, 'callback'])->name('payments.onepay.callback');
 Route::get('/thanh-toan/momo/return/{order}', [MomoController::class, 'return'])->name('payments.momo.return');
 Route::post('/thanh-toan/momo/ipn', [MomoController::class, 'ipn'])->name('payments.momo.ipn');
 Route::post('/thanh-toan/hoan-tien/{provider}/callback', RefundWebhookController::class)->name('payments.refunds.callback');

@@ -150,6 +150,12 @@
 .payment-option .pay-logo{background:#fff!important;color:inherit!important;border:1px solid rgba(0,0,0,.08);padding:6px}.payment-option .pay-logo img{width:100%;height:100%;object-fit:contain}.payment-option .pay-logo.square{width:44px;padding:0;border:0;background:transparent!important}.payment-option .pay-logo.square img{border-radius:10px}.payment-option.vnpay .pay-logo,.payment-option.zalopay .pay-logo{width:82px;height:46px}.payment-option.momo .pay-logo{width:46px;height:46px}
 .payment-option{border-radius:8px}.payment-option .pay-icon,.payment-option .pay-logo{width:66px!important;height:46px!important;border-radius:8px!important;background:#fff!important;border:1px solid rgba(0,0,0,.1)!important;padding:7px!important;box-shadow:none!important}.payment-option.cod .pay-icon{background:#111!important;color:#fff!important;border-color:#111!important}.payment-option.bank .pay-icon{background:#0f766e!important;color:#fff!important;border-color:#0f766e!important}.payment-option .pay-logo img{width:100%!important;height:100%!important;object-fit:contain!important;border-radius:0!important}.payment-option.momo .pay-logo{background:#ae2070!important;border-color:#ae2070!important;padding:6px!important}.payment-option.momo .pay-logo img{border-radius:6px!important}.payment-option:has(input:checked){border-color:var(--blue-600);box-shadow:0 0 0 2px rgba(0,102,204,.16)}
 
+.pay-card-stack{width:66px;height:46px;border-radius:8px;border:1px solid rgba(0,0,0,.1);background:linear-gradient(135deg,#f7fbff,#fff);display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:6px;box-shadow:none;flex:none}
+.pay-card-stack b{display:grid;place-items:center;min-width:0;border-radius:5px;color:#fff;font-size:9px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.pay-card-stack b:nth-child(1){grid-column:1/-1;background:#1a56db}.pay-card-stack b:nth-child(2){background:#eb001b}.pay-card-stack b:nth-child(3){background:#111827}
+.payment-option.onepay:has(input:checked) .pay-card-stack{border-color:rgba(0,102,204,.45)}
+@media(max-width:640px){.pay-card-stack{width:62px;height:42px}}
+
 /* Pawora Admin Ops UI */
 .admin-body{margin:0;background:#f4f6fb;color:#111827}
 .admin-body .skip-link{background:#fff;color:#111827}
