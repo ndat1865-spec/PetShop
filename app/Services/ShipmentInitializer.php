@@ -5,10 +5,23 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Shipment;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ShipmentInitializer
 {
+    public function ensureForPaidOrder(Order $order): ?Shipment
+    {
+        return DB::transaction(function () use ($order) {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if ($lockedOrder->payment_status !== 'paid' || $lockedOrder->status !== 'confirmed') {
+                return null;
+            }
+
+            return $this->ensureForConfirmedOrder($lockedOrder);
+        });
+    }
+
     public function ensureForConfirmedOrder(Order $order): Shipment
     {
         $shipment = Shipment::query()

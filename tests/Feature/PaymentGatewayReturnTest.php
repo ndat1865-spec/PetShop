@@ -4,20 +4,24 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\PaymentTransaction;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PaymentGatewayReturnTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_momo_successful_browser_return_marks_the_local_order_paid(): void
+    #[DataProvider('momoSuccessSequences')]
+    public function test_momo_successful_browser_return_marks_the_local_order_paid_and_redirects_to_confirmation(bool $ipnFirst): void
     {
         config()->set('services.momo.access_key', 'test-access-key');
         config()->set('services.momo.secret_key', 'test-secret-key');
 
         $order = $this->order('momo', 'PAW-MOMO-RETURN');
+        $order->update(['user_id' => User::factory()->create()->id]);
         $requestId = (string) Str::uuid();
         PaymentTransaction::create([
             'order_id' => $order->id,
@@ -31,9 +35,33 @@ class PaymentGatewayReturnTest extends TestCase
 
         $payload = $this->momoPayload($order, $requestId);
 
-        $this->get(route('payments.momo.return', ['order' => $order, ...$payload]))
+        if ($ipnFirst) {
+            $this->postJson(route('payments.momo.ipn'), $payload)->assertOk();
+            $this->assertNotEmpty($order->shipments()->sole()->tracking_code);
+        }
+
+        $response = $this->get(route('payments.momo.return', ['order' => $order, ...$payload]))
+            ->assertRedirect(route('orders.confirmation', ['order' => $order, 'token' => $order->public_token]));
+
+        $shipment = $order->shipments()->first();
+        $this->assertNotNull($shipment, 'Đơn đã xác nhận phải có vận đơn.');
+        $this->assertNotEmpty($shipment->tracking_code);
+
+        $this->assertGuest();
+        $this->assertNull(session('last_order'));
+        $this->get($response->headers->get('Location'))
             ->assertOk()
-            ->assertSee('Thanh toán thành công');
+            ->assertViewIs('store.confirmation')
+            ->assertSee('Đặt hàng thành công')
+            ->assertSee($order->number)
+            ->assertSee($shipment->tracking_code)
+            ->assertSee('MoMo')
+            ->assertDontSee('Chờ xác nhận');
+
+        $this->postJson(route('payments.momo.ipn'), $payload)->assertOk();
+        $this->get(route('payments.momo.return', ['order' => $order, ...$payload]))->assertRedirect();
+        $this->assertSame(1, $order->shipments()->count());
+        $this->assertSame($shipment->tracking_code, $order->shipments()->sole()->tracking_code);
 
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
@@ -49,7 +77,16 @@ class PaymentGatewayReturnTest extends TestCase
         $this->assertNotNull($order->fresh()->paid_at);
     }
 
-    public function test_momo_browser_return_rejects_a_valid_signature_for_the_wrong_amount(): void
+    public static function momoSuccessSequences(): array
+    {
+        return [
+            'browser return before IPN' => [false],
+            'IPN before browser return' => [true],
+        ];
+    }
+
+    #[DataProvider('momoFailures')]
+    public function test_momo_unsuccessful_browser_return_keeps_the_result_page(?int $amount, int $resultCode, bool $invalidSignature, string $paymentStatus): void
     {
         config()->set('services.momo.access_key', 'test-access-key');
         config()->set('services.momo.secret_key', 'test-secret-key');
@@ -66,21 +103,37 @@ class PaymentGatewayReturnTest extends TestCase
             'currency' => 'VND',
         ]);
 
-        $payload = $this->momoPayload($order, $requestId, 199999);
+        $payload = $this->momoPayload($order, $requestId, $amount, $resultCode);
+        if ($invalidSignature) {
+            $payload['signature'] = 'invalid-signature';
+        }
 
         $this->get(route('payments.momo.return', ['order' => $order, ...$payload]))
             ->assertBadRequest()
+            ->assertViewIs('store.momo-result')
+            ->assertViewHas('successful', false)
             ->assertSee('Thanh toán chưa thành công');
+
+        $this->assertSame(0, $order->shipments()->count());
 
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
-            'payment_status' => 'pending',
+            'payment_status' => $paymentStatus,
             'status' => 'pending',
         ]);
         $this->assertDatabaseHas('payment_transactions', [
             'order_id' => $order->id,
-            'status' => 'pending',
+            'status' => $paymentStatus,
         ]);
+    }
+
+    public static function momoFailures(): array
+    {
+        return [
+            'valid signature with wrong amount' => [199999, 0, false, 'pending'],
+            'invalid signature' => [null, 0, true, 'pending'],
+            'failed payment' => [null, 1006, false, 'failed'],
+        ];
     }
 
     private function order(string $paymentMethod, string $number): Order
@@ -100,7 +153,7 @@ class PaymentGatewayReturnTest extends TestCase
         ]);
     }
 
-    private function momoPayload(Order $order, string $requestId, ?int $amount = null): array
+    private function momoPayload(Order $order, string $requestId, ?int $amount = null, int $resultCode = 0): array
     {
         $payload = [
             'amount' => $amount ?? (int) $order->total,
@@ -113,7 +166,7 @@ class PaymentGatewayReturnTest extends TestCase
             'payType' => 'webApp',
             'requestId' => $requestId,
             'responseTime' => '1787792400000',
-            'resultCode' => 0,
+            'resultCode' => $resultCode,
             'transId' => '123456789',
         ];
         $signed = ['accessKey' => config('services.momo.access_key'), ...$payload];

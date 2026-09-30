@@ -102,6 +102,19 @@ class Order extends Model
         return self::PAYMENT_STATUS_LABELS[$this->payment_status] ?? ucfirst($this->payment_status);
     }
 
+    public function paymentMethodLabel(): string
+    {
+        return [
+            'cod' => 'Thanh toán khi nhận hàng',
+            'bank_transfer' => 'Chuyển khoản SePay',
+            'qr_demo' => 'QR Demo Pawora',
+            'vnpay' => 'VNPay',
+            'zalopay' => 'ZaloPay',
+            'momo' => 'MoMo',
+            'onepay' => 'Thẻ quốc tế OnePay',
+        ][$this->payment_method] ?? strtoupper($this->payment_method);
+    }
+
     public function allowedAdminTransitions(): array
     {
         $transitions = self::ADMIN_TRANSITIONS[$this->status] ?? [];

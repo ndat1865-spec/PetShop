@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Services\SepayGateway;
+use App\Services\ShipmentInitializer;
 use Illuminate\Http\Request;
 
 class SepayController extends Controller
@@ -28,9 +29,14 @@ class SepayController extends Controller
         $order = Order::whereRaw('UPPER(number) = ?', [$this->extractOrderNumber($content)])->first();
         if (! $order) return response()->json(['success' => false, 'message' => 'Order not found'], 404);
         if ((int) $order->total !== (int) ($payload['transferAmount'] ?? 0)) return response()->json(['success' => false, 'message' => 'Invalid amount'], 422);
-        if ($order->payment_status === 'paid') return response()->json(['success' => true, 'message' => 'Already processed']);
+        if ($order->payment_status === 'paid') {
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
+
+            return response()->json(['success' => true, 'message' => 'Already processed']);
+        }
 
         $order->forceFill(['payment_status' => 'paid', 'status' => $order->status === 'pending' ? 'confirmed' : $order->status, 'paid_at' => now()])->save();
+        app(ShipmentInitializer::class)->ensureForPaidOrder($order);
         PaymentTransaction::updateOrCreate(
             ['provider' => 'sepay', 'provider_transaction_id' => (string) ($payload['id'] ?? $payload['referenceCode'] ?? $order->number)],
             ['order_id' => $order->id, 'request_id' => $order->public_token, 'type' => 'payment', 'status' => 'paid', 'amount' => $payload['transferAmount'], 'currency' => 'VND', 'response_payload' => $payload, 'processed_at' => now()]

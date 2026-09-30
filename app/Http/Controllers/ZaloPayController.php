@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PaymentTransaction;
+use App\Services\ShipmentInitializer;
 use App\Services\ZaloPayGateway;
 use Illuminate\Http\Request;
 
@@ -22,8 +23,15 @@ class ZaloPayController extends Controller
             $transaction->update(['status' => 'paid', 'response_payload' => $request->query(), 'processed_at' => now()]);
         }
 
+        if ($order->payment_status === 'paid') {
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
+
+            return redirect()->route('orders.confirmation', ['order' => $order, 'token' => $order->public_token])
+                ->with('success', 'Thanh toán ZaloPay thành công. Pawora đã xác nhận đơn của bạn.');
+        }
+
         return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
-            ->with('success', $order->payment_status === 'paid' ? 'Thanh toán ZaloPay thành công. Pawora đã xác nhận đơn của bạn.' : 'Pawora đã nhận kết quả quay về từ ZaloPay.');
+            ->with('success', 'Pawora đã nhận kết quả quay về từ ZaloPay.');
     }
 
     public function callback(Request $request, ZaloPayGateway $zalopay)
@@ -58,6 +66,8 @@ class ZaloPayController extends Controller
             'status' => $order->status === 'pending' ? 'confirmed' : $order->status,
             'paid_at' => now(),
         ])->save();
+
+        app(ShipmentInitializer::class)->ensureForPaidOrder($order);
 
         $transaction->update([
             'status' => 'paid',

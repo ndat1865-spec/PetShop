@@ -160,6 +160,7 @@ class CheckoutSecurityTest extends TestCase
 
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'paid', 'status' => 'confirmed']);
         $this->assertSame(1, PaymentTransaction::where('provider', 'sepay')->count());
+        $this->assertNotEmpty($order->shipments()->sole()->tracking_code);
     }
 
     public function test_checkout_lists_only_configured_payment_gateways(): void

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PaymentTransaction;
+use App\Services\ShipmentInitializer;
 use App\Services\VnPayGateway;
 use Illuminate\Http\Request;
 
@@ -35,9 +36,10 @@ class VnPayController extends Controller
                 'paid_at' => now(),
             ])->save();
 
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
             $this->record($order, $params, 'paid');
 
-            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token])
+            return redirect()->route('orders.confirmation', ['order' => $order, 'token' => $order->public_token])
                 ->with('success', 'Thanh toán VNPay thành công. Pawora đã xác nhận đơn của bạn.');
         }
 
@@ -65,11 +67,14 @@ class VnPayController extends Controller
         }
 
         if ($order->payment_status === 'paid') {
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
+
             return response()->json(['RspCode' => '02', 'Message' => 'Order already confirmed']);
         }
 
         if ($vnpay->successful($params)) {
             $order->forceFill(['payment_status' => 'paid', 'paid_at' => now(), 'status' => 'confirmed'])->save();
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
             $this->record($order, $params, 'paid');
         } else {
             $this->record($order, $params, 'failed');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Services\MomoGateway;
+use App\Services\ShipmentInitializer;
 use Illuminate\Http\Request;
 
 class MomoController extends Controller
@@ -22,11 +23,15 @@ class MomoController extends Controller
             && (int) $order->total === (int) ($payload['amount'] ?? 0);
         $ok = $valid && $this->applyResult($order, $transaction, $payload);
 
+        if ($ok) {
+            return redirect()->route('orders.confirmation', ['order' => $order, 'token' => $order->public_token]);
+        }
+
         return response()->view('store.momo-result', [
             'order' => $order,
             'payload' => $payload,
-            'successful' => $ok,
-        ], $ok ? 200 : 400);
+            'successful' => false,
+        ], 400);
     }
 
     public function ipn(Request $request, MomoGateway $momo)
@@ -63,6 +68,10 @@ class MomoController extends Controller
             ])->save();
         } elseif (! $ok && $order->payment_status !== 'paid') {
             $order->forceFill(['payment_status' => 'failed'])->save();
+        }
+
+        if ($ok) {
+            app(ShipmentInitializer::class)->ensureForPaidOrder($order);
         }
 
         $transactionWasPaid = $transaction->status === 'paid';

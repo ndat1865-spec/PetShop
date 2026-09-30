@@ -3,15 +3,6 @@
 @section('content')
 @php
     $shipment = $order->shipments->first();
-    $paymentMethods = [
-        'cod' => 'Thanh toán khi nhận hàng',
-        'bank_transfer' => 'Chuyển khoản SePay',
-        'qr_demo' => 'QR Demo Pawora',
-        'vnpay' => 'VNPay',
-        'zalopay' => 'ZaloPay',
-        'momo' => 'MoMo',
-        'onepay' => 'Thẻ quốc tế OnePay',
-    ];
     $progress = match($order->status) {
         'confirmed' => 2,
         'processing', 'packed' => 3,
@@ -33,7 +24,7 @@
     </div>
 
     <ol class="confirmation-progress" aria-label="Tiến trình đơn hàng">
-        @foreach(['Đã đặt hàng', 'Chờ xác nhận', 'Chuẩn bị hàng', 'Đang giao'] as $index => $label)
+        @foreach(['Đã đặt hàng', $progress >= 2 ? 'Đã xác nhận' : 'Chờ xác nhận', 'Chuẩn bị hàng', 'Đang giao'] as $index => $label)
             <li @class(['is-complete' => $progress > $index + 1, 'is-current' => $progress === $index + 1])><span>{{ $index + 1 }}</span><strong>{{ $label }}</strong></li>
         @endforeach
     </ol>
@@ -44,7 +35,7 @@
             <dl>
                 <div><dt>Trạng thái</dt><dd>{{ $order->statusLabel() }}</dd></div>
                 <div><dt>Thanh toán</dt><dd>{{ $order->paymentStatusLabel() }}</dd></div>
-                <div><dt>Phương thức</dt><dd>{{ $paymentMethods[$order->payment_method] ?? strtoupper($order->payment_method) }}</dd></div>
+                <div><dt>Phương thức</dt><dd>{{ $order->paymentMethodLabel() }}</dd></div>
                 <div><dt>Tổng thanh toán</dt><dd>{{ number_format($order->total, 0, ',', '.') }}đ</dd></div>
                 <div><dt>Thời gian dự kiến</dt><dd>{{ $order->estimated_delivery ?: 'Pawora sẽ cập nhật sớm' }}</dd></div>
                 <div><dt>Địa chỉ nhận hàng</dt><dd>{{ $order->shipping_address }}</dd></div>
