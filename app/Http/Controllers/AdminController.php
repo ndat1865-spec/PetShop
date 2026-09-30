@@ -339,13 +339,13 @@ class AdminController extends Controller
     {
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
-            'type' => ['nullable', Rule::in(['percent', 'fixed'])],
+            'type' => ['nullable', Rule::in(Coupon::TYPES)],
             'visibility' => ['nullable', Rule::in(['public', 'private'])],
             'status' => ['nullable', Rule::in(['available', 'scheduled', 'expired', 'exhausted', 'inactive'])],
         ]);
 
         $coupons = Coupon::query()
-            ->withCount('usages')
+            ->withCount('activeUsages as usages_count')
             ->when(filled($filters['q'] ?? null), function ($query) use ($filters) {
                 $term = '%'.$filters['q'].'%';
                 $query->where(fn ($nested) => $nested->where('code', 'like', $term)->orWhere('name', 'like', $term));
@@ -371,7 +371,7 @@ class AdminController extends Controller
 
     public function couponDetails(Coupon $coupon, CouponService $coupons)
     {
-        $coupon->loadCount('usages')->loadSum('usages as total_savings', 'discount_amount');
+        $coupon->loadCount('activeUsages as usages_count')->loadSum('activeUsages as total_savings', 'discount_amount');
         $recentUsages = $coupon->usages()->with(['user', 'order'])->latest('used_at')->take(12)->get();
         $totalUses = max((int) $coupon->used_count, (int) $coupon->usages_count);
         $remaining = $coupon->usage_limit === null ? null : max(0, $coupon->usage_limit - $totalUses);
@@ -383,7 +383,7 @@ class AdminController extends Controller
             'statistics' => [
                 'uses' => $totalUses,
                 'savings' => (int) ($coupon->total_savings ?? 0),
-                'users' => $coupon->usages()->whereNotNull('user_id')->distinct()->count('user_id'),
+                'users' => $coupon->activeUsages()->whereNotNull('user_id')->distinct()->count('user_id'),
                 'remaining' => $remaining,
                 'progress' => $coupon->usage_limit ? min(100, (int) round($totalUses * 100 / $coupon->usage_limit)) : 0,
             ],
@@ -416,11 +416,11 @@ class AdminController extends Controller
             'code' => ['required', 'string', 'max:30', Rule::unique('coupons')->ignore($coupon)],
             'name' => ['required', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:1200'],
-            'type' => ['required', Rule::in(['percent', 'fixed'])],
+            'type' => ['required', Rule::in(Coupon::TYPES)],
             'value' => [
                 'required', 'numeric', 'gt:0',
                 function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
-                    if ($request->input('type') === 'percent' && (float) $value > 100) {
+                    if (in_array($request->input('type'), ['percent', 'shipping'], true) && (float) $value > 100) {
                         $fail('Giá trị phần trăm không được vượt quá 100%.');
                     }
                 },
@@ -575,12 +575,13 @@ class AdminController extends Controller
             if ($data['status'] === 'cancelled') {
                 $this->restoreStock($lockedOrder, $request->user());
                 $lockedOrder->shipments()->whereNotIn('status', ['delivered', 'cancelled'])->update(['status' => 'cancelled']);
+                app(CouponService::class)->releaseForOrder($lockedOrder);
             }
             $lockedOrder->histories()->create([
                 'user_id' => $request->user()->id,
                 'from_status' => $from,
                 'to_status' => $data['status'],
-                'note' => ($data['note'] ?? null) ?: ($data['status'] === 'cancelled' ? 'Admin huỷ đơn và hoàn tồn kho.' : 'Admin cập nhật trạng thái đơn.'),
+                'note' => ($data['note'] ?? null) ?: ($data['status'] === 'cancelled' ? 'Admin huỷ đơn, hoàn tồn kho và lượt dùng voucher.' : 'Admin cập nhật trạng thái đơn.'),
             ]);
 
             return [

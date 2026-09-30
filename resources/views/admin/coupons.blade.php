@@ -5,7 +5,7 @@
 <div class="voucher-admin-page">
     <form class="admin-filter voucher-filter" method="get" action="{{ route('admin.coupons') }}">
         <input name="q" value="{{ request('q') }}" placeholder="Tìm theo mã hoặc tên voucher" aria-label="Tìm voucher">
-        <select name="type" aria-label="Loại giảm giá"><option value="">Mọi loại</option><option value="percent" @selected(request('type') === 'percent')>Phần trăm</option><option value="fixed" @selected(request('type') === 'fixed')>Số tiền</option></select>
+        <select name="type" aria-label="Loại giảm giá"><option value="">Mọi loại</option><option value="percent" @selected(request('type') === 'percent')>Phần trăm</option><option value="fixed" @selected(request('type') === 'fixed')>Số tiền</option><option value="shipping" @selected(request('type') === 'shipping')>Phí vận chuyển</option></select>
         <select name="visibility" aria-label="Phạm vi hiển thị"><option value="">Mọi phạm vi</option><option value="public" @selected(request('visibility') === 'public')>Công khai</option><option value="private" @selected(request('visibility') === 'private')>Riêng tư</option></select>
         <select name="status" aria-label="Trạng thái voucher"><option value="">Mọi trạng thái</option><option value="available" @selected(request('status') === 'available')>Đang khả dụng</option><option value="scheduled" @selected(request('status') === 'scheduled')>Sắp diễn ra</option><option value="expired" @selected(request('status') === 'expired')>Đã hết hạn</option><option value="exhausted" @selected(request('status') === 'exhausted')>Hết lượt</option><option value="inactive" @selected(request('status') === 'inactive')>Tạm tắt</option></select>
         <button class="button secondary small" type="submit">Lọc</button>
@@ -19,10 +19,11 @@
             <label class="field"><span>Mã voucher</span><input name="code" value="{{ old('code') }}" maxlength="30" required></label>
             <label class="field"><span>Tên voucher</span><input name="name" value="{{ old('name') }}" maxlength="160" required></label>
             <label class="field voucher-form-wide"><span>Mô tả</span><textarea name="description" maxlength="1200">{{ old('description') }}</textarea></label>
-            <label class="field"><span>Loại giảm</span><select name="type"><option value="percent" @selected(old('type') === 'percent')>Phần trăm</option><option value="fixed" @selected(old('type') === 'fixed')>Số tiền</option></select></label>
+            <label class="field"><span>Loại giảm</span><select name="type"><option value="percent" @selected(old('type') === 'percent')>Phần trăm tiền hàng</option><option value="fixed" @selected(old('type') === 'fixed')>Số tiền cố định</option><option value="shipping" @selected(old('type') === 'shipping')>Phí vận chuyển</option></select></label>
             <label class="field"><span>Giá trị</span><input type="number" name="value" value="{{ old('value') }}" min="1" required></label>
             <label class="field"><span>Đơn tối thiểu</span><input type="number" name="minimum_order" value="{{ old('minimum_order', 0) }}" min="0"></label>
             <label class="field"><span>Giảm tối đa</span><input type="number" name="maximum_discount" value="{{ old('maximum_discount') }}" min="1" placeholder="Không giới hạn"></label>
+            <p class="field-hint voucher-form-wide">Voucher <strong>Phí vận chuyển</strong>: Giá trị là % phí ship được giảm (100 = miễn phí), Giảm tối đa là mức trần. Ví dụ 100% tối đa 30.000đ. Khách dùng được song song với một mã giảm tiền hàng.</p>
             <label class="field"><span>Bắt đầu</span><input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}"></label>
             <label class="field"><span>Kết thúc</span><input type="datetime-local" name="expires_at" value="{{ old('expires_at') }}"></label>
             <label class="field"><span>Giới hạn toàn hệ thống</span><input type="number" name="usage_limit" value="{{ old('usage_limit') }}" min="1" placeholder="Không giới hạn"></label>
@@ -45,7 +46,7 @@
                         default => ['Đang khả dụng', 'paid'],
                     };
                 @endphp
-                <tr><td><a class="voucher-code-link" href="{{ route('admin.coupons.show', $coupon) }}"><code>{{ $coupon->code }}</code><span>{{ $coupon->name ?: 'Chưa đặt tên' }}</span></a></td><td>{{ $coupon->type === 'percent' ? 'Phần trăm' : 'Số tiền' }}<small>{{ $coupon->is_public ? 'Công khai' : 'Riêng tư' }}</small></td><td><strong>{{ $coupon->type === 'percent' ? number_format($coupon->value, 0).'%' : number_format($coupon->value, 0, ',', '.').'đ' }}</strong><small>Từ {{ number_format($coupon->minimum_order, 0, ',', '.') }}đ</small></td><td>{{ $coupon->starts_at?->format('d/m/Y H:i') ?: 'Ngay lập tức' }}<small>{{ $coupon->expires_at?->format('d/m/Y H:i') ?: 'Không giới hạn' }}</small></td><td>{{ max($coupon->used_count, $coupon->usages_count) }}/{{ $coupon->usage_limit ?: '∞' }}</td><td><span class="admin-badge {{ $state[1] }}">{{ $state[0] }}</span></td><td><a class="text-link" href="{{ route('admin.coupons.show', $coupon) }}">Chi tiết</a></td></tr>
+                <tr><td><a class="voucher-code-link" href="{{ route('admin.coupons.show', $coupon) }}"><code>{{ $coupon->code }}</code><span>{{ $coupon->name ?: 'Chưa đặt tên' }}</span></a></td><td>{{ $coupon->typeLabel() }}<small>{{ $coupon->is_public ? 'Công khai' : 'Riêng tư' }}</small></td><td><strong>{{ $coupon->valueLabel() }}</strong><small>Từ {{ number_format($coupon->minimum_order, 0, ',', '.') }}đ</small></td><td>{{ $coupon->starts_at?->format('d/m/Y H:i') ?: 'Ngay lập tức' }}<small>{{ $coupon->expires_at?->format('d/m/Y H:i') ?: 'Không giới hạn' }}</small></td><td>{{ max($coupon->used_count, $coupon->usages_count) }}/{{ $coupon->usage_limit ?: '∞' }}</td><td><span class="admin-badge {{ $state[1] }}">{{ $state[0] }}</span></td><td><a class="text-link" href="{{ route('admin.coupons.show', $coupon) }}">Chi tiết</a></td></tr>
             @empty
                 <tr><td colspan="7"><div class="voucher-admin-empty">Không tìm thấy voucher phù hợp.</div></td></tr>
             @endforelse

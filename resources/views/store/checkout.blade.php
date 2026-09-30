@@ -142,63 +142,66 @@
             @endforeach
         </div>
 
-        <section class="checkout-vouchers" aria-labelledby="voucher-title">
-            <input id="coupon_code" type="hidden" name="coupon_code" value="{{ old('coupon_code') }}" data-coupon-code>
-            <button class="coupon-trigger" type="button" aria-haspopup="dialog" aria-controls="coupon-dialog" data-coupon-open>
-                <span class="coupon-trigger__icon"><x-admin-icon name="coupons" /></span>
-                <span class="coupon-trigger__copy">
-                    <strong id="voucher-title">Mã giảm giá</strong>
-                    <small data-coupon-trigger-copy>Chọn hoặc nhập mã</small>
-                </span>
-                <span class="coupon-trigger__action" data-coupon-trigger-action>Chọn mã</span>
-                <span class="coupon-trigger__chevron" aria-hidden="true">›</span>
-            </button>
-            <div class="coupon-applied" data-coupon-applied hidden>
-                <span class="coupon-applied__mark" aria-hidden="true">✓</span>
-                <span class="coupon-applied__copy"><small>Đã áp dụng</small><strong data-coupon-applied-code></strong><span data-coupon-applied-discount></span></span>
-                <span class="coupon-applied__actions"><button type="button" data-coupon-change>Đổi mã</button><button type="button" data-coupon-remove>Bỏ mã</button></span>
-            </div>
-            <p class="voucher-status" data-coupon-status role="status" aria-live="polite">Ưu đãi sẽ được kiểm tra an toàn trước khi tạo đơn.</p>
+        <section class="checkout-vouchers" aria-label="Ưu đãi">
+            @foreach([
+                ['slot' => 'order', 'name' => 'coupon_code', 'icon' => 'coupons', 'title' => 'Mã giảm giá', 'empty' => 'Giảm tiền hàng · chọn hoặc nhập mã'],
+                ['slot' => 'shipping', 'name' => 'shipping_coupon_code', 'icon' => 'shipments', 'title' => 'Mã vận chuyển', 'empty' => 'Giảm phí ship · dùng cùng mã giảm giá'],
+            ] as $slot)
+                <div @class(['coupon-slot', 'coupon-slot--shipping' => $slot['slot'] === 'shipping']) data-coupon-slot="{{ $slot['slot'] }}" data-empty-copy="{{ $slot['empty'] }}">
+                    <input id="{{ $slot['name'] }}" type="hidden" name="{{ $slot['name'] }}" value="{{ old($slot['name']) }}" data-coupon-code>
+                    <button class="coupon-trigger" type="button" aria-haspopup="dialog" aria-controls="coupon-dialog" data-coupon-open>
+                        <span class="coupon-trigger__icon"><x-admin-icon :name="$slot['icon']" /></span>
+                        <span class="coupon-trigger__copy">
+                            <strong>{{ $slot['title'] }}</strong>
+                            <small data-coupon-trigger-copy>{{ $slot['empty'] }}</small>
+                        </span>
+                        <span class="coupon-trigger__action" data-coupon-trigger-action>Chọn mã</span>
+                        <span class="coupon-trigger__chevron" aria-hidden="true">›</span>
+                    </button>
+                    <div class="coupon-applied" data-coupon-applied hidden>
+                        <span class="coupon-applied__mark" aria-hidden="true">✓</span>
+                        <span class="coupon-applied__copy"><small>{{ $slot['title'] }}</small><strong data-coupon-applied-code></strong><span data-coupon-applied-discount></span></span>
+                        <span class="coupon-applied__actions"><button type="button" data-coupon-change>Đổi mã</button><button type="button" data-coupon-remove>Bỏ mã</button></span>
+                    </div>
+                </div>
+            @endforeach
+            <p class="voucher-status" data-coupon-status role="status" aria-live="polite">Mỗi đơn dùng được 1 mã giảm giá và 1 mã vận chuyển. Ưu đãi được kiểm tra lại trước khi tạo đơn.</p>
         </section>
 
         <dialog class="coupon-dialog" id="coupon-dialog" aria-labelledby="coupon-dialog-title" aria-describedby="coupon-dialog-description" data-coupon-dialog>
             <div class="coupon-dialog__shell">
                 <header class="coupon-dialog__header">
-                    <div><h2 id="coupon-dialog-title">Chọn mã giảm giá</h2><p id="coupon-dialog-description">Chọn một ưu đãi phù hợp hoặc nhập mã của bạn.</p></div>
+                    <div><h2 id="coupon-dialog-title" data-coupon-dialog-title>Chọn mã giảm giá</h2><p id="coupon-dialog-description" data-coupon-dialog-description>Chọn một ưu đãi phù hợp hoặc nhập mã của bạn.</p></div>
                     <button class="coupon-dialog__close" type="button" aria-label="Đóng danh sách mã giảm giá" data-coupon-close><x-admin-icon name="close" /></button>
                 </header>
 
                 <div class="coupon-dialog__body">
                     <div class="coupon-manual">
-                        <label for="manual_coupon_code">Nhập mã giảm giá</label>
+                        <label for="manual_coupon_code">Nhập mã</label>
                         <div><input id="manual_coupon_code" autocomplete="off" maxlength="30" placeholder="Nhập mã giảm giá" data-manual-coupon><button type="button" data-manual-coupon-check>Kiểm tra</button></div>
                         <p data-manual-coupon-status role="status" aria-live="polite">Mã sẽ được kiểm tra trực tiếp với hệ thống.</p>
                     </div>
 
                     <section class="coupon-catalog" aria-labelledby="coupon-catalog-title">
-                        <div class="coupon-catalog__head"><h3 id="coupon-catalog-title">Ưu đãi dành cho bạn</h3><span>{{ $couponOptions->count() }} mã</span></div>
-                        @if($couponOptions->isEmpty())
-                            <div class="voucher-empty"><strong>Chưa có ưu đãi khả dụng</strong><span>Bạn vẫn có thể nhập mã được Pawora cung cấp ở phía trên.</span></div>
-                        @else
-                            <div class="voucher-list" data-voucher-list>
-                                @foreach($couponOptions as $option)
-                                    @php($coupon = $option['coupon'])
-                                    @php($evaluation = $option['evaluation'])
-                                    @php($discount = $evaluation['discount'])
-                                    @php($eligible = $evaluation['valid'])
-                                    @php($voucherState = $evaluation['reason'] ?: 'Có thể áp dụng')
-                                    <button type="button" class="voucher-option" data-voucher="{{ $coupon->code }}" data-discount="{{ $discount }}" data-eligible="{{ $eligible ? 'true' : 'false' }}" aria-pressed="false" @disabled(! $eligible)>
-                                        <span class="voucher-option__code"><span>{{ $coupon->code }}</span><strong>{{ $coupon->type === 'percent' ? 'Giảm '.number_format($coupon->value, 0).'%' : 'Giảm '.number_format($coupon->value, 0, ',', '.').'đ' }}</strong></span>
-                                        <span class="voucher-option__body">
-                                            <span>Đơn tối thiểu {{ number_format($coupon->minimum_order, 0, ',', '.') }}đ</span>
-                                            <small>{{ $coupon->expires_at ? 'Dùng trước '.$coupon->expires_at->format('d/m/Y') : 'Không giới hạn thời gian' }}</small>
-                                            <strong class="voucher-option__state">{{ $voucherState }}</strong>
-                                        </span>
-                                        <span class="voucher-option__radio" aria-hidden="true"><i></i></span>
-                                    </button>
-                                @endforeach
-                            </div>
-                        @endif
+                        <div class="coupon-catalog__head"><h3 id="coupon-catalog-title">Ưu đãi dành cho bạn</h3><span data-voucher-count>{{ $couponOptions->count() }} mã</span></div>
+                        <div class="voucher-empty" data-voucher-empty @if($couponOptions->isNotEmpty()) hidden @endif><strong>Chưa có ưu đãi khả dụng</strong><span>Bạn vẫn có thể nhập mã được Pawora cung cấp ở phía trên.</span></div>
+                        <div class="voucher-list" data-voucher-list>
+                            @foreach($couponOptions as $option)
+                                @php($coupon = $option['coupon'])
+                                @php($evaluation = $option['evaluation'])
+                                @php($eligible = $evaluation['valid'])
+                                @php($voucherState = $evaluation['reason'] ?: 'Có thể áp dụng')
+                                <button type="button" class="voucher-option" data-voucher="{{ $coupon->code }}" data-slot="{{ $coupon->isShipping() ? 'shipping' : 'order' }}" data-discount="{{ $evaluation['discount'] }}" data-headline="{{ $coupon->headline() }}" data-eligible="{{ $eligible ? 'true' : 'false' }}" aria-pressed="false" @disabled(! $eligible)>
+                                    <span class="voucher-option__code"><span>{{ $coupon->code }}</span><strong>{{ $coupon->isShipping() ? $coupon->valueLabel() : $coupon->headline() }}</strong></span>
+                                    <span class="voucher-option__body">
+                                        <span>@if($coupon->isShipping()){{ $coupon->headline() }} · @endif Đơn tối thiểu {{ number_format($coupon->minimum_order, 0, ',', '.') }}đ</span>
+                                        <small>{{ $coupon->expires_at ? 'Dùng trước '.$coupon->expires_at->format('d/m/Y') : 'Không giới hạn thời gian' }}</small>
+                                        <strong class="voucher-option__state">{{ $voucherState }}</strong>
+                                    </span>
+                                    <span class="voucher-option__radio" aria-hidden="true"><i></i></span>
+                                </button>
+                            @endforeach
+                        </div>
                     </section>
                 </div>
 
@@ -213,6 +216,7 @@
             <div><span>Tạm tính</span><strong>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</strong></div>
             <div data-discount-row hidden><span>Mã giảm giá</span><strong data-discount-amount>0đ</strong></div>
             <div><span>Phí giao hàng</span><strong data-shipping-fee>Chưa tính</strong></div>
+            <div data-shipping-discount-row hidden><span>Giảm phí giao hàng</span><strong data-shipping-discount-amount>0đ</strong></div>
             <div class="summary-total"><span>Tổng thanh toán</span><strong data-order-total>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</strong></div>
         </div>
         <div class="check-row checkout-terms">
@@ -256,6 +260,7 @@
                         <div><dt>Tạm tính</dt><dd>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</dd></div>
                         <div><dt>Mã giảm giá</dt><dd data-review-discount>0đ</dd></div>
                         <div><dt>Phí giao hàng</dt><dd data-review-shipping>Chưa tính</dd></div>
+                        <div data-review-shipping-discount-row hidden><dt>Giảm phí giao hàng</dt><dd data-review-shipping-discount>0đ</dd></div>
                         <div><dt>Tổng thanh toán</dt><dd data-review-total>{{ number_format($cart['subtotal'], 0, ',', '.') }}đ</dd></div>
                     </dl>
                 </section>

@@ -113,8 +113,9 @@
             <div class="panel-title"><h2>Thanh toán</h2><span class="admin-badge {{ $order->payment_status }}">{{ $order->paymentStatusLabel() }}</span></div>
             <p class="payment-method"><small>Phương thức</small><strong>{{ $paymentMethodLabel }}</strong>@if($order->paid_at)<span>Đã ghi nhận {{ $order->paid_at->format('H:i d/m/Y') }}</span>@endif</p>
             <div class="mini-row"><span>Tạm tính</span><strong>{{ number_format($order->subtotal, 0, ',', '.') }}đ</strong></div>
-            <div class="mini-row"><span>Giảm giá</span><strong>-{{ number_format($order->discount, 0, ',', '.') }}đ</strong></div>
+            <div class="mini-row"><span>Giảm giá @if($order->coupon_code)({{ $order->coupon_code }})@endif</span><strong>-{{ number_format($order->discount, 0, ',', '.') }}đ</strong></div>
             <div class="mini-row"><span>Phí giao hàng</span><strong>{{ number_format($order->shipping_fee, 0, ',', '.') }}đ</strong></div>
+            @if($order->shipping_discount > 0)<div class="mini-row"><span>Giảm phí giao hàng @if($order->shipping_coupon_code)({{ $order->shipping_coupon_code }})@endif</span><strong>-{{ number_format($order->shipping_discount, 0, ',', '.') }}đ</strong></div>@endif
             <div class="mini-row total"><span>Tổng thanh toán</span><strong>{{ number_format($order->total, 0, ',', '.') }}đ</strong></div>
 
             @if(auth()->user()->hasPermission('payments.manage') && $order->canBeMarkedPaid())

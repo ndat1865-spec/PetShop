@@ -299,6 +299,7 @@ class AccountController extends Controller
             $lockedOrder->update([
                 'status' => 'cancelled',
             ]);
+            app(CouponService::class)->releaseForOrder($lockedOrder);
         });
 
         $order->refresh();

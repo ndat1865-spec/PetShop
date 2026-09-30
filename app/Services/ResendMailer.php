@@ -82,6 +82,7 @@ class ResendMailer
             .$this->row('Tạm tính', $this->money($order->subtotal))
             .$this->row('Ưu đãi', '-'.$this->money($order->discount))
             .$this->row('Phí giao hàng', $order->shipping_fee > 0 ? $this->money($order->shipping_fee) : 'Miễn phí')
+            .($order->shipping_discount > 0 ? $this->row('Giảm phí giao hàng', '-'.$this->money($order->shipping_discount)) : '')
             .$this->row('Tổng cộng', '<strong style="font-size:20px">'.$this->money($order->total).'</strong>')
             .'</div>'
             .'<p style="margin-top:24px"><strong>Giao đến:</strong><br>'.$this->escape($order->shipping_address).'</p>'

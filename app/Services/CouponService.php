@@ -7,13 +7,21 @@ use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class CouponService
 {
+    public const SLOT_ORDER = 'order';
+
+    public const SLOT_SHIPPING = 'shipping';
+
     /**
+     * Voucher giảm phí ship chỉ biết số tiền giảm khi đã có phí ship; truyền
+     * $shippingFee = null (chưa chọn địa chỉ) thì discount tạm tính là 0.
+     *
      * @return array{valid: bool, status: string, label: string, reason: ?string, discount: int, remaining_order: int, user_usage_count: int}
      */
-    public function evaluate(Coupon $coupon, int|float|null $subtotal, ?User $user = null, ?bool $hasPriorOrder = null): array
+    public function evaluate(Coupon $coupon, int|float|null $subtotal, ?User $user = null, ?bool $hasPriorOrder = null, int|float|null $shippingFee = null): array
     {
         $checkMinimumOrder = $subtotal !== null;
         $subtotal = $checkMinimumOrder ? max(0, (int) round($subtotal)) : (int) $coupon->minimum_order;
@@ -44,7 +52,9 @@ class CouponService
             'status' => $status,
             'label' => $label,
             'reason' => $reason,
-            'discount' => $reason === null ? $coupon->discountFor($subtotal) : 0,
+            'discount' => $reason === null
+                ? ($coupon->isShipping() ? $coupon->shippingDiscountFor((float) ($shippingFee ?? 0)) : $coupon->discountFor($subtotal))
+                : 0,
             'remaining_order' => $checkMinimumOrder ? max(0, (int) $coupon->minimum_order - $subtotal) : 0,
             'user_usage_count' => $userUsageCount,
         ];
@@ -62,7 +72,7 @@ class CouponService
         return Coupon::query()
             ->where('is_public', true)
             ->when(! $includeInactive, fn ($query) => $query->where('is_active', true))
-            ->withCount(['usages as current_user_usage_count' => fn ($query) => $query->where('user_id', $user->id)])
+            ->withCount(['activeUsages as current_user_usage_count' => fn ($query) => $query->where('user_id', $user->id)])
             ->orderByRaw('CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('expires_at')
             ->limit($limit)
@@ -73,12 +83,32 @@ class CouponService
             ]);
     }
 
+    /**
+     * Tìm mã theo đúng ô áp dụng: ô "Mã giảm giá" chỉ nhận mã trừ tiền hàng,
+     * ô "Mã vận chuyển" chỉ nhận mã giảm phí ship.
+     */
+    public function findForSlot(string $code, string $slot, bool $lock = false): Coupon
+    {
+        $coupon = Coupon::where('code', Str::upper(trim($code)))
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->first();
+        abort_if(! $coupon, 422, 'Mã ưu đãi không tồn tại.');
+
+        if ($slot === self::SLOT_SHIPPING && ! $coupon->isShipping()) {
+            abort(422, 'Đây là mã giảm giá đơn hàng, hãy áp dụng ở mục Mã giảm giá.');
+        }
+        if ($slot === self::SLOT_ORDER && $coupon->isShipping()) {
+            abort(422, 'Đây là mã giảm phí vận chuyển, hãy áp dụng ở mục Mã vận chuyển.');
+        }
+
+        return $coupon;
+    }
+
     public function recordUsage(Coupon $coupon, User $user, Order $order, int|float $discount): CouponUsage
     {
         $usage = CouponUsage::firstOrCreate(
-            ['order_id' => $order->id],
+            ['order_id' => $order->id, 'coupon_id' => $coupon->id],
             [
-                'coupon_id' => $coupon->id,
                 'user_id' => $user->id,
                 'discount_amount' => max(0, (int) round($discount)),
                 'used_at' => now(),
@@ -92,6 +122,23 @@ class CouponService
         return $usage;
     }
 
+    /**
+     * Trả lại lượt dùng khi đơn bị hủy. Gọi trong transaction đang khóa đơn;
+     * released_at bảo đảm mỗi lượt chỉ được hoàn một lần.
+     */
+    public function releaseForOrder(Order $order): void
+    {
+        $usages = CouponUsage::where('order_id', $order->id)
+            ->whereNull('released_at')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($usages as $usage) {
+            $usage->update(['released_at' => now()]);
+            Coupon::whereKey($usage->coupon_id)->where('used_count', '>', 0)->decrement('used_count');
+        }
+    }
+
     private function userUsageCount(Coupon $coupon, ?User $user): int
     {
         if (! $user) {
@@ -102,7 +149,7 @@ class CouponService
             return (int) $coupon->getAttribute('current_user_usage_count');
         }
 
-        return $coupon->usages()->where('user_id', $user->id)->count();
+        return $coupon->activeUsages()->where('user_id', $user->id)->count();
     }
 
     private function hasPriorOrder(User $user): bool

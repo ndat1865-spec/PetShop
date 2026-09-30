@@ -38,12 +38,16 @@ class ChatShopKnowledge
                 ->orderBy('name')->pluck('name')->all(),
             'products_sample' => $products,
             'public_vouchers' => Coupon::availableForCheckout()->where('is_public', true)->orderBy('id')->limit(10)
-                ->get()->map(fn ($coupon) => $coupon->only([
-                    'code', 'type', 'value', 'minimum_order', 'maximum_discount', 'expires_at', 'per_user_limit', 'first_order_only',
-                ]))->all(),
+                ->get()->map(fn ($coupon) => [
+                    ...$coupon->only([
+                        'code', 'type', 'value', 'minimum_order', 'maximum_discount', 'expires_at', 'per_user_limit', 'first_order_only',
+                    ]),
+                    'headline' => $coupon->headline(),
+                ])->all(),
             'instructions' => [
                 'Mở Ví voucher: Chủ đề hỗ trợ → Mở Ví voucher, hoặc Tài khoản → Ví voucher sau khi đăng nhập.',
                 'Áp dụng voucher: ở trang thanh toán bấm Chọn hoặc nhập mã, chọn mã rồi bấm Áp dụng.',
+                'Voucher type=shipping giảm phí vận chuyển (value là % phí ship, maximum_discount là mức tối đa) và dùng được cùng lúc với một mã giảm tiền hàng; chọn ở mục Mã vận chuyển.',
                 'Điều kiện voucher và tồn kho được kiểm tra lại ở bước thanh toán; chưa có giỏ hàng thì không thể khẳng định đủ điều kiện.',
                 'Giá có thể khác theo size/màu. all_categories là toàn bộ ngành hàng đang bán; products_sample chỉ gồm các sản phẩm liên quan nhất. Món không thuộc ngành hàng nào thì nói shop hiện chưa bán, đừng nhắc tới "danh mục mẫu".',
                 'Phí và thời gian giao chính xác được hiển thị sau khi chọn địa chỉ ở bước thanh toán.',

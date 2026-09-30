@@ -586,6 +586,11 @@ document.querySelectorAll('[data-checkout-review-dialog]').forEach((dialog) => {
         dialog.querySelector('[data-review-payment]').textContent = payment;
         dialog.querySelector('[data-review-discount]').textContent = outputText('[data-discount-amount]', '0đ');
         dialog.querySelector('[data-review-shipping]').textContent = outputText('[data-shipping-fee]', 'Chưa tính');
+        const shippingDiscountRow = dialog.querySelector('[data-review-shipping-discount-row]');
+        if (shippingDiscountRow) {
+            shippingDiscountRow.hidden = form.querySelector('[data-shipping-discount-row]')?.hidden ?? true;
+            dialog.querySelector('[data-review-shipping-discount]').textContent = outputText('[data-shipping-discount-amount]', '0đ');
+        }
         dialog.querySelector('[data-review-total]').textContent = outputText('[data-order-total]');
     };
     const closeReview = () => {
@@ -658,33 +663,53 @@ if (shippingForm) {
     const quoteBox = shippingForm.querySelector('[data-shipping-quote]');
     const feeOutput = shippingForm.querySelector('[data-shipping-fee]');
     const totalOutput = shippingForm.querySelector('[data-order-total]');
-    const couponInput = shippingForm.querySelector('[data-coupon-code]');
     const couponStatus = shippingForm.querySelector('[data-coupon-status]');
     const discountRow = shippingForm.querySelector('[data-discount-row]');
     const discountOutput = shippingForm.querySelector('[data-discount-amount]');
-    const couponRemove = shippingForm.querySelector('[data-coupon-remove]');
+    const shippingDiscountRow = shippingForm.querySelector('[data-shipping-discount-row]');
+    const shippingDiscountOutput = shippingForm.querySelector('[data-shipping-discount-amount]');
     const couponDialog = shippingForm.querySelector('[data-coupon-dialog]');
-    const couponTrigger = shippingForm.querySelector('[data-coupon-open]');
-    const couponOpeners = shippingForm.querySelectorAll('[data-coupon-open], [data-coupon-change]');
+    const couponDialogTitle = shippingForm.querySelector('[data-coupon-dialog-title]');
+    const couponDialogDescription = shippingForm.querySelector('[data-coupon-dialog-description]');
     const couponClose = shippingForm.querySelector('[data-coupon-close]');
     const couponConfirm = shippingForm.querySelector('[data-coupon-confirm]');
-    const couponApplied = shippingForm.querySelector('[data-coupon-applied]');
-    const couponAppliedCode = shippingForm.querySelector('[data-coupon-applied-code]');
-    const couponAppliedDiscount = shippingForm.querySelector('[data-coupon-applied-discount]');
-    const couponTriggerCopy = shippingForm.querySelector('[data-coupon-trigger-copy]');
-    const couponTriggerAction = shippingForm.querySelector('[data-coupon-trigger-action]');
     const pendingLabel = shippingForm.querySelector('[data-coupon-pending-label]');
     const pendingDiscountOutput = shippingForm.querySelector('[data-coupon-pending-discount]');
     const manualCoupon = shippingForm.querySelector('[data-manual-coupon]');
     const manualCouponCheck = shippingForm.querySelector('[data-manual-coupon-check]');
     const manualCouponStatus = shippingForm.querySelector('[data-manual-coupon-status]');
+    const voucherOptions = [...shippingForm.querySelectorAll('[data-voucher]')];
+    const voucherCount = shippingForm.querySelector('[data-voucher-count]');
+    const voucherEmpty = shippingForm.querySelector('[data-voucher-empty]');
     const subtotal = Number(shippingForm.dataset.subtotal || 0);
-    let selectedDiscount = 0;
+    const slotCopy = {
+        order: { title: 'Chọn mã giảm giá', description: 'Giảm trực tiếp vào tiền hàng. Mỗi đơn dùng 1 mã.', placeholder: 'Nhập mã giảm giá' },
+        shipping: { title: 'Chọn mã vận chuyển', description: 'Giảm phí giao hàng, dùng được cùng mã giảm giá.', placeholder: 'Nhập mã vận chuyển' },
+    };
+    // Mỗi ô giữ một mã: "order" trừ vào tiền hàng, "shipping" trừ vào phí giao hàng.
+    const couponSlots = Object.fromEntries([...shippingForm.querySelectorAll('[data-coupon-slot]')].map((root) => {
+        const name = root.dataset.couponSlot;
+        return [name, {
+            name,
+            emptyCopy: root.dataset.emptyCopy || 'Chọn hoặc nhập mã',
+            input: root.querySelector('[data-coupon-code]'),
+            trigger: root.querySelector('[data-coupon-open]'),
+            applied: root.querySelector('[data-coupon-applied]'),
+            appliedCode: root.querySelector('[data-coupon-applied-code]'),
+            appliedDiscount: root.querySelector('[data-coupon-applied-discount]'),
+            triggerCopy: root.querySelector('[data-coupon-trigger-copy]'),
+            openers: root.querySelectorAll('[data-coupon-open], [data-coupon-change]'),
+            remove: root.querySelector('[data-coupon-remove]'),
+            storageKey: name === 'order' ? 'pawora_checkout_coupon' : `pawora_checkout_coupon_${name}`,
+            code: '',
+            discount: 0,
+            headline: '',
+        }];
+    }));
     let currentShippingFee = null;
+    let activeSlot = 'order';
     let pendingCouponCode = '';
-    let pendingCouponDiscount = 0;
     let couponDialogOpener = null;
-    const couponStorageKey = 'pawora_checkout_coupon';
     const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
     const normalizeLocation = (value) => String(value || '')
         .normalize('NFD')
@@ -693,11 +718,54 @@ if (shippingForm) {
         .replace(/^(thanh pho|tinh|quan|huyen|thi xa|thi tran)\s+/, '')
         .replace(/[^a-z0-9]/g, '');
 
+    const hasAddress = () => Boolean(province.value && districtId.value && wardCode.value);
+    const orderDiscount = () => (couponSlots.order?.code ? couponSlots.order.discount : 0);
+    const shippingDiscount = () => (couponSlots.shipping?.code && currentShippingFee !== null ? couponSlots.shipping.discount : 0);
+
+    const renderTotals = () => {
+        const discount = orderDiscount();
+        const shipDiscount = shippingDiscount();
+        discountRow.hidden = discount <= 0;
+        discountOutput.textContent = `-${money.format(discount)}`;
+        shippingDiscountRow.hidden = shipDiscount <= 0;
+        shippingDiscountOutput.textContent = `-${money.format(shipDiscount)}`;
+        totalOutput.textContent = money.format(subtotal - discount + (currentShippingFee || 0) - shipDiscount);
+    };
+
+    const appliedCopy = (slot) => {
+        if (slot.name !== 'shipping') return `Giảm ${money.format(slot.discount)}`;
+        if (currentShippingFee === null) return `${slot.headline} · tính khi chọn địa chỉ`;
+        return slot.discount > 0 ? `Giảm ${money.format(slot.discount)} phí ship` : 'Đơn đang được miễn phí ship';
+    };
+
+    const renderSlot = (slot) => {
+        const hasCode = Boolean(slot.code);
+        slot.input.value = slot.code;
+        if (hasCode) sessionStorage.setItem(slot.storageKey, slot.code);
+        else sessionStorage.removeItem(slot.storageKey);
+        slot.trigger.hidden = hasCode;
+        slot.applied.hidden = !hasCode;
+        slot.appliedCode.textContent = slot.code;
+        slot.appliedDiscount.textContent = hasCode ? appliedCopy(slot) : '';
+        slot.triggerCopy.textContent = hasCode ? `Đang dùng ${slot.code}` : slot.emptyCopy;
+    };
+
+    const applyCoupon = (slotName, code = '', discount = 0, headline = '') => {
+        const slot = couponSlots[slotName];
+        if (!slot) return;
+        slot.code = String(code || '').trim().toUpperCase();
+        slot.discount = Number(discount || 0);
+        slot.headline = headline || '';
+        renderSlot(slot);
+        renderTotals();
+    };
+
     const setQuoteEmpty = () => {
         quoteBox.textContent = 'Chọn đủ tỉnh/thành phố, quận/huyện và phường/xã để xem phí giao hàng.';
         feeOutput.textContent = 'Chưa tính';
         currentShippingFee = null;
-        totalOutput.textContent = money.format(subtotal - selectedDiscount);
+        if (couponSlots.shipping) renderSlot(couponSlots.shipping);
+        renderTotals();
     };
 
     const loadDistricts = async () => {
@@ -768,7 +836,7 @@ if (shippingForm) {
     };
 
     const loadShippingQuote = async () => {
-        if (!province.value || !districtId.value || !wardCode.value) {
+        if (!hasAddress()) {
             setQuoteEmpty();
             return;
         }
@@ -779,18 +847,23 @@ if (shippingForm) {
             url.searchParams.set('province', province.value);
             url.searchParams.set('district_id', districtId.value);
             url.searchParams.set('ward_code', wardCode.value);
-            if (couponInput?.value) url.searchParams.set('coupon_code', couponInput.value);
+            if (couponSlots.order?.code) url.searchParams.set('coupon_code', couponSlots.order.code);
+            if (couponSlots.shipping?.code) url.searchParams.set('shipping_coupon_code', couponSlots.shipping.code);
             const response = await fetch(url, { headers: { Accept: 'application/json' } });
-            if (!response.ok) throw new Error('quote_failed');
-            const quote = await response.json();
+            const quote = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(quote.message || '');
             currentShippingFee = Number(quote.fee);
-            selectedDiscount = Number(quote.discount || selectedDiscount);
+            if (couponSlots.order?.code) couponSlots.order.discount = Number(quote.discount || 0);
+            if (couponSlots.shipping?.code) couponSlots.shipping.discount = Number(quote.shipping_discount || 0);
+            Object.values(couponSlots).forEach(renderSlot);
             feeOutput.textContent = quote.free_shipping ? 'Miễn phí' : money.format(quote.fee);
-            totalOutput.textContent = money.format(Number(quote.total));
+            renderTotals();
             quoteBox.innerHTML = `<strong>${quote.free_shipping ? 'Miễn phí giao hàng' : `Phí giao hàng ${money.format(quote.fee)}`}</strong><span>Dự kiến nhận trong ${quote.estimated_days}.</span>`;
-        } catch {
-            quoteBox.textContent = 'Chưa tính được phí giao hàng. Vui lòng chọn lại tỉnh/thành phố.';
+        } catch (error) {
+            currentShippingFee = null;
+            quoteBox.textContent = error.message || 'Chưa tính được phí giao hàng. Vui lòng chọn lại tỉnh/thành phố.';
             feeOutput.textContent = 'Chưa tính';
+            renderTotals();
         } finally {
             quoteBox.removeAttribute('aria-busy');
         }
@@ -809,61 +882,58 @@ if (shippingForm) {
         loadShippingQuote();
     });
 
-    const selectPendingCoupon = (code = '', discount = 0) => {
+    const pendingHint = (slotName, discount, headline) => (slotName === 'shipping'
+        ? headline || 'Giảm phí vận chuyển'
+        : `Dự kiến giảm ${money.format(Number(discount || 0))}`);
+
+    const selectPendingCoupon = (code = '', hint = '') => {
         pendingCouponCode = String(code || '').trim().toUpperCase();
-        pendingCouponDiscount = Number(discount || 0);
         pendingLabel.textContent = pendingCouponCode ? `Đã chọn ${pendingCouponCode}` : 'Chưa chọn mã';
-        pendingDiscountOutput.textContent = pendingCouponCode
-            ? `Dự kiến giảm ${money.format(pendingCouponDiscount)}`
-            : 'Chọn một ưu đãi để tiếp tục';
+        pendingDiscountOutput.textContent = pendingCouponCode ? hint : 'Chọn một ưu đãi để tiếp tục';
         couponConfirm.disabled = !pendingCouponCode;
-        shippingForm.querySelectorAll('[data-voucher]').forEach((voucher) => {
+        voucherOptions.forEach((voucher) => {
             const selected = voucher.dataset.voucher === pendingCouponCode;
             voucher.classList.toggle('is-selected', selected);
             voucher.setAttribute('aria-pressed', String(selected));
         });
     };
 
-    const renderCoupon = (code = '', discount = 0) => {
-        const normalizedCode = String(code || '').trim().toUpperCase();
-        selectedDiscount = Number(discount || 0);
-        couponInput.value = normalizedCode;
-        if (normalizedCode) sessionStorage.setItem(couponStorageKey, normalizedCode);
-        else sessionStorage.removeItem(couponStorageKey);
-        discountRow.hidden = !normalizedCode || selectedDiscount <= 0;
-        discountOutput.textContent = `-${money.format(selectedDiscount)}`;
-        couponTrigger.hidden = Boolean(normalizedCode);
-        couponApplied.hidden = !normalizedCode;
-        couponAppliedCode.textContent = normalizedCode;
-        couponAppliedDiscount.textContent = normalizedCode ? `Giảm ${money.format(selectedDiscount)}` : '';
-        couponTriggerCopy.textContent = normalizedCode ? `Đang dùng ${normalizedCode}` : 'Chọn hoặc nhập mã';
-        couponTriggerAction.textContent = normalizedCode ? 'Đổi mã' : 'Chọn mã';
-        selectPendingCoupon(normalizedCode, selectedDiscount);
-        totalOutput.textContent = money.format(subtotal - selectedDiscount + (currentShippingFee || 0));
-    };
-
-    const previewCoupon = async (code) => {
+    const previewCoupon = async (code, slotName) => {
         const normalizedCode = String(code || '').trim().toUpperCase();
         if (!normalizedCode) throw new Error('Vui lòng nhập hoặc chọn một mã giảm giá.');
         const url = new URL(shippingForm.dataset.couponPreviewUrl, window.location.origin);
         url.searchParams.set('coupon_code', normalizedCode);
+        url.searchParams.set('slot', slotName);
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
         return data;
     };
 
-    const openCouponDialog = (opener) => {
+    const openCouponDialog = (slotName, opener) => {
         if (!couponDialog?.showModal) return;
+        activeSlot = slotName;
         couponDialogOpener = opener;
-        selectPendingCoupon(couponInput.value, selectedDiscount);
+        const copy = slotCopy[slotName] || slotCopy.order;
+        couponDialogTitle.textContent = copy.title;
+        couponDialogDescription.textContent = copy.description;
+        manualCoupon.placeholder = copy.placeholder;
+        let visible = 0;
+        voucherOptions.forEach((voucher) => {
+            voucher.hidden = voucher.dataset.slot !== slotName;
+            if (!voucher.hidden) visible += 1;
+        });
+        voucherCount.textContent = `${visible} mã`;
+        voucherEmpty.hidden = visible > 0;
+        const slot = couponSlots[slotName];
+        selectPendingCoupon(slot.code, slot.code ? pendingHint(slotName, slot.discount, slot.headline) : '');
         manualCoupon.value = '';
         manualCouponStatus.textContent = 'Mã sẽ được kiểm tra trực tiếp với hệ thống.';
         manualCouponStatus.classList.remove('is-error', 'is-success');
         couponDialog.showModal();
         document.body.classList.add('coupon-dialog-open');
         requestAnimationFrame(() => {
-            const selectedVoucher = couponDialog.querySelector('[data-voucher].is-selected');
+            const selectedVoucher = couponDialog.querySelector('[data-voucher].is-selected:not([hidden])');
             (selectedVoucher || manualCoupon || couponClose)?.focus();
         });
     };
@@ -878,7 +948,6 @@ if (shippingForm) {
         couponConfirm.textContent = busy ? 'Đang áp dụng...' : 'Áp dụng';
     };
 
-    couponOpeners.forEach((opener) => opener.addEventListener('click', () => openCouponDialog(opener)));
     couponClose?.addEventListener('click', closeCouponDialog);
     couponDialog?.addEventListener('click', (event) => {
         if (event.target === couponDialog) closeCouponDialog();
@@ -889,10 +958,10 @@ if (shippingForm) {
         couponDialogOpener = null;
     });
 
-    shippingForm.querySelectorAll('[data-voucher]').forEach((voucher) => {
+    voucherOptions.forEach((voucher) => {
         voucher.addEventListener('click', () => {
             if (voucher.disabled || voucher.dataset.eligible !== 'true') return;
-            selectPendingCoupon(voucher.dataset.voucher, voucher.dataset.discount);
+            selectPendingCoupon(voucher.dataset.voucher, pendingHint(voucher.dataset.slot, voucher.dataset.discount, voucher.dataset.headline));
             manualCoupon.value = '';
             manualCouponStatus.textContent = `Đã chọn ${voucher.dataset.voucher}. Nhấn Áp dụng để xác nhận.`;
             manualCouponStatus.classList.remove('is-error');
@@ -908,12 +977,13 @@ if (shippingForm) {
         manualCouponStatus.setAttribute('aria-busy', 'true');
         manualCouponCheck.disabled = true;
         try {
-            const data = await previewCoupon(code);
-            selectPendingCoupon(data.code, data.discount);
-            manualCouponStatus.textContent = `${data.code} hợp lệ. Dự kiến giảm ${money.format(data.discount)}.`;
+            const data = await previewCoupon(code, activeSlot);
+            const hint = pendingHint(activeSlot, data.discount, data.headline);
+            selectPendingCoupon(data.code, hint);
+            manualCouponStatus.textContent = `${data.code} hợp lệ. ${hint}.`;
             manualCouponStatus.classList.add('is-success');
         } catch (error) {
-            selectPendingCoupon('', 0);
+            selectPendingCoupon('', '');
             manualCouponStatus.textContent = error.message || 'Không thể kiểm tra mã giảm giá. Vui lòng thử lại.';
             manualCouponStatus.classList.add('is-error');
         } finally {
@@ -936,14 +1006,17 @@ if (shippingForm) {
 
     couponConfirm?.addEventListener('click', async () => {
         if (!pendingCouponCode) return;
+        const slotName = activeSlot;
         setCouponBusy(true);
         manualCouponStatus.textContent = 'Đang xác nhận ưu đãi với hệ thống...';
         manualCouponStatus.classList.remove('is-error', 'is-success');
         try {
-            const data = await previewCoupon(pendingCouponCode);
-            renderCoupon(data.code, data.discount);
-            couponStatus.textContent = `Đã áp dụng ${data.code}. Bạn được giảm ${money.format(data.discount)}.`;
-            if (province.value && districtId.value && wardCode.value) await loadShippingQuote();
+            const data = await previewCoupon(pendingCouponCode, slotName);
+            applyCoupon(slotName, data.code, data.discount, data.headline);
+            couponStatus.textContent = slotName === 'shipping'
+                ? `Đã áp dụng ${data.code}: ${data.headline}.`
+                : `Đã áp dụng ${data.code}. Bạn được giảm ${money.format(data.discount)}.`;
+            if (hasAddress()) await loadShippingQuote();
             closeCouponDialog();
         } catch (error) {
             manualCouponStatus.textContent = error.message || 'Không thể áp dụng mã giảm giá. Vui lòng thử lại.';
@@ -953,24 +1026,27 @@ if (shippingForm) {
         }
     });
 
-    couponRemove?.addEventListener('click', async () => {
-        renderCoupon('', 0);
-        couponStatus.textContent = 'Đã bỏ mã giảm giá.';
-        if (province.value && districtId.value && wardCode.value) await loadShippingQuote();
-    });
+    Object.values(couponSlots).forEach((slot) => {
+        slot.openers.forEach((opener) => opener.addEventListener('click', () => openCouponDialog(slot.name, opener)));
+        slot.remove?.addEventListener('click', async () => {
+            applyCoupon(slot.name);
+            couponStatus.textContent = slot.name === 'shipping' ? 'Đã bỏ mã vận chuyển.' : 'Đã bỏ mã giảm giá.';
+            if (hasAddress()) await loadShippingQuote();
+        });
 
-    const restorableCoupon = couponInput?.value || sessionStorage.getItem(couponStorageKey) || '';
-    if (restorableCoupon) {
-        previewCoupon(restorableCoupon)
+        const restorable = slot.input?.value || sessionStorage.getItem(slot.storageKey) || '';
+        if (!restorable) return;
+        previewCoupon(restorable, slot.name)
             .then((data) => {
-                renderCoupon(data.code, data.discount);
+                applyCoupon(slot.name, data.code, data.discount, data.headline);
                 couponStatus.textContent = `Đã khôi phục mã ${data.code}.`;
+                if (hasAddress()) loadShippingQuote();
             })
             .catch(() => {
-                renderCoupon('', 0);
-                couponStatus.textContent = 'Mã giảm giá trước đó không còn hợp lệ.';
+                applyCoupon(slot.name);
+                couponStatus.textContent = 'Mã ưu đãi trước đó không còn hợp lệ.';
             });
-    }
+    });
 
     shippingForm.querySelectorAll('[data-saved-address]').forEach((choice) => {
         choice.addEventListener('change', () => {

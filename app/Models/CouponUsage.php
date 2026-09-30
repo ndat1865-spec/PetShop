@@ -12,11 +12,13 @@ class CouponUsage extends Model
         'order_id',
         'discount_amount',
         'used_at',
+        'released_at',
     ];
 
     protected $casts = [
         'discount_amount' => 'decimal:0',
         'used_at' => 'datetime',
+        'released_at' => 'datetime',
     ];
 
     public function coupon()

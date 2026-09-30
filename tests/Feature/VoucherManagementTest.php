@@ -71,6 +71,18 @@ class VoucherManagementTest extends TestCase
             'is_active' => 1,
             'is_public' => 1,
         ])->assertRedirect(route('admin.coupons'))->assertSessionHasErrors(['value', 'expires_at']);
+
+        $this->from(route('admin.coupons'))->post(route('admin.coupons.store'), [
+            'code' => 'SHIPQUA', 'name' => 'Sai phí ship', 'type' => 'shipping', 'value' => 150, 'is_active' => 1,
+        ])->assertSessionHasErrors(['value']);
+        $this->post(route('admin.coupons.store'), [
+            'code' => 'freeship30', 'name' => 'Freeship 30K', 'type' => 'shipping', 'value' => 100, 'maximum_discount' => 30000, 'is_active' => 1, 'is_public' => 1,
+        ])->assertSessionHasNoErrors();
+        $this->get(route('admin.coupons', ['type' => 'shipping']))
+            ->assertOk()
+            ->assertSee('FREESHIP30')
+            ->assertSee('Phí vận chuyển')
+            ->assertDontSee('WELCOME25');
     }
 
     public function test_coupon_admin_routes_require_the_promotions_permission(): void
@@ -168,6 +180,113 @@ class VoucherManagementTest extends TestCase
         $this->actingAs($experiencedCustomer)->withSession(['cart' => [$product->id => 1]])
             ->getJson(route('coupons.preview', ['coupon_code' => $coupon->code]))
             ->assertStatus(422);
+    }
+
+    public function test_shipping_voucher_stacks_with_order_voucher_and_discounts_the_shipping_fee(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product(300000);
+        $orderCoupon = $this->coupon(['code' => 'GIAM50K', 'type' => 'fixed', 'value' => 50000]);
+        $shippingCoupon = $this->coupon(['code' => 'SHIP20K', 'type' => 'shipping', 'value' => 100, 'maximum_discount' => 20000]);
+
+        // Hà Nội thuộc vùng "nearby" (30.000đ) và đơn chưa đạt ngưỡng miễn phí vận chuyển.
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('shipping.quote', ['province' => 'Thành phố Hà Nội', 'coupon_code' => 'GIAM50K', 'shipping_coupon_code' => 'SHIP20K']))
+            ->assertOk()
+            ->assertJson(['fee' => 30000, 'discount' => 50000, 'shipping_discount' => 20000, 'shipping_payable' => 10000, 'total' => 260000]);
+
+        $this->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('coupons.preview', ['coupon_code' => 'SHIP20K', 'slot' => 'shipping']))
+            ->assertOk()
+            ->assertJson(['code' => 'SHIP20K', 'slot' => 'shipping', 'discount' => null, 'headline' => 'Miễn phí vận chuyển tối đa 20.000đ']);
+
+        $idempotencyKey = (string) Str::uuid();
+        $this->withSession(['cart' => [$product->id => 1], 'checkout_idempotency_key' => $idempotencyKey])
+            ->post(route('checkout.store'), [
+                ...$this->checkoutData(),
+                'coupon_code' => 'giam50k',
+                'shipping_coupon_code' => 'ship20k',
+                'idempotency_key' => $idempotencyKey,
+            ])->assertRedirect();
+
+        $order = Order::where('idempotency_key', $idempotencyKey)->firstOrFail();
+        $this->assertSame('GIAM50K', $order->coupon_code);
+        $this->assertSame('SHIP20K', $order->shipping_coupon_code);
+        $this->assertEquals(50000, $order->discount);
+        $this->assertEquals(30000, $order->shipping_fee);
+        $this->assertEquals(20000, $order->shipping_discount);
+        $this->assertEquals(260000, $order->total);
+        $this->assertDatabaseHas('coupon_usages', ['order_id' => $order->id, 'coupon_id' => $orderCoupon->id, 'discount_amount' => 50000]);
+        $this->assertDatabaseHas('coupon_usages', ['order_id' => $order->id, 'coupon_id' => $shippingCoupon->id, 'discount_amount' => 20000]);
+        $this->assertSame(1, $orderCoupon->fresh()->used_count);
+        $this->assertSame(1, $shippingCoupon->fresh()->used_count);
+    }
+
+    public function test_each_voucher_slot_only_accepts_its_own_voucher_type(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product(300000);
+        $this->coupon(['code' => 'CHIGIAMHANG', 'type' => 'percent', 'value' => 10]);
+        $this->coupon(['code' => 'CHIGIAMSHIP', 'type' => 'shipping', 'value' => 100]);
+
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('coupons.preview', ['coupon_code' => 'CHIGIAMSHIP']))
+            ->assertStatus(422)
+            ->assertJson(['message' => 'Đây là mã giảm phí vận chuyển, hãy áp dụng ở mục Mã vận chuyển.']);
+
+        $this->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('coupons.preview', ['coupon_code' => 'CHIGIAMHANG', 'slot' => 'shipping']))
+            ->assertStatus(422);
+
+        $this->withSession(['cart' => [$product->id => 1]])
+            ->post(route('checkout.store'), [...$this->checkoutData(), 'coupon_code' => 'CHIGIAMSHIP', 'idempotency_key' => (string) Str::uuid()])
+            ->assertStatus(422);
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_cancelling_an_order_releases_its_voucher_usages(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product(300000);
+        $orderCoupon = $this->coupon(['code' => 'MOTLAN', 'type' => 'fixed', 'value' => 20000, 'per_user_limit' => 1]);
+        $shippingCoupon = $this->coupon(['code' => 'SHIPMOTLAN', 'type' => 'shipping', 'value' => 100, 'per_user_limit' => 1]);
+        $idempotencyKey = (string) Str::uuid();
+
+        $this->actingAs($customer)
+            ->withSession(['cart' => [$product->id => 1], 'checkout_idempotency_key' => $idempotencyKey])
+            ->post(route('checkout.store'), [...$this->checkoutData(), 'coupon_code' => 'MOTLAN', 'shipping_coupon_code' => 'SHIPMOTLAN', 'idempotency_key' => $idempotencyKey])
+            ->assertRedirect();
+        $order = Order::where('idempotency_key', $idempotencyKey)->firstOrFail();
+
+        $this->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('coupons.preview', ['coupon_code' => 'MOTLAN']))
+            ->assertStatus(422);
+
+        $this->patch(route('account.orders.cancel', $order), ['reason' => 'ordered_by_mistake'])->assertRedirect();
+        // Hủy lặp lại không được hoàn lượt thêm lần nữa.
+        $this->patch(route('account.orders.cancel', $order), ['reason' => 'ordered_by_mistake']);
+
+        $this->assertSame(0, $orderCoupon->fresh()->used_count);
+        $this->assertSame(0, $shippingCoupon->fresh()->used_count);
+        $this->assertSame(2, CouponUsage::where('order_id', $order->id)->whereNotNull('released_at')->count());
+        $this->withSession(['cart' => [$product->id => 1]])
+            ->getJson(route('coupons.preview', ['coupon_code' => 'MOTLAN']))
+            ->assertOk();
+    }
+
+    public function test_admin_cancellation_releases_voucher_usage(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $customer = User::factory()->create();
+        $coupon = $this->coupon(['code' => 'ADMINHUY', 'used_count' => 1]);
+        $order = $this->order($customer, 'PAW-ADMIN-CANCEL', 30000, $coupon->code);
+        CouponUsage::create(['coupon_id' => $coupon->id, 'user_id' => $customer->id, 'order_id' => $order->id, 'discount_amount' => 30000, 'used_at' => now()]);
+
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order), ['status' => 'cancelled'])->assertRedirect();
+
+        $this->assertSame(0, $coupon->fresh()->used_count);
+        $this->assertNotNull(CouponUsage::where('order_id', $order->id)->value('released_at'));
+        $this->get(route('admin.coupons.show', $coupon))->assertOk()->assertSee('Đã hoàn lượt do hủy đơn');
     }
 
     private function coupon(array $overrides = []): Coupon
