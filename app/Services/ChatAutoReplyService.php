@@ -14,7 +14,7 @@ class ChatAutoReplyService
 {
     public const FALLBACK = 'Pawora chưa tìm được câu trả lời phù hợp. Bạn có thể chọn chủ đề bên dưới hoặc yêu cầu nhân viên hỗ trợ.';
 
-    public function __construct(private ChatBroadcaster $broadcaster, private ChatHandoffService $handoff) {}
+    public function __construct(private ChatBroadcaster $broadcaster, private ChatHandoffService $handoff, private GeminiChatService $gemini) {}
 
     public function process(ChatMessage $source): array
     {
@@ -22,19 +22,57 @@ class ChatAutoReplyService
             return [];
         }
 
-        return DB::transaction(function () use ($source) {
+        $claimed = DB::transaction(function () use ($source) {
             $conversation = ChatConversation::whereKey($source->conversation_id)->lockForUpdate()->firstOrFail();
             $source->refresh();
             if ($source->auto_reply_processed_at || ! $conversation->bot_enabled || in_array($conversation->status, ['closed', 'spam'], true)) {
-                return [];
+                return false;
             }
             $source->update(['auto_reply_processed_at' => now()]);
+
+            return true;
+        });
+        if (! $claimed) {
+            return [];
+        }
+
+        $rule = $this->followUpRule($source) ?? $this->matchingRule($source->content);
+        $useAi = $this->gemini->enabled() && ! $this->requestsHuman($source->content)
+            && (! $rule || ($rule->template_key && ! $rule->updated_by && ! $rule->handoff
+                && ! in_array($rule->template_key, ['order', 'pet_health'], true)));
+        // Never hold a conversation/database lock while waiting for the provider.
+        $aiReply = $useAi ? $this->gemini->reply($source) : null;
+
+        return DB::transaction(function () use ($source, $aiReply, $useAi) {
+            $conversation = ChatConversation::whereKey($source->conversation_id)->lockForUpdate()->firstOrFail();
+            if (! $conversation->bot_enabled || in_array($conversation->status, ['closed', 'spam'], true)
+                || ($useAi && $conversation->messages()->where('sender_type', 'customer')->where('id', '>', $source->id)->exists())) {
+                return [];
+            }
             if ($this->requestsHuman($source->content)) {
                 $message = $this->handoff->request($conversation);
 
                 return $message ? [$message] : [];
             }
-            $rule = $this->matchingRule($source->content);
+            $rule = $this->followUpRule($source) ?? $this->matchingRule($source->content);
+            if ($rule?->handoff) {
+                $message = $this->handoff->request($conversation, 'verification', $rule->response);
+                if ($message) {
+                    $this->recordTrigger($source, $message, $rule);
+                }
+
+                return $message ? [$message] : [];
+            }
+            if ($aiReply) {
+                if ($aiReply['action'] === 'handoff') {
+                    $message = $this->handoff->request($conversation, 'verification');
+
+                    return $message ? [$message] : [];
+                }
+                $conversation->update(['fallback_sent_at' => null]);
+
+                return [$this->createResponse($conversation, $aiReply['answer'])];
+            }
             if (! $rule) {
                 if ($conversation->fallback_sent_at) {
                     if ($conversation->fallback_sent_at->gt(now()->subMinute())) {
@@ -49,18 +87,17 @@ class ChatAutoReplyService
 
                 return [$response];
             }
-            if ($rule->handoff) {
-                $message = $this->handoff->request($conversation, 'verification', $rule->response);
-                if ($message) {
-                    $this->recordTrigger($source, $message, $rule);
-                }
-
-                return $message ? [$message] : [];
-            }
             $previous = ChatRuleTrigger::where('conversation_id', $conversation->id)->where('rule_id', $rule->id)->latest('id')->first();
-            if ($previous && ($rule->once_per_conversation || $previous->created_at->gt(now()->subMinute()))) {
-                return [];
+            if ($previous) {
+                $previousSource = ChatMessage::find($previous->source_message_id);
+                $previousResponse = ChatMessage::find($previous->response_message_id);
+                $sameQuestion = $previousSource && $this->normalize($previousSource->content) === $this->normalize($source->content);
+                $pendingReply = $previousResponse && ! $previousResponse->delivered_at && ! $previousResponse->cancelled_at && $previousResponse->deliver_at;
+                if ($rule->once_per_conversation || $pendingReply || ($sameQuestion && $previous->created_at->gt(now()->subMinute()))) {
+                    return [];
+                }
             }
+            $conversation->update(['fallback_sent_at' => null]);
             $response = $this->createResponse($conversation, $rule->response, $rule);
             $this->recordTrigger($source, $response, $rule);
 
@@ -152,6 +189,32 @@ class ChatAutoReplyService
         return $rules->first(fn ($rule) => ! $this->isGreeting($rule)) ?? $rules->first();
     }
 
+    private function followUpRule(ChatMessage $source): ?ChatAutoReplyRule
+    {
+        $followUps = [
+            'voucher' => ['ở đâu', 'lấy ở đâu', 'xem ở đâu', 'vào đâu', 'mở ở đâu', 'ví ở đâu', 'xin link', 'cho mình xin link'],
+            'voucher_usage' => ['dùng sao', 'dùng thế nào', 'dùng làm sao', 'sử dụng sao', 'cách dùng', 'nhập ở đâu', 'áp dụng sao'],
+            'voucher_error' => ['không được', 'không dùng được', 'không áp dụng được', 'bị lỗi', 'vẫn lỗi', 'không xài được'],
+        ];
+        $normalized = $this->normalize($source->content);
+        $key = collect($followUps)->search(fn ($phrases) => in_array($normalized, array_map($this->normalize(...), $phrases), true));
+        if ($key === false) {
+            return null;
+        }
+
+        // Only carry forward the immediately preceding, delivered bot topic.
+        $previous = ChatMessage::where('conversation_id', $source->conversation_id)
+            ->where('id', '<', $source->id)->delivered()->latest('id')->first();
+        if (! $previous || $previous->sender_type !== 'bot' || $previous->created_at->lt(now()->subMinutes(15))
+            || $previous->autoReplyRule?->category !== 'voucher') {
+            return null;
+        }
+
+        $rule = ChatAutoReplyRule::enabled()->where('template_key', $key)->where('match_type', 'contains')->first();
+
+        return $rule && $this->isScheduleActive($rule) ? $rule : null;
+    }
+
     private function isGreeting(ChatAutoReplyRule $rule): bool
     {
         return $rule->template_key === 'greeting' || $this->normalize($rule->name) === 'loi chao';
@@ -160,7 +223,7 @@ class ChatAutoReplyService
     private function requestsHuman(string $message): bool
     {
         $message = ' '.$this->normalize($message).' ';
-        foreach (['gap nhan vien', 'yeu cau nhan vien', 'nguoi that', 'tu van truc tiep', 'bot khong hieu', 'noi chuyen voi nhan vien'] as $phrase) {
+        foreach (['gap nhan vien', 'yeu cau nhan vien', 'nguoi that', 'tu van truc tiep', 'bot khong hieu', 'noi chuyen voi nhan vien', 'gap tu van vien', 'cho gap shop', 'can nhan vien', 'nhan vien oi'] as $phrase) {
             if (str_contains($message, ' '.$phrase.' ')) {
                 return true;
             }
@@ -202,6 +265,13 @@ class ChatAutoReplyService
 
     private function normalize(string $value): string
     {
-        return trim((string) preg_replace('/\s+/u', ' ', (string) preg_replace('/[^\pL\pN\s]/u', ' ', Str::ascii(Str::lower($value)))));
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', (string) preg_replace('/[^\pL\pN\s]/u', ' ', Str::ascii(Str::lower($value)))));
+
+        return implode(' ', array_map(fn ($word) => match ($word) {
+            'ko', 'hok', 'khum' => 'khong',
+            'dc' => 'duoc',
+            'bn', 'bnhiu' => 'bao nhieu',
+            default => $word,
+        }, explode(' ', $normalized)));
     }
 }

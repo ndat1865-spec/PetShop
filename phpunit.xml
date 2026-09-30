@@ -10,6 +10,7 @@
   </testsuites>
   <php>
     <env name="APP_ENV" value="testing"/>
+    <env name="GEMINI_ENABLED" value="false" force="true"/>
     <env name="APP_URL" value="http://localhost"/>
     <env name="ASSET_URL" value="http://localhost"/>
     <env name="BCRYPT_ROUNDS" value="4"/>

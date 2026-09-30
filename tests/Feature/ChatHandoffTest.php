@@ -54,6 +54,21 @@ class ChatHandoffTest extends TestCase
         $this->assertStringContainsString('yêu cầu nhân viên', $replies[0]->content);
     }
 
+    public function test_short_voucher_question_receives_a_relevant_reply(): void
+    {
+        $this->seed(ChatSupportRuleSeeder::class);
+        $conversation = $this->conversation();
+        $message = $conversation->messages()->create([
+            'sender_type' => 'customer', 'message_type' => 'text', 'content' => 'mã giảm',
+        ]);
+
+        $replies = app(ChatAutoReplyService::class)->process($message);
+
+        $this->assertCount(1, $replies);
+        $this->assertStringContainsString('voucher', mb_strtolower($replies[0]->content));
+        $this->assertNull($conversation->fresh()->handoff_reason);
+    }
+
     public function test_handoff_is_idempotent_and_stops_bot_across_reload(): void
     {
         $conversation = $this->conversation();

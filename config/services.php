@@ -2,6 +2,16 @@
 
 return [
 
+    'gemini' => [
+        'enabled' => env('GEMINI_ENABLED', false),
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+        'timeout' => 12,
+        'ca_bundle' => env('GEMINI_CA_BUNDLE'),
+        'requests_per_minute' => env('GEMINI_REQUESTS_PER_MINUTE', 10),
+        'requests_per_day' => env('GEMINI_REQUESTS_PER_DAY', 250),
+    ],
+
     'google' => ['client_id' => env('GOOGLE_CLIENT_ID'), 'client_secret' => env('GOOGLE_CLIENT_SECRET'), 'redirect' => env('GOOGLE_REDIRECT_URI'), 'guzzle' => ['verify' => env('SOCIALITE_SSL_VERIFY', true)]],
     'facebook' => ['client_id' => env('FACEBOOK_CLIENT_ID'), 'client_secret' => env('FACEBOOK_CLIENT_SECRET'), 'redirect' => env('FACEBOOK_REDIRECT_URI'), 'guzzle' => ['verify' => env('SOCIALITE_SSL_VERIFY', true)]],
 
