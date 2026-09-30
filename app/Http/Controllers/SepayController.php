@@ -46,7 +46,11 @@ class SepayController extends Controller
 
     private function extractOrderNumber(string $content): string
     {
-        if (preg_match('/PAW-[0-9]{6}-[A-Z0-9]{6}/', $content, $matches)) return $matches[0];
+        // Banks may strip the hyphens from the transfer memo.
+        if (preg_match('/(?<![A-Z0-9])PAW-?([0-9]{6})-?([A-Z0-9]{6})(?![A-Z0-9])/', $content, $matches)) {
+            return 'PAW-'.$matches[1].'-'.$matches[2];
+        }
+
         return '';
     }
 }

@@ -163,6 +163,52 @@ class CheckoutSecurityTest extends TestCase
         $this->assertNotEmpty($order->shipments()->sole()->tracking_code);
     }
 
+    public function test_sepay_webhook_recognizes_order_number_when_bank_removes_hyphens(): void
+    {
+        $this->enableSepay();
+        $order = $this->bankTransferOrder();
+        $order->update(['number' => 'PAW-260930-DBW6DP', 'subtotal' => 2000, 'total' => 2000]);
+        $payload = [
+            'id' => 90002,
+            'transferType' => 'in',
+            'transferAmount' => 2000,
+            'content' => 'MBVCB.16306761264.029282.PAW260930DBW6DP.CT tu NGUYEN VAN A toi PAWORA',
+        ];
+        $headers = ['Authorization' => 'Apikey testing-sepay-key'];
+
+        $this->postJson(route('webhooks.sepay'), $payload, $headers)
+            ->assertOk()->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'paid', 'status' => 'confirmed']);
+        $this->assertDatabaseHas('payment_transactions', ['order_id' => $order->id, 'provider' => 'sepay', 'amount' => 2000]);
+        $this->actingAs($order->user)->get('/don-hang/'.$order->id.'?token='.$order->public_token)
+            ->assertOk()->assertSee('Đã thanh toán');
+
+        $this->postJson(route('webhooks.sepay'), $payload, $headers)
+            ->assertOk()->assertJson(['success' => true, 'message' => 'Already processed']);
+        $this->assertSame(1, PaymentTransaction::where('provider', 'sepay')->count());
+    }
+
+    public function test_sepay_webhook_does_not_match_order_number_inside_a_longer_code(): void
+    {
+        $this->enableSepay();
+        $order = $this->bankTransferOrder();
+        $compactNumber = str_replace('-', '', $order->number);
+
+        foreach (['X'.$compactNumber, $compactNumber.'X', $order->number.'X'] as $content) {
+            $this->postJson(route('webhooks.sepay'), [
+                'id' => 90003,
+                'transferType' => 'in',
+                'transferAmount' => (int) $order->total,
+                'content' => 'MBVCB.'.$content.'.CT',
+            ], ['Authorization' => 'Apikey testing-sepay-key'])
+                ->assertNotFound()->assertJson(['success' => false, 'message' => 'Order not found']);
+        }
+
+        $this->assertSame('unpaid', $order->fresh()->payment_status);
+        $this->assertDatabaseCount('payment_transactions', 0);
+    }
+
     public function test_checkout_lists_only_configured_payment_gateways(): void
     {
         config()->set('services.vnpay.enabled', true);
