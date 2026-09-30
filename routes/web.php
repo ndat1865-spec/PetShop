@@ -59,6 +59,7 @@ Route::get('/thanh-toan/momo/return/{order}', [MomoController::class, 'return'])
 Route::post('/thanh-toan/momo/ipn', [MomoController::class, 'ipn'])->name('payments.momo.ipn');
 Route::post('/thanh-toan/hoan-tien/{provider}/callback', RefundWebhookController::class)->name('payments.refunds.callback');
 Route::get('/thanh-toan/sepay/{order}', [SepayController::class, 'payment'])->name('payments.sepay.payment');
+Route::get('/thanh-toan/sepay/{order}/trang-thai', [SepayController::class, 'status'])->middleware('throttle:60,1')->name('payments.sepay.status');
 Route::get('/don-hang/{order}', [CheckoutController::class, 'show'])->name('orders.show');
 Route::get('/dat-hang/{order}/thanh-cong', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function () {

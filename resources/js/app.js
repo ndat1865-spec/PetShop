@@ -2,10 +2,14 @@ import './bootstrap';
 import './chat-widget';
 import './admin-chat';
 import './product-content-admin';
+import { initSepayPayment } from './sepay-payment';
+import '../css/sepay-payment.css';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
+
+document.querySelectorAll('[data-sepay-payment]').forEach((element) => initSepayPayment(element));
 
 const menuButton = document.querySelector('[data-menu-button]');
 const mobilePanel = document.querySelector('[data-mobile-panel]');

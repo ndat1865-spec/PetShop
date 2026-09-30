@@ -12,9 +12,44 @@ class SepayController extends Controller
 {
     public function payment(Request $request, Order $order, SepayGateway $sepay)
     {
-        abort_unless($request->user()?->canAccessAdmin() || $request->session()->get('last_order') === $order->id || $request->query('token') === $order->public_token, 403);
+        $this->authorizeOrder($request, $order);
         abort_unless($order->payment_method === 'bank_transfer' && $sepay->enabled(), 404);
+
+        if ($order->status === 'cancelled' || in_array($order->payment_status, ['refund_pending', 'refunded', 'failed'], true)) {
+            return redirect()->route('orders.show', ['order' => $order, 'token' => $order->public_token]);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return redirect()->route('orders.confirmation', ['order' => $order, 'token' => $order->public_token])
+                ->with('success', 'Thanh toán SePay thành công. Pawora đã xác nhận đơn của bạn.');
+        }
+
         return view('store.sepay-payment', ['order' => $order, 'qrUrl' => $sepay->qrUrl($order)]);
+    }
+
+    public function status(Request $request, Order $order)
+    {
+        $this->authorizeOrder($request, $order);
+        abort_unless($order->payment_method === 'bank_transfer', 404);
+
+        return response()->json([
+            'payment_status' => $order->payment_status,
+            'order_status' => $order->status,
+            'redirect_url' => $order->payment_status === 'paid' && $order->status !== 'cancelled'
+                ? route('orders.confirmation', ['order' => $order, 'token' => $order->public_token])
+                : null,
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    private function authorizeOrder(Request $request, Order $order): void
+    {
+        $token = (string) $request->query('token');
+        $validToken = filled($order->public_token) && $token !== '' && hash_equals((string) $order->public_token, $token);
+
+        abort_unless($request->user()?->canAccessAdmin()
+            || ($request->user() && $request->user()->id === $order->user_id)
+            || $request->session()->get('last_order') === $order->id
+            || $validToken, 403);
     }
 
     public function webhook(Request $request, SepayGateway $sepay)
