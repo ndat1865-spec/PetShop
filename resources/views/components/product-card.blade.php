@@ -1,7 +1,9 @@
 @props(['product', 'motion' => true, 'catalogMotion' => false])
 @php
     $isOutOfStock = $product->stock < 1;
-    $hasVariants = $product->variants->isNotEmpty();
+    $activeVariants = $product->variants->where('is_active', true);
+    $quickVariant = $activeVariants->firstWhere('stock', '>', 0);
+    $canQuickAdd = $activeVariants->isNotEmpty() ? (bool) $quickVariant : ! $isOutOfStock;
     $reviewCount = (int) ($product->approved_review_count ?? 0);
     $rating = (float) ($product->approved_rating ?? 0);
 @endphp
@@ -25,10 +27,13 @@
         <div class="price">
             <strong>{{ number_format($product->price, 0, ',', '.') }}đ</strong>@if($product->compare_price)<del>{{ number_format($product->compare_price, 0, ',', '.') }}đ</del>@endif
         </div>
-        @if($isOutOfStock || $hasVariants)
+        <div class="product-actions">
             <a class="button secondary" href="{{ route('products.show', $product->slug) }}">Xem chi tiết</a>
-        @else
-            <form action="{{ route('cart.store', $product) }}" method="post" data-cart-form data-cart-image="{{ $product->image }}">@csrf<button class="button secondary" data-cart-button>Thêm vào giỏ</button></form>
-        @endif
+            <form action="{{ route('cart.store', $product) }}" method="post" data-cart-form data-cart-image="{{ $product->image }}">
+                @csrf
+                @if($quickVariant)<input type="hidden" name="variant_id" value="{{ $quickVariant->id }}">@endif
+                <button class="button product-quick-add" data-cart-button data-cart-compact @disabled(! $canQuickAdd) aria-label="{{ $canQuickAdd ? 'Thêm '.$product->name.($quickVariant ? ' ('.$quickVariant->name.')' : '').' vào giỏ' : $product->name.' tạm hết hàng' }}" title="{{ $canQuickAdd ? 'Thêm nhanh vào giỏ' : 'Tạm hết hàng' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            </form>
+        </div>
     </div>
 </article>

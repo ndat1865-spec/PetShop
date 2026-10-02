@@ -592,3 +592,13 @@ html:has(.dashboard-page),.admin-body:has(.dashboard-page){overflow-x:clip}.admi
 .coupon-slot .coupon-applied{margin-top:0}.coupon-slot+.coupon-slot{margin-top:10px}.coupon-slot--shipping .coupon-trigger__icon{background:#e6f5ec;color:#146b35}.coupon-slot--shipping .coupon-applied{border-color:#a8dcbc;background:#f0faf4}.coupon-slot--shipping .coupon-applied__mark{background:#1a8a47}.coupon-slot--shipping .coupon-applied__copy strong{color:#146b35}
 .checkout-totals [data-shipping-discount-row]{color:#146b35}.voucher-option[hidden],.voucher-empty[hidden],.checkout-review-totals>[hidden]{display:none!important}
 .field-hint{margin:0;color:#5d6c7f;font-size:12px;line-height:1.5}
+.product-card .product-info>.product-actions{display:flex;align-items:center;gap:10px;width:100%;margin-top:auto}
+.product-card .product-actions>.button{flex:1;min-width:0;width:auto;margin:0}
+.product-card .product-actions>form{flex:none;width:auto;margin:0}
+.product-card .product-actions .button.product-quick-add{width:44px;min-width:44px;min-height:44px;height:44px;padding:0;border-radius:50%;border-color:var(--blue-600);background:var(--blue-600);color:#fff}
+.product-card .product-actions .button.product-quick-add:hover{border-color:var(--blue-500);background:var(--blue-500);color:#fff}
+.product-card .product-actions .button.product-quick-add.is-success{border-color:#1a8a47;background:#1a8a47}
+.product-card .product-actions .button.product-quick-add:disabled{border-color:#c7ccd3;background:#c7ccd3;opacity:1}
+.product-quick-add svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.quick-add-spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:quick-add-spin .7s linear infinite}
+@keyframes quick-add-spin{to{transform:rotate(360deg)}}

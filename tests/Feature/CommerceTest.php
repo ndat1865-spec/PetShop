@@ -163,6 +163,7 @@ class CommerceTest extends TestCase
         $this->get(route('products.index'))
             ->assertOk()
             ->assertSee('Xem chi tiết')
+            ->assertSee('name="variant_id" value="'.$variant->id.'"', false)
             ->assertDontSee('Chọn tùy chọn');
 
         $this->postJson(route('cart.store', $product), ['variant_id' => $variant->id, 'quantity' => 2])
@@ -474,7 +475,8 @@ class CommerceTest extends TestCase
         $this->get(route('products.index'))
             ->assertOk()
             ->assertSee('Xem chi tiết')
-            ->assertSee('Thêm vào giỏ')
+            ->assertSee('Thêm nhanh vào giỏ')
+            ->assertSee('Thêm Bình nước Pawora vào giỏ')
             ->assertSee('Tạm hết hàng')
             ->assertSee('5.0')
             ->assertSee('1 đánh giá')

@@ -406,7 +406,8 @@ document.querySelectorAll('[data-cart-form]').forEach((form) => {
         const originalContent = button.innerHTML;
         button.disabled = true;
         button.setAttribute('aria-busy', 'true');
-        button.innerHTML = '<span>Đang thêm…</span>';
+        const compact = button.hasAttribute('data-cart-compact');
+        button.innerHTML = compact ? '<span class="quick-add-spinner" aria-hidden="true"></span>' : '<span>Đang thêm…</span>';
 
         try {
             const response = await fetch(form.action, {
@@ -417,7 +418,7 @@ document.querySelectorAll('[data-cart-form]').forEach((form) => {
             if (!response.ok) throw new Error(data.message || 'Không thể thêm sản phẩm vào giỏ.');
 
             button.classList.add('is-success');
-            button.innerHTML = '<span>Đã thêm vào giỏ</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+            button.innerHTML = `${compact ? '' : '<span>Đã thêm vào giỏ</span>'}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>`;
             showCartToast(data.message);
             await flyProductToCart(form);
             updateCartBadge(Number(data.cart_count || 0), data.message);
