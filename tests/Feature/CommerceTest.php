@@ -139,6 +139,44 @@ class CommerceTest extends TestCase
             ->assertDontSee('Giường mèo êm');
     }
 
+    public function test_catalog_search_respects_vietnamese_accents_and_ranks_name_matches_first(): void
+    {
+        $category = Category::create(['name' => 'Phụ kiện', 'slug' => 'phu-kien', 'is_active' => true]);
+        foreach ([
+            ['Đệm xe Road Trip', 'Đệm xe có thành bao quanh và dây neo ghế.'],
+            ['Áo thun Everyday', 'Áo thun cotton cho ngày thường.'],
+            ['Giường Cloud', 'Lớp đệm dày cho giấc ngủ sâu.'],
+            ['Dây dắt Urban Walk', 'Dây dắt nhẹ cho những vòng đi bộ.'],
+        ] as $index => [$name, $description]) {
+            Product::create([
+                'category_id' => $category->id, 'name' => $name, 'slug' => Str::slug($name), 'sku' => 'PAW-S0'.$index,
+                'pet_type' => 'all', 'short_description' => $description, 'price' => 100000, 'stock' => 5, 'status' => 'active',
+            ]);
+        }
+
+        $this->get(route('products.index', ['q' => 'dây']))
+            ->assertOk()
+            ->assertSee('2 sản phẩm phù hợp')
+            ->assertSeeInOrder(['Dây dắt Urban Walk', 'Đệm xe Road Trip'])
+            ->assertDontSee('Áo thun Everyday')
+            ->assertDontSee('Giường Cloud');
+
+        $this->get(route('products.index', ['q' => 'day']))
+            ->assertOk()
+            ->assertSee('Dây dắt Urban Walk')
+            ->assertSee('Giường Cloud')
+            ->assertDontSee('Áo thun Everyday');
+
+        $this->get(route('products.index', ['q' => 'dem']))
+            ->assertOk()
+            ->assertSeeInOrder(['Đệm xe Road Trip', 'Giường Cloud']);
+
+        $this->get(route('products.index', ['q' => 'Dây dắt']))
+            ->assertOk()
+            ->assertSee('Dây dắt Urban Walk')
+            ->assertDontSee('Đệm xe Road Trip');
+    }
+
     public function test_customer_can_select_a_product_variant_and_cart_uses_variant_price(): void
     {
         $customer = User::factory()->create();

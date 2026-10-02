@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ShopSetting;
+use App\Services\ProductSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -38,7 +39,7 @@ class StoreController extends Controller
         ]);
     }
 
-    public function index(Request $request)
+    public function index(Request $request, ProductSearch $productSearch)
     {
         $categories = Category::where('is_active', true)->orderBy('name')->get();
         $category = $categories->firstWhere('slug', (string) $request->query('category'));
@@ -65,14 +66,7 @@ class StoreController extends Controller
             'sort' => $sort !== 'featured' ? $sort : null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $query = Product::active()
-            ->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])
-            ->withReviewSummary();
-        if ($search !== '') {
-            $query->where(fn ($q) => $q
-                ->where('name', 'like', '%'.$search.'%')
-                ->orWhere('short_description', 'like', '%'.$search.'%'));
-        }
+        $query = Product::active();
         if ($category) {
             $query->where('category_id', $category->id);
         }
@@ -85,6 +79,16 @@ class StoreController extends Controller
         if ($maxPrice !== null) {
             $query->where('price', '<=', $maxPrice);
         }
+        if ($search !== '') {
+            // Matching runs in PHP because the accent-insensitive collation makes LIKE treat "dây" as "day".
+            $rankedIds = $productSearch->rankedIds(clone $query, $search);
+            $query->whereIn('products.id', $rankedIds ?: [0]);
+            if ($sort === 'featured' && $rankedIds !== []) {
+                $query->orderByRaw('CASE products.id '.collect($rankedIds)->map(fn (int $id, int $rank) => "WHEN {$id} THEN {$rank}")->implode(' ').' END');
+            }
+        }
+        $query->with(['category', 'variants' => fn ($query) => $query->where('is_active', true)])
+            ->withReviewSummary();
         match ($sort) {
             'price_asc' => $query->orderBy('price'), 'price_desc' => $query->orderByDesc('price'),
             'rating' => $query->orderByDesc('approved_rating')->orderByDesc('approved_review_count'), 'newest' => $query->latest(),
