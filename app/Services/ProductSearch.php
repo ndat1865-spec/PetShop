@@ -14,14 +14,10 @@ use Normalizer;
  * - a word typed with diacritics only matches the same accented word ("dây" ≠ "day", "dày");
  * - a word typed without them matches any accent ("day" → "dây", "dem" → "Đệm");
  * - words match from the start of a word, so "day" no longer hits "Everyday";
- * - every word must appear in the name or short description, and name hits rank first.
+ * - only the product name is searched, and every word must appear in it.
  */
 class ProductSearch
 {
-    private const NAME_WEIGHT = 10;
-
-    private const DESCRIPTION_WEIGHT = 1;
-
     /**
      * Ids of the products in $products that match $search, best match first.
      *
@@ -35,8 +31,8 @@ class ProductSearch
         }
 
         $ranked = [];
-        $products->select(['id', 'name', 'short_description'])->get()->each(function ($product) use ($terms, &$ranked) {
-            $score = $this->score($terms, $this->words($product->name), $this->words((string) $product->short_description));
+        $products->select(['id', 'name'])->get()->each(function ($product) use ($terms, &$ranked) {
+            $score = $this->score($terms, $this->words($product->name));
             if ($score > 0) {
                 $ranked[(int) $product->id] = $score;
             }
@@ -49,16 +45,12 @@ class ProductSearch
     /**
      * @param  list<string>  $terms
      * @param  list<string>  $nameWords
-     * @param  list<string>  $descriptionWords
      */
-    private function score(array $terms, array $nameWords, array $descriptionWords): int
+    private function score(array $terms, array $nameWords): int
     {
         $score = 0;
         foreach ($terms as $term) {
-            $termScore = max(
-                $this->wordScore($term, $nameWords) * self::NAME_WEIGHT,
-                $this->wordScore($term, $descriptionWords) * self::DESCRIPTION_WEIGHT,
-            );
+            $termScore = $this->wordScore($term, $nameWords);
             if ($termScore === 0) {
                 return 0;
             }
@@ -66,7 +58,7 @@ class ProductSearch
         }
 
         if ($this->startsWith($nameWords, $terms)) {
-            $score += self::NAME_WEIGHT * 2;
+            $score += 3;
         }
 
         return $score;

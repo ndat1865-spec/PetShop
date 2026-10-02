@@ -139,7 +139,7 @@ class CommerceTest extends TestCase
             ->assertDontSee('Giường mèo êm');
     }
 
-    public function test_catalog_search_respects_vietnamese_accents_and_ranks_name_matches_first(): void
+    public function test_catalog_search_matches_product_names_with_vietnamese_accents(): void
     {
         $category = Category::create(['name' => 'Phụ kiện', 'slug' => 'phu-kien', 'is_active' => true]);
         foreach ([
@@ -156,20 +156,22 @@ class CommerceTest extends TestCase
 
         $this->get(route('products.index', ['q' => 'dây']))
             ->assertOk()
-            ->assertSee('2 sản phẩm phù hợp')
-            ->assertSeeInOrder(['Dây dắt Urban Walk', 'Đệm xe Road Trip'])
+            ->assertSee('1 sản phẩm phù hợp')
+            ->assertSee('Dây dắt Urban Walk')
+            ->assertDontSee('Đệm xe Road Trip')
             ->assertDontSee('Áo thun Everyday')
             ->assertDontSee('Giường Cloud');
 
         $this->get(route('products.index', ['q' => 'day']))
             ->assertOk()
+            ->assertSee('1 sản phẩm phù hợp')
             ->assertSee('Dây dắt Urban Walk')
-            ->assertSee('Giường Cloud')
             ->assertDontSee('Áo thun Everyday');
 
         $this->get(route('products.index', ['q' => 'dem']))
             ->assertOk()
-            ->assertSeeInOrder(['Đệm xe Road Trip', 'Giường Cloud']);
+            ->assertSee('Đệm xe Road Trip')
+            ->assertDontSee('Giường Cloud');
 
         $this->get(route('products.index', ['q' => 'Dây dắt']))
             ->assertOk()
