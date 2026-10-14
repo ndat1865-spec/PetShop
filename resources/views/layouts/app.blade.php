@@ -37,7 +37,7 @@
             <nav class="desktop-nav" aria-label="Điều hướng chính"><a href="{{ route('home') }}"
                     @if(request()->routeIs('home')) aria-current="page" @endif>Trang chủ</a><a
                     href="{{ route('products.index') }}" @if(request()->routeIs('products.*')) aria-current="page"
-                    @endif>Sản phẩm</a><a href="{{ route('about') }}">Về Pawora</a><a
+                    @endif>Sản phẩm</a><a href="{{ route('vouchers.index') }}" @if(request()->routeIs('vouchers.*')) aria-current="page" @endif>Voucher</a><a href="{{ route('about') }}">Về Pawora</a><a
                     href="{{ route('contact') }}">Liên hệ</a></nav>
             <div class="nav-actions"><a class="icon-button" href="{{ route('products.index', ['focus' => 'search']) }}"
                     aria-label="Mở tìm kiếm" aria-controls="header-search-panel" aria-expanded="false"
@@ -66,7 +66,7 @@
             </div>
         </div>
         <div class="mobile-panel" hidden data-mobile-panel><a href="{{ route('home') }}">Trang chủ</a><a
-                href="{{ route('products.index') }}">Sản phẩm</a><a href="{{ route('about') }}">Về Pawora</a><a
+                href="{{ route('products.index') }}">Sản phẩm</a><a href="{{ route('vouchers.index') }}">Voucher</a><a href="{{ route('about') }}">Về Pawora</a><a
                 href="{{ route('contact') }}">Liên hệ</a></div>
         <section class="header-search-panel" id="header-search-panel" aria-label="Tìm kiếm sản phẩm" hidden
             data-search-panel>
@@ -110,7 +110,7 @@
                 <p>Phụ kiện được chọn với sự quan tâm dành cho từng người bạn nhỏ.</p>
             </div>
             <div>
-                <h2>Mua sắm</h2><a href="{{ route('products.index') }}">Tất cả sản phẩm</a><a
+                <h2>Mua sắm</h2><a href="{{ route('products.index') }}">Tất cả sản phẩm</a><a href="{{ route('vouchers.index') }}">Voucher</a><a
                     href="{{ route('products.index', ['pet_type' => 'dog']) }}">Cho chó</a><a
                     href="{{ route('products.index', ['pet_type' => 'cat']) }}">Cho mèo</a>
             </div>
@@ -120,7 +120,7 @@
                     href="{{ route('legal.privacy') }}">Chính sách bảo mật</a><span>Đổi trả trong 7 ngày</span>
             </div>
             <div>
-                <h2>Kết nối</h2><span>hello@pawora.vn</span><span>0869 372 600</span><span>TP. Hà Nội</span>
+                <h2>Kết nối</h2><span>{{ \App\Models\ShopSetting::get('support_email', 'ndat1865@gmail.com') }}</span><span>0869372600</span><span>TP. Hà Nội</span>
             </div>
         </div>
         <div class="container legal">© {{ date('Y') }} Pawora. Mọi quyền được bảo lưu.</div>

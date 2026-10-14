@@ -442,6 +442,8 @@ class AdminController extends Controller
             'first_order_only' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'is_public' => ['nullable', 'boolean'],
+            'requires_claim' => ['nullable', 'boolean'],
+            'claim_limit' => ['nullable', 'integer', 'min:1'],
         ]);
 
         return [
@@ -452,7 +454,10 @@ class AdminController extends Controller
             'per_user_limit' => $data['per_user_limit'] ?? null,
             'first_order_only' => $request->boolean('first_order_only'),
             'is_active' => $request->boolean('is_active'),
-            'is_public' => $request->boolean('is_public'),
+            // Voucher săn phải công khai để khách thấy trên trang Săn voucher.
+            'is_public' => $request->boolean('is_public') || $request->boolean('requires_claim'),
+            'requires_claim' => $request->boolean('requires_claim'),
+            'claim_limit' => $request->boolean('requires_claim') ? ($data['claim_limit'] ?? null) : null,
         ];
     }
 
@@ -816,7 +821,7 @@ class AdminController extends Controller
     {
         return view('admin.settings', ['settings' => [
             'shop_name' => ShopSetting::get('shop_name', 'Pawora'),
-            'support_email' => ShopSetting::get('support_email', 'hello@pawora.vn'),
+            'support_email' => ShopSetting::get('support_email', 'ndat1865@gmail.com'),
             'warehouse_address' => ShopSetting::get('warehouse_address', 'Tây Tựu, Hà Nội'),
             'free_shipping_threshold' => ShopSetting::get('free_shipping_threshold', config('pawora.shipping.free_threshold', 700000)),
             'low_stock_threshold' => ShopSetting::get('low_stock_threshold', 5),

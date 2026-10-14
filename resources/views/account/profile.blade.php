@@ -142,6 +142,7 @@
                     <span><strong>{{ $voucherSummary['available'] }}</strong> có thể dùng</span>
                     <span><strong>{{ $voucherSummary['used'] }}</strong> đã dùng hết</span>
                     <span><strong>{{ $voucherSummary['ended'] }}</strong> đã kết thúc</span>
+                    <a href="{{ route('vouchers.index') }}">Săn thêm voucher →</a>
                 </div>
             </header>
             <p class="member-voucher-feedback" data-copy-feedback role="status" aria-live="polite">Chọn “Sao chép mã” để dùng voucher khi thanh toán.</p>
@@ -149,7 +150,7 @@
             @if($voucherOptions->isEmpty())
                 <div class="member-card-empty member-voucher-empty">
                     <p>Hiện chưa có voucher công khai dành cho bạn.</p>
-                    <a href="{{ route('products.index') }}">Khám phá sản phẩm</a>
+                    <a href="{{ route('vouchers.index') }}">Săn voucher ngay</a>
                 </div>
             @else
                 <div class="member-voucher-list">

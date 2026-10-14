@@ -20,7 +20,7 @@
         <aside class="contact-sidebar" aria-labelledby="contact-info-title">
             <div><p class="eyebrow">Kết nối trực tiếp</p><h2 id="contact-info-title">Pawora luôn ở đây.</h2><p>Nếu vấn đề cần xử lý ngay, bạn có thể liên hệ qua email hoặc hotline trong giờ làm việc.</p></div>
             <a class="contact-method" href="mailto:{{ $supportEmail }}"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM3 6l9 7 9-7"/></svg></span><div><small>Email hỗ trợ</small><strong>{{ $supportEmail }}</strong></div></a>
-            <a class="contact-method" href="tel:0909000001"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h3l1 5-2 1.5a16 16 0 0 0 5.5 5.5L16 13l5 1v3a4 4 0 0 1-4 4C9.3 20.3 3.7 14.7 3 7a4 4 0 0 1 4-4Z"/></svg></span><div><small>Hotline</small><strong>0909 000 001</strong></div></a>
+            <a class="contact-method" href="tel:0869372600"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h3l1 5-2 1.5a16 16 0 0 0 5.5 5.5L16 13l5 1v3a4 4 0 0 1-4 4C9.3 20.3 3.7 14.7 3 7a4 4 0 0 1 4-4Z"/></svg></span><div><small>Hotline</small><strong>0869372600</strong></div></a>
             <div class="contact-privacy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.5 3 7.8 7.5 9.5 4.5-1.7 7.5-5 7.5-9.5V6zM9 12l2 2 4-5"/></svg><p><strong>Thông tin được bảo vệ</strong><span>Pawora chỉ sử dụng dữ liệu để phản hồi yêu cầu của bạn.</span></p></div>
         </aside>
 

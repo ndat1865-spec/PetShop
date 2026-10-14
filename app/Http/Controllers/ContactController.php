@@ -25,7 +25,7 @@ class ContactController extends Controller
         return view('pages.contact', [
             'contactUser' => $request->user(),
             'contactOrder' => $contactOrder,
-            'supportEmail' => ShopSetting::get('support_email', 'hello@pawora.vn'),
+            'supportEmail' => ShopSetting::get('support_email', 'ndat1865@gmail.com'),
             'topics' => ContactMessage::TOPIC_LABELS,
         ]);
     }

@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\Coupon;
+use App\Models\CouponClaim;
 use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CouponService
@@ -38,6 +40,8 @@ class CouponService
             [$status, $label, $reason] = ['expired', 'Đã hết hạn', 'Đã hết hạn'];
         } elseif ($coupon->usage_limit !== null && $coupon->used_count >= $coupon->usage_limit) {
             [$status, $label, $reason] = ['exhausted', 'Đã hết lượt', 'Đã hết lượt sử dụng'];
+        } elseif ($coupon->requires_claim && $user && ! $this->hasClaimed($coupon, $user)) {
+            [$status, $label, $reason] = ['not_claimed', 'Chưa lưu', 'Hãy lưu voucher này ở trang Săn voucher trước khi sử dụng.'];
         } elseif ($user && $coupon->per_user_limit !== null && $userUsageCount >= $coupon->per_user_limit) {
             [$status, $label, $reason] = ['user_exhausted', 'Đã dùng hết lượt', 'Bạn đã dùng hết lượt của voucher này.'];
         } elseif ($coupon->first_order_only && $user && ($hasPriorOrder ?? $this->hasPriorOrder($user))) {
@@ -72,6 +76,10 @@ class CouponService
         return Coupon::query()
             ->where('is_public', true)
             ->when(! $includeInactive, fn ($query) => $query->where('is_active', true))
+            // Voucher săn chỉ thuộc về khách đã lưu.
+            ->where(fn ($query) => $query->where('requires_claim', false)
+                ->orWhereHas('claims', fn ($claims) => $claims->where('user_id', $user->id)))
+            ->withExists(['claims as current_user_claimed' => fn ($query) => $query->where('user_id', $user->id)])
             ->withCount(['activeUsages as current_user_usage_count' => fn ($query) => $query->where('user_id', $user->id)])
             ->orderByRaw('CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('expires_at')
@@ -81,6 +89,62 @@ class CouponService
                 'coupon' => $coupon,
                 'evaluation' => $this->evaluate($coupon, $subtotal, $user, $hasPriorOrder),
             ]);
+    }
+
+    /**
+     * Voucher trên trang Săn voucher: còn bật, chưa hết hạn; gồm cả voucher sắp
+     * mở để khách canh giờ. Khách chưa đăng nhập vẫn xem được danh sách.
+     *
+     * @return Collection<int, array{coupon: Coupon, state: string, label: string}>
+     */
+    public function huntableFor(?User $user): Collection
+    {
+        return Coupon::query()
+            ->where('is_public', true)
+            ->where('requires_claim', true)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->when($user, fn ($query) => $query->withExists(['claims as current_user_claimed' => fn ($claims) => $claims->where('user_id', $user->id)]))
+            ->orderByRaw('CASE WHEN starts_at IS NOT NULL AND starts_at > ? THEN 1 ELSE 0 END', [now()])
+            ->orderByRaw('CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('expires_at')
+            ->get()
+            ->map(function (Coupon $coupon) use ($user) {
+                [$state, $label] = match (true) {
+                    $user && (bool) $coupon->getAttribute('current_user_claimed') => ['claimed', 'Đã lưu'],
+                    (bool) $coupon->starts_at?->isFuture() => ['upcoming', 'Sắp mở'],
+                    $this->claimsSoldOut($coupon) => ['sold_out', 'Đã hết lượt'],
+                    default => ['open', 'Lưu voucher'],
+                };
+
+                return ['coupon' => $coupon, 'state' => $state, 'label' => $label];
+            });
+    }
+
+    /**
+     * Lưu voucher vào ví của khách. Khóa dòng voucher để lượt lưu không vượt
+     * claim_limit khi nhiều khách cùng săn; lưu lại lần nữa không tốn thêm lượt.
+     */
+    public function claim(Coupon $coupon, User $user): CouponClaim
+    {
+        return DB::transaction(function () use ($coupon, $user) {
+            $coupon = Coupon::whereKey($coupon->id)->lockForUpdate()->firstOrFail();
+
+            $existing = CouponClaim::where('coupon_id', $coupon->id)->where('user_id', $user->id)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            abort_if(! $coupon->isHuntable() || ! $coupon->is_active, 404);
+            abort_if($coupon->starts_at?->isFuture(), 422, 'Voucher mở lưu lúc '.$coupon->starts_at?->format('H:i d/m/Y').'.');
+            abort_if($coupon->expires_at && $coupon->expires_at->lessThanOrEqualTo(now()), 422, 'Voucher đã hết hạn.');
+            abort_if($this->claimsSoldOut($coupon), 422, 'Rất tiếc, voucher đã hết lượt lưu.');
+
+            $claim = CouponClaim::create(['coupon_id' => $coupon->id, 'user_id' => $user->id, 'claimed_at' => now()]);
+            $coupon->increment('claimed_count');
+
+            return $claim;
+        });
     }
 
     /**
@@ -150,6 +214,21 @@ class CouponService
         }
 
         return $coupon->activeUsages()->where('user_id', $user->id)->count();
+    }
+
+    private function claimsSoldOut(Coupon $coupon): bool
+    {
+        return ($coupon->claim_limit !== null && $coupon->claimed_count >= $coupon->claim_limit)
+            || ($coupon->usage_limit !== null && $coupon->used_count >= $coupon->usage_limit);
+    }
+
+    private function hasClaimed(Coupon $coupon, User $user): bool
+    {
+        if (array_key_exists('current_user_claimed', $coupon->getAttributes())) {
+            return (bool) $coupon->getAttribute('current_user_claimed');
+        }
+
+        return $coupon->claims()->where('user_id', $user->id)->exists();
     }
 
     private function hasPriorOrder(User $user): bool

@@ -12,7 +12,7 @@ class Coupon extends Model
     protected $fillable = [
         'code', 'name', 'description', 'type', 'value', 'minimum_order', 'maximum_discount',
         'starts_at', 'expires_at', 'usage_limit', 'per_user_limit', 'first_order_only',
-        'used_count', 'is_active', 'is_public',
+        'used_count', 'is_active', 'is_public', 'requires_claim', 'claim_limit',
     ];
 
     protected $casts = [
@@ -24,11 +24,33 @@ class Coupon extends Model
         'first_order_only' => 'boolean',
         'is_active' => 'boolean',
         'is_public' => 'boolean',
+        'requires_claim' => 'boolean',
     ];
 
     public function usages()
     {
         return $this->hasMany(CouponUsage::class);
+    }
+
+    public function claims()
+    {
+        return $this->hasMany(CouponClaim::class);
+    }
+
+    /** Voucher săn: phải bấm "Lưu" trên trang Săn voucher trước khi dùng ở thanh toán. */
+    public function isHuntable(): bool
+    {
+        return $this->is_public && $this->requires_claim;
+    }
+
+    public function claimsRemaining(): ?int
+    {
+        return $this->claim_limit === null ? null : max(0, $this->claim_limit - (int) $this->claimed_count);
+    }
+
+    public function claimProgress(): int
+    {
+        return $this->claim_limit ? min(100, (int) round((int) $this->claimed_count * 100 / $this->claim_limit)) : 0;
     }
 
     /** Lượt dùng còn hiệu lực — bỏ qua lượt đã hoàn khi đơn bị hủy. */

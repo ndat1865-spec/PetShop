@@ -4,7 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
-    "preDeployCommand": ["php artisan migrate --force && php artisan pawora:seed-if-empty"],
+    "preDeployCommand": ["php artisan migrate --force && php artisan pawora:seed-if-empty && php artisan db:seed --class=VoucherHuntSeeder --force"],
     "healthcheckPath": "/",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE"

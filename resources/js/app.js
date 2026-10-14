@@ -1514,3 +1514,77 @@ if (catalogHero) {
     window.addEventListener('load', refreshCatalog, { once: true });
     window.addEventListener('pagehide', () => catalogMotion.revert(), { once: true });
 }
+
+const voucherHunt = document.querySelector('[data-voucher-hunt]');
+if (voucherHunt) {
+    const huntStatus = voucherHunt.querySelector('[data-voucher-status]');
+
+    voucherHunt.querySelectorAll('[data-hunt-claim]').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+            const button = form.querySelector('button');
+            if (button.disabled) return;
+            event.preventDefault();
+            button.disabled = true;
+            button.textContent = 'Đang lưu…';
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST', body: new FormData(form),
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (response.status === 401) {
+                    window.location.href = voucherHunt.dataset.loginUrl;
+                    return;
+                }
+                if (response.status === 419) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.message || 'Không thể lưu voucher. Vui lòng thử lại.');
+
+                const ticket = form.closest('[data-hunt-ticket]');
+                ticket.classList.replace('is-open', 'is-claimed');
+                ticket.insertAdjacentHTML('beforeend', '<span class="hunt-ticket__stamp">Đã lưu</span>');
+                const useLink = document.createElement('a');
+                useLink.className = 'hunt-ticket__action is-ghost';
+                useLink.href = voucherHunt.dataset.productsUrl;
+                useLink.textContent = 'Dùng ngay';
+                form.replaceWith(useLink);
+                huntStatus.textContent = data.message;
+                showCartToast(data.message);
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = 'Lưu';
+                huntStatus.textContent = error.message;
+                showCartToast(error.message, true);
+            }
+        });
+    });
+
+    const countdowns = [...voucherHunt.querySelectorAll('[data-hunt-countdown]')];
+    if (countdowns.length) {
+        const pad = (value) => String(value).padStart(2, '0');
+        // Chỉ tải lại khi đồng hồ đếm từ dương về 0, tránh vòng lặp nếu máy khách lệch giờ.
+        const startedAhead = countdowns.map((time) => new Date(time.dateTime) > Date.now());
+        let timer;
+        const tick = () => {
+            countdowns.forEach((time, index) => {
+                const left = Math.floor((new Date(time.dateTime) - Date.now()) / 1000);
+                if (left <= 0) {
+                    if (startedAhead[index]) {
+                        window.clearInterval(timer);
+                        window.location.reload();
+                    }
+                    return;
+                }
+                if (left < 86400) {
+                    time.textContent = `${pad(Math.floor(left / 3600))}:${pad(Math.floor(left % 3600 / 60))}:${pad(left % 60)}`;
+                    time.previousSibling.textContent = 'Mở sau ';
+                }
+            });
+        };
+        tick();
+        timer = window.setInterval(tick, 1000);
+    }
+}
