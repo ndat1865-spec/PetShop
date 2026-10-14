@@ -81,31 +81,76 @@ class CustomerCareOperationsTest extends TestCase
         ]);
 
         $this->get(route('products.show', $product->slug))->assertSee('Chải lông rất êm');
+        $this->assertTrue($review->fresh()->awaiting_shop_reply);
         $this->actingAs($admin)->patch(route('admin.reviews.update', $review), [
             'status' => 'approved',
-            'shop_reply' => 'Cảm ơn bạn. Pawora rất vui khi bé thoải mái hơn trong lúc chải lông!',
+            'reply' => 'Cảm ơn bạn. Pawora rất vui khi bé thoải mái hơn trong lúc chải lông!',
         ])
             ->assertRedirect()->assertSessionHas('success');
         $this->assertSame('5.0', $product->fresh()->rating);
         $this->assertSame(1, $product->fresh()->review_count);
-        $this->assertDatabaseHas('product_reviews', [
-            'id' => $review->id,
-            'shop_reply' => 'Cảm ơn bạn. Pawora rất vui khi bé thoải mái hơn trong lúc chải lông!',
-            'replied_by' => $admin->id,
+        $this->assertDatabaseHas('product_review_replies', [
+            'product_review_id' => $review->id,
+            'author' => 'shop',
+            'body' => 'Cảm ơn bạn. Pawora rất vui khi bé thoải mái hơn trong lúc chải lông!',
+            'user_id' => $admin->id,
         ]);
+        $this->assertFalse($review->fresh()->awaiting_shop_reply);
         $this->get(route('products.show', $product->slug))
             ->assertSee('Chải lông rất êm')
             ->assertSee('Đã mua hàng')
             ->assertSee('Phản hồi từ Pawora')
             ->assertSee('Pawora rất vui khi bé thoải mái hơn');
 
+        $this->actingAs($admin)->patch(route('admin.reviews.update', $review), ['status' => 'hidden', 'admin_note' => ''])
+            ->assertSessionHasErrors('admin_note');
+        $this->actingAs($admin)->patch(route('admin.reviews.update', $review), ['status' => 'hidden', 'admin_note' => 'Ẩn'])
+            ->assertSessionHasErrors('admin_note');
+        $this->assertSame('approved', $review->fresh()->status);
+
         $this->actingAs($admin)->patch(route('admin.reviews.update', $review), [
             'status' => 'hidden',
             'admin_note' => 'Tạm ẩn để xác minh thêm nội dung.',
-        ])->assertRedirect();
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('hidden', $review->fresh()->status);
         $this->assertSame('0.0', $product->fresh()->rating);
         $this->assertSame(0, $product->fresh()->review_count);
         $this->assertDatabaseHas('admin_audit_logs', ['event' => 'review.updated', 'actor_user_id' => $admin->id]);
+    }
+
+    public function test_admin_sees_customer_follow_ups_as_awaiting_and_can_remove_a_message(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['name' => 'Khách nhắn thêm', 'role' => 'customer']);
+        $product = $this->product();
+        $order = $this->deliveredOrder($customer, $product, 'PAW-REVIEW-THREAD');
+        $review = ProductReview::create([
+            'product_id' => $product->id,
+            'user_id' => $customer->id,
+            'order_id' => $order->id,
+            'rating' => 4,
+            'comment' => 'Lược dùng ổn trong tuần đầu.',
+            'status' => 'approved',
+        ]);
+        $this->actingAs($admin)->patch(route('admin.reviews.update', $review), ['status' => 'approved', 'reply' => 'Cảm ơn bạn đã tin chọn Pawora.']);
+        $this->assertFalse($review->fresh()->awaiting_shop_reply);
+
+        $this->travel(1)->minutes();
+        $this->actingAs($customer)->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Shop cho mình hỏi cách vệ sinh đầu lược?']);
+        $this->assertTrue($review->fresh()->awaiting_shop_reply);
+
+        $this->actingAs($admin)->get(route('admin.reviews', ['unanswered' => 1]))
+            ->assertOk()
+            ->assertSeeInOrder(['Shop trả lời', 'Cảm ơn bạn đã tin chọn Pawora.', 'Khách nhắn thêm', 'Shop cho mình hỏi cách vệ sinh đầu lược?'])
+            ->assertSee('Khách đang chờ shop trả lời');
+        $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSee('Đánh giá chờ trả lời');
+
+        $customerMessage = $review->replies()->where('author', 'customer')->firstOrFail();
+        $this->actingAs($admin)->delete(route('admin.reviews.replies.destroy', [$review, $customerMessage]))
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseMissing('product_review_replies', ['id' => $customerMessage->id]);
+        $this->assertFalse($review->fresh()->awaiting_shop_reply);
+        $this->assertDatabaseHas('admin_audit_logs', ['event' => 'review.reply_deleted', 'actor_user_id' => $admin->id]);
     }
 
     public function test_customer_cannot_overwrite_another_customers_review(): void
@@ -142,8 +187,10 @@ class CustomerCareOperationsTest extends TestCase
         $review = ProductReview::create(['product_id' => $product->id, 'user_id' => $customer->id, 'order_id' => $order->id, 'rating' => 4, 'comment' => 'Đánh giá đủ dài để kiểm tra quyền quản trị của nhân viên.', 'status' => 'approved']);
         $contact = ContactMessage::create(['name' => 'Khách liên hệ', 'email' => 'care@example.com', 'topic' => 'order', 'message' => 'Tôi cần kiểm tra trạng thái đơn hàng đang được xử lý.', 'status' => 'new']);
 
-        $this->actingAs($staff)->get(route('admin.reviews'))->assertOk()->assertDontSee('Lưu phản hồi');
-        $this->actingAs($staff)->patch(route('admin.reviews.update', $review), ['status' => 'approved', 'shop_reply' => 'Phản hồi không được phép.'])->assertForbidden();
+        $review->replies()->create(['user_id' => $customer->id, 'author' => 'customer', 'body' => 'Tin nhắn thêm của khách.']);
+        $this->actingAs($staff)->get(route('admin.reviews'))->assertOk()->assertSee('Tin nhắn thêm của khách.')->assertDontSee(route('admin.reviews.update', $review))->assertDontSee('Gỡ tin');
+        $this->actingAs($staff)->patch(route('admin.reviews.update', $review), ['status' => 'approved', 'reply' => 'Phản hồi không được phép.'])->assertForbidden();
+        $this->actingAs($staff)->delete(route('admin.reviews.replies.destroy', [$review, $review->replies()->first()]))->assertForbidden();
         $this->actingAs($staff)->get(route('admin.contacts'))->assertOk()->assertSee('Bạn có quyền xem', false);
         $this->actingAs($staff)->patch(route('admin.contacts.update', $contact), ['status' => 'resolved'])->assertForbidden();
     }

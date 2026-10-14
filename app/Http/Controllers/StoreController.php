@@ -129,7 +129,7 @@ class StoreController extends Controller
             ->get();
 
         $reviews = $product->approvedReviews()
-            ->with(['user', 'replier'])
+            ->with(['user', 'replies'])
             ->latest()
             ->paginate(6, ['*'], 'reviews_page')
             ->withQueryString();

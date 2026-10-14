@@ -171,18 +171,42 @@
         <div class="reviews-list" aria-label="Danh sách đánh giá">
             <div class="reviews-list__heading"><h3>Nhận xét của khách hàng</h3><span>{{ $reviewCount }} đánh giá</span></div>
             @foreach($reviews as $review)
-                <article class="review-card">
-                    <header><div class="review-author-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($review->user->name, 0, 1)) }}</div><div><strong>{{ $review->user->name }}</strong><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>Đã mua hàng</span></div><time datetime="{{ $review->created_at->toDateString() }}">{{ $review->created_at->format('d/m/Y') }}</time></header>
+                <article class="review-card" id="review-{{ $review->id }}">
+                    <header><div class="review-author-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($review->user->name, 0, 1)) }}</div><div><strong>{{ $review->user->name }}</strong><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>Đã mua hàng</span></div><div class="review-card__dates"><time datetime="{{ $review->created_at->toDateString() }}">{{ $review->created_at->format('d/m/Y') }}</time>@if($review->edited_at)<small>Đã sửa {{ $review->edited_at->format('d/m/Y') }}</small>@endif</div></header>
                     <div class="review-card__rating" aria-label="{{ $review->rating }} trên 5 sao">@for($star = 1; $star <= 5; $star++)<svg @class(['is-active' => $star <= $review->rating]) viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 2.72 5.52 6.09.88-4.4 4.29 1.04 6.06L12 16.68l-5.45 2.87 1.04-6.06-4.4-4.29 6.09-.88L12 2.8Z"/></svg>@endfor</div>
                     @if($review->purchased_variant || $review->fit || $review->pet_weight)<dl class="review-context">@if($review->purchased_variant)<div><dt>Đã mua</dt><dd>{{ $review->purchased_variant }}</dd></div>@endif @if($review->fitLabel())<div><dt>Độ vừa vặn</dt><dd>{{ $review->fitLabel() }}</dd></div>@endif @if($review->pet_weight)<div><dt>Cân nặng của bé</dt><dd>{{ rtrim(rtrim(number_format((float) $review->pet_weight, 2, ',', '.'), '0'), ',') }} kg</dd></div>@endif</dl>@endif
                     @if($review->title)<h4>{{ $review->title }}</h4>@endif<p>{{ $review->comment }}</p>
-                    @if($review->shop_reply)
-                        <div class="review-shop-reply">
-                            <div class="review-shop-reply__head"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 3V5Zm4 5h8M8 8h8"/></svg></span><div><strong>Phản hồi từ Pawora</strong>@if($review->replied_at)<time datetime="{{ $review->replied_at->toAtomString() }}">{{ $review->replied_at->format('d/m/Y') }}</time>@endif</div></div>
-                            <p>{{ $review->shop_reply }}</p>
-                        </div>
+                    @if($review->replies->isNotEmpty())
+                        <ol class="review-thread" aria-label="Trao đổi về đánh giá của {{ $review->user->name }}">
+                            @foreach($review->replies as $reply)
+                                @if($reply->isFromShop())
+                                    <li class="review-shop-reply">
+                                        <div class="review-shop-reply__head"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 3V5Zm4 5h8M8 8h8"/></svg></span><div><strong>Phản hồi từ Pawora</strong><time datetime="{{ $reply->created_at->toAtomString() }}">{{ $reply->created_at->format('d/m/Y') }}</time></div></div>
+                                        <p>{{ $reply->body }}</p>
+                                    </li>
+                                @else
+                                    <li class="review-follow-up">
+                                        <div class="review-follow-up__head"><span aria-hidden="true">{{ mb_strtoupper(mb_substr($review->user->name, 0, 1)) }}</span><div><strong>{{ $review->user->name }}</strong><em>Người đánh giá</em><time datetime="{{ $reply->created_at->toAtomString() }}">{{ $reply->created_at->format('d/m/Y') }}</time></div></div>
+                                        <p>{{ $reply->body }}</p>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ol>
                     @endif
-                    @if(auth()->id() === $review->user_id)<small>Đánh giá của bạn · Có thể chỉnh sửa ở biểu mẫu phía trên</small>@endif
+                    @if(auth()->id() === $review->user_id)
+                        @php($replyErrors = $errors->getBag('reviewReply'))
+                        @php($lastReplyFromShop = $review->replies->last()?->isFromShop())
+                        <details class="review-reply-composer" @if($replyErrors->any()) open @endif>
+                            <summary>{{ $lastReplyFromShop ? 'Trả lời Pawora' : 'Thêm cập nhật sau khi dùng' }}</summary>
+                            <form method="post" action="{{ route('products.reviews.reply', [$product, $review]) }}" data-submit-form>
+                                @csrf
+                                <label class="sr-only" for="review-reply-{{ $review->id }}">{{ $lastReplyFromShop ? 'Nội dung trả lời Pawora' : 'Cập nhật trải nghiệm sau một thời gian dùng' }}</label>
+                                <textarea id="review-reply-{{ $review->id }}" name="reply" maxlength="1000" rows="3" required placeholder="{{ $lastReplyFromShop ? 'Viết phản hồi cho Pawora…' : 'Ví dụ: sau 2 tuần dùng, bé vẫn rất thích, đường may vẫn chắc…' }}" @if($replyErrors->has('reply')) aria-invalid="true" @endif>{{ old('reply') }}</textarea>
+                                @if($replyErrors->has('reply'))<small class="field-error" role="alert">{{ $replyErrors->first('reply') }}</small>@endif
+                                <div class="review-reply-composer__footer"><p>Hiển thị công khai dưới đánh giá của bạn. Muốn đổi số sao, hãy sửa đánh giá ở biểu mẫu phía trên.</p><button class="button primary small" type="submit" data-submit-button data-loading-label="Đang gửi…">Gửi</button></div>
+                            </form>
+                        </details>
+                    @endif
                 </article>
             @endforeach
             @if($reviews->hasPages())<nav class="reviews-pagination" aria-label="Phân trang đánh giá">@if($reviews->onFirstPage())<span>← Trước</span>@else<a href="{{ $reviews->previousPageUrl() }}#danh-gia">← Trước</a>@endif<small>Trang {{ $reviews->currentPage() }} / {{ $reviews->lastPage() }}</small>@if($reviews->hasMorePages())<a href="{{ $reviews->nextPageUrl() }}#danh-gia">Sau →</a>@else<span>Sau →</span>@endif</nav>@endif

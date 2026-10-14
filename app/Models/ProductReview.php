@@ -34,9 +34,8 @@ class ProductReview extends Model
         'comment',
         'status',
         'admin_note',
-        'shop_reply',
-        'replied_by',
-        'replied_at',
+        'awaiting_shop_reply',
+        'edited_at',
         'moderated_by',
         'moderated_at',
     ];
@@ -44,7 +43,8 @@ class ProductReview extends Model
     protected $casts = [
         'rating' => 'integer',
         'pet_weight' => 'decimal:2',
-        'replied_at' => 'datetime',
+        'awaiting_shop_reply' => 'boolean',
+        'edited_at' => 'datetime',
         'moderated_at' => 'datetime',
     ];
 
@@ -74,9 +74,14 @@ class ProductReview extends Model
         return $this->belongsTo(User::class, 'moderated_by');
     }
 
-    public function replier()
+    public function replies()
     {
-        return $this->belongsTo(User::class, 'replied_by');
+        return $this->hasMany(ProductReviewReply::class)->oldest()->orderBy('id');
+    }
+
+    public function shopReplies()
+    {
+        return $this->hasMany(ProductReviewReply::class)->where('author', 'shop');
     }
 
     public function scopeApproved(Builder $query): Builder
@@ -92,6 +97,20 @@ class ProductReview extends Model
     public function fitLabel(): ?string
     {
         return self::FIT_LABELS[$this->fit] ?? null;
+    }
+
+    /**
+     * Shop cần trả lời khi trao đổi chưa có tin nào, tin cuối là của khách,
+     * hoặc khách sửa đánh giá sau tin cuối cùng.
+     */
+    public function refreshAwaitingShopReply(): void
+    {
+        $last = $this->replies()->reorder()->latest('created_at')->latest('id')->first();
+        $awaiting = ! $last
+            || ! $last->isFromShop()
+            || ($this->edited_at && $this->edited_at->gt($last->created_at));
+
+        $this->forceFill(['awaiting_shop_reply' => $awaiting])->saveQuietly();
     }
 
     private function syncProductSummary(): void

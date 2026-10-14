@@ -255,45 +255,128 @@ class ProductReviewTest extends TestCase
         $this->assertDatabaseCount('product_reviews', 0);
     }
 
-    public function test_editing_a_review_keeps_it_public_clears_the_old_shop_reply_and_updates_the_summary(): void
+    public function test_editing_a_review_keeps_the_conversation_and_asks_the_shop_to_reply_again(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create(['role' => 'customer']);
         $product = $this->product();
         $order = $this->deliveredOrder($customer, $product);
-        ProductReview::create([
+        $review = ProductReview::create([
             'product_id' => $product->id,
             'user_id' => $customer->id,
             'order_id' => $order->id,
             'rating' => 5,
             'comment' => 'Đánh giá đã được duyệt với nội dung đủ dài cho sản phẩm.',
             'status' => 'approved',
-            'shop_reply' => 'Cảm ơn bạn đã đánh giá sản phẩm.',
-            'replied_by' => $admin->id,
-            'replied_at' => now(),
         ]);
+        $review->replies()->create(['user_id' => $admin->id, 'author' => 'shop', 'body' => 'Cảm ơn bạn đã đánh giá sản phẩm.']);
+        $review->refreshAwaitingShopReply();
+        $this->assertFalse($review->fresh()->awaiting_shop_reply);
 
         $this->assertSame('5.0', $product->fresh()->rating);
         $this->assertSame(1, $product->fresh()->review_count);
 
+        $this->travel(1)->minutes();
         $this->actingAs($customer)->post(route('products.reviews.store', $product), [
             'rating' => 3,
             'comment' => 'Tôi cập nhật trải nghiệm sau một thời gian sử dụng sản phẩm.',
         ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('product_reviews', [
-            'product_id' => $product->id,
-            'user_id' => $customer->id,
-            'rating' => 3,
-            'status' => 'approved',
-            'shop_reply' => null,
-            'replied_by' => null,
-            'replied_at' => null,
-            'moderated_by' => null,
-            'moderated_at' => null,
-        ]);
+        $review->refresh();
+        $this->assertSame(3, $review->rating);
+        $this->assertSame('approved', $review->status);
+        $this->assertNotNull($review->edited_at);
+        $this->assertTrue($review->awaiting_shop_reply);
+        $this->assertDatabaseHas('product_review_replies', ['product_review_id' => $review->id, 'author' => 'shop']);
         $this->assertSame('3.0', $product->fresh()->rating);
         $this->assertSame(1, $product->fresh()->review_count);
+
+        $this->get(route('products.show', $product->slug))
+            ->assertSee('Cảm ơn bạn đã đánh giá sản phẩm.')
+            ->assertSee('Đã sửa');
+    }
+
+    public function test_reviewer_can_add_a_follow_up_and_answer_the_shop_on_their_review(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['name' => 'Trần Bình', 'role' => 'customer']);
+        $product = $this->product();
+        $order = $this->deliveredOrder($customer, $product);
+        $review = ProductReview::create([
+            'product_id' => $product->id,
+            'user_id' => $customer->id,
+            'order_id' => $order->id,
+            'rating' => 4,
+            'comment' => 'Nệm êm, bé nằm thử thấy ổn.',
+            'status' => 'approved',
+        ]);
+
+        $this->actingAs($customer)->get(route('products.show', $product->slug))
+            ->assertSee('Thêm cập nhật sau khi dùng');
+
+        $this->actingAs($customer)
+            ->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Sau 2 tuần dùng, nệm vẫn phồng và bé ngủ ngon.'])
+            ->assertRedirect(route('products.show', $product->slug).'#review-'.$review->id)
+            ->assertSessionHas('success');
+        $this->assertDatabaseHas('product_review_replies', [
+            'product_review_id' => $review->id,
+            'user_id' => $customer->id,
+            'author' => 'customer',
+            'body' => 'Sau 2 tuần dùng, nệm vẫn phồng và bé ngủ ngon.',
+        ]);
+        $this->assertTrue($review->fresh()->awaiting_shop_reply);
+
+        $this->travel(1)->minutes();
+        $review->replies()->create(['user_id' => $admin->id, 'author' => 'shop', 'body' => 'Pawora rất vui khi bé ngủ ngon!']);
+        $review->refreshAwaitingShopReply();
+        $this->assertFalse($review->fresh()->awaiting_shop_reply);
+
+        $this->actingAs($customer)->get(route('products.show', $product->slug))
+            ->assertSee('Trả lời Pawora')
+            ->assertSeeInOrder(['Sau 2 tuần dùng', 'Phản hồi từ Pawora', 'Pawora rất vui khi bé ngủ ngon!']);
+
+        $this->travel(1)->minutes();
+        $this->actingAs($customer)
+            ->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Cảm ơn shop nhé!'])
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($review->fresh()->awaiting_shop_reply);
+        $this->assertSame(3, $review->replies()->count());
+
+        auth()->logout();
+        $this->get(route('products.show', $product->slug))
+            ->assertSeeInOrder(['Nệm êm, bé nằm thử thấy ổn.', 'Sau 2 tuần dùng', 'Pawora rất vui khi bé ngủ ngon!', 'Cảm ơn shop nhé!'])
+            ->assertSee('Người đánh giá')
+            ->assertDontSee('Thêm cập nhật sau khi dùng')
+            ->assertDontSee('Trả lời Pawora');
+    }
+
+    public function test_only_the_reviewer_can_reply_and_only_while_the_review_is_visible(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $stranger = User::factory()->create(['role' => 'customer']);
+        $product = $this->product();
+        $order = $this->deliveredOrder($customer, $product);
+        $review = ProductReview::create([
+            'product_id' => $product->id,
+            'user_id' => $customer->id,
+            'order_id' => $order->id,
+            'rating' => 5,
+            'comment' => 'Rất hài lòng.',
+            'status' => 'approved',
+        ]);
+
+        $this->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Khách vãng lai'])
+            ->assertRedirect(route('login'));
+        $this->actingAs($stranger)->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Tôi không phải người viết'])
+            ->assertForbidden();
+        $this->actingAs($customer)->post(route('products.reviews.reply', [$product, $review]), ['reply' => '   '])
+            ->assertSessionHasErrors('reply', null, 'reviewReply');
+
+        $review->update(['status' => 'hidden', 'admin_note' => 'Tạm ẩn để kiểm tra.']);
+        $this->actingAs($customer)->post(route('products.reviews.reply', [$product, $review]), ['reply' => 'Gửi khi đang bị ẩn'])
+            ->assertSessionHasErrors('reply', null, 'reviewReply');
+
+        $this->assertDatabaseCount('product_review_replies', 0);
     }
 
     public function test_approved_review_context_is_visible_on_the_product_page(): void

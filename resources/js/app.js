@@ -1388,6 +1388,23 @@ if (adminConfirmDialog) {
     });
 }
 
+// Ẩn đánh giá bắt buộc ghi lý do trong ghi chú nội bộ.
+document.querySelectorAll('[data-review-moderation]').forEach((form) => {
+    const status = form.querySelector('[name="status"]');
+    const note = form.querySelector('[name="admin_note"]');
+    const hint = form.querySelector('[data-note-hint]');
+    if (!status || !note) return;
+    const sync = () => {
+        const hiding = status.value === 'hidden';
+        note.required = hiding;
+        if (hiding) note.minLength = 5;
+        else note.removeAttribute('minlength');
+        if (hint) hint.textContent = hiding ? 'Bắt buộc · lý do ẩn' : 'Bắt buộc khi ẩn';
+    };
+    status.addEventListener('change', sync);
+    sync();
+});
+
 document.querySelectorAll('[data-copy-value]').forEach((button) => {
     button.addEventListener('click', async () => {
         const value = button.dataset.copyValue;

@@ -192,13 +192,16 @@ class DatabaseSeeder extends Seeder
                     'comment' => $comments[$contentIndex],
                     'status' => $status,
                     'admin_note' => $status === 'hidden' ? 'Tạm ẩn để kiểm tra thông tin mô tả.' : null,
-                    'shop_reply' => $shopReply,
-                    'replied_by' => $shopReply ? $admin->id : null,
-                    'replied_at' => $shopReply ? now()->subDays(60 + $reviewIndex) : null,
                     'moderated_by' => $admin->id,
                     'moderated_at' => now()->subDays(60 + $reviewIndex),
                 ]);
                 $review->forceFill(['created_at' => now()->subDays(85 - $reviewIndex), 'updated_at' => now()->subDays(84 - $reviewIndex)])->saveQuietly();
+                $review->replies()->delete();
+                if ($shopReply) {
+                    $review->replies()->create(['user_id' => $admin->id, 'author' => 'shop', 'body' => $shopReply])
+                        ->forceFill(['created_at' => now()->subDays(60 + $reviewIndex), 'updated_at' => now()->subDays(60 + $reviewIndex)])->saveQuietly();
+                }
+                $review->refreshAwaitingShopReply();
             }
         }
     }

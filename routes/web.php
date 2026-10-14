@@ -45,6 +45,7 @@ Route::patch('/gio-hang/{product}/{lineKey?}', [CartController::class, 'update']
 Route::delete('/gio-hang/{product}/{lineKey?}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::middleware('auth')->group(function () {
     Route::post('/san-pham/{product:slug}/danh-gia', [ProductReviewController::class, 'store'])->middleware('throttle:5,1,products.reviews.store')->name('products.reviews.store');
+    Route::post('/san-pham/{product:slug}/danh-gia/{review}/phan-hoi', [ProductReviewController::class, 'reply'])->middleware('throttle:10,1,products.reviews.reply')->name('products.reviews.reply');
     Route::get('/thanh-toan', [CheckoutController::class, 'create'])->name('checkout.create');
     Route::get('/phi-van-chuyen', [CheckoutController::class, 'shippingQuote'])->middleware('throttle:30,1,shipping.quote')->name('shipping.quote');
     Route::get('/ma-uu-dai/kiem-tra', [CheckoutController::class, 'couponPreview'])->middleware('throttle:30,1,coupons.preview')->name('coupons.preview');
@@ -133,6 +134,7 @@ Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.
     Route::get('/khach-hang', [AdminController::class, 'customers'])->middleware('permission:customers.view')->name('customers');
     Route::get('/danh-gia', [AdminReviewController::class, 'index'])->middleware('permission:reviews.view')->name('reviews');
     Route::patch('/danh-gia/{review}', [AdminReviewController::class, 'update'])->middleware('permission:reviews.manage')->name('reviews.update');
+    Route::delete('/danh-gia/{review}/phan-hoi/{reply}', [AdminReviewController::class, 'destroyReply'])->middleware('permission:reviews.manage')->name('reviews.replies.destroy');
     Route::get('/lien-he', [AdminContactController::class, 'index'])->middleware('permission:contacts.view')->name('contacts');
     Route::patch('/lien-he/{contact}', [AdminContactController::class, 'update'])->middleware('permission:contacts.manage')->name('contacts.update');
     Route::get('/tin-nhan', [AdminChatController::class, 'index'])->middleware('permission:chats.view')->name('chats');

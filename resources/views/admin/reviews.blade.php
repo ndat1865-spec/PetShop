@@ -7,7 +7,7 @@
     <section class="ops-stat-grid" aria-label="Thống kê đánh giá">
         <article><span>Tổng đánh giá</span><strong>{{ number_format((int) $stats->total) }}</strong><small>Từ khách đã mua hàng</small></article>
         <article class="is-success"><span>Đang hiển thị</span><strong>{{ number_format((int) $stats->approved) }}</strong><small>Đã đăng công khai</small></article>
-        <article><span>Shop đã trả lời</span><strong>{{ number_format((int) $stats->replied) }}</strong><small>Phản hồi công khai</small></article>
+        <article><span>Chờ shop trả lời</span><strong>{{ number_format((int) $stats->awaiting) }}</strong><small>Đánh giá mới hoặc khách vừa nhắn thêm</small></article>
         <article><span>Điểm trung bình</span><strong>{{ number_format($averageRating, 1) }}</strong><small>Trên đánh giá đang hiển thị</small></article>
         <article><span>Đã ẩn</span><strong>{{ number_format((int) $stats->hidden) }}</strong><small>Không hiển thị trên cửa hàng</small></article>
     </section>
@@ -25,7 +25,7 @@
     <section class="admin-panel moderation-list" aria-labelledby="review-list-title">
         <header class="panel-title"><div><p class="eyebrow">Khách hàng đã mua</p><h2 id="review-list-title">Đánh giá và phản hồi của shop</h2></div><span>{{ $reviews->total() }} kết quả</span></header>
         @forelse($reviews as $review)
-            <article class="moderation-card">
+            <article class="moderation-card" id="review-{{ $review->id }}">
                 <div class="moderation-card__summary">
                     <div class="moderation-customer"><span>{{ mb_strtoupper(mb_substr($review->user?->name ?? '?', 0, 1)) }}</span><div><strong>{{ $review->user?->name ?? 'Khách hàng đã xóa' }}</strong><small>{{ $review->user?->email }}</small></div></div>
                     <div><small>Sản phẩm</small>@if($review->product)<a href="{{ route('products.show', $review->product->slug) }}#danh-gia" target="_blank" rel="noopener">{{ $review->product->name }} ↗</a>@else<span>Sản phẩm đã xóa</span>@endif</div>
@@ -44,16 +44,38 @@
                     @endif
                     @if($review->title)<h3>{{ $review->title }}</h3>@endif
                     <p>{{ $review->comment }}</p>
-                    @if($review->shop_reply)<aside class="moderation-shop-reply"><strong>Phản hồi công khai của shop</strong><p>{{ $review->shop_reply }}</p>@if($review->replier)<small>{{ $review->replier->name }} · {{ $review->replied_at?->format('d/m/Y H:i') }}</small>@endif</aside>@endif
+                    @if($review->edited_at)<small class="moderation-edited">Khách đã sửa đánh giá lúc {{ $review->edited_at->format('H:i · d/m/Y') }}</small>@endif
+                    @if($review->replies->isNotEmpty())
+                        <div class="moderation-thread" aria-label="Trao đổi công khai">
+                            @foreach($review->replies as $reply)
+                                <aside @class(['moderation-shop-reply' => $reply->isFromShop(), 'moderation-customer-reply' => ! $reply->isFromShop()])>
+                                    <div><strong>{{ $reply->isFromShop() ? 'Shop trả lời' : 'Khách nhắn thêm' }}</strong><small>{{ $reply->user?->name ?? ($reply->isFromShop() ? 'Pawora' : 'Khách hàng') }} · {{ $reply->created_at->format('d/m/Y H:i') }}</small></div>
+                                    <p>{{ $reply->body }}</p>
+                                    @if(auth()->user()->hasPermission('reviews.manage'))
+                                        <form method="post" action="{{ route('admin.reviews.replies.destroy', [$review, $reply]) }}" data-confirm-title="Gỡ tin này khỏi trao đổi?" data-confirm-message="Tin sẽ biến mất khỏi trang sản phẩm và không thể khôi phục.">
+                                            @csrf @method('delete')
+                                            <button type="submit">Gỡ tin</button>
+                                        </form>
+                                    @endif
+                                </aside>
+                            @endforeach
+                        </div>
+                    @endif
+                    @if($review->status === 'approved' && $review->awaiting_shop_reply)<p class="moderation-awaiting">Khách đang chờ shop trả lời</p>@endif
                     @if($review->admin_note)<aside><strong>Ghi chú nội bộ</strong><p>{{ $review->admin_note }}</p>@if($review->moderator)<small>{{ $review->moderator->name }} · {{ $review->moderated_at?->format('d/m/Y H:i') }}</small>@endif</aside>@endif
                 </div>
                 @if(auth()->user()->hasPermission('reviews.manage'))
-                    <form class="moderation-action moderation-action--review" method="post" action="{{ route('admin.reviews.update', $review) }}" data-confirm-title="Lưu phản hồi của shop?" data-confirm-message="Phản hồi và trạng thái mới sẽ được cập nhật ngay trên cửa hàng.">
+                    @php($isOldForm = (int) old('_review') === $review->id)
+                    @php($noteError = $isOldForm ? $errors->first('admin_note') : null)
+                    @php($replyError = $isOldForm ? $errors->first('reply') : null)
+                    @php($selectedStatus = $isOldForm ? old('status') : $review->status)
+                    <form class="moderation-action moderation-action--review" method="post" action="{{ route('admin.reviews.update', $review) }}" data-review-moderation data-confirm-title="Lưu đánh giá này?" data-confirm-message="Trả lời và trạng thái mới sẽ được cập nhật ngay trên cửa hàng.">
                         @csrf @method('patch')
-                        <label><span>Trạng thái hiển thị</span><select name="status" required>@foreach(\App\Models\ProductReview::STATUS_LABELS as $value => $label)<option value="{{ $value }}" @selected($review->status === $value)>{{ $label }}</option>@endforeach</select></label>
-                        <label><span>Phản hồi công khai của shop</span><textarea name="shop_reply" maxlength="1000" rows="3" placeholder="Cảm ơn bạn đã chia sẻ trải nghiệm...">{{ $review->shop_reply }}</textarea></label>
-                        <label><span>Ghi chú nội bộ</span><input name="admin_note" value="{{ $review->admin_note }}" maxlength="1000" placeholder="Bắt buộc khi ẩn đánh giá"></label>
-                        <button class="button secondary small" type="submit">Lưu phản hồi</button>
+                        <input type="hidden" name="_review" value="{{ $review->id }}">
+                        <label><span>Trạng thái hiển thị</span><select name="status" required>@foreach(\App\Models\ProductReview::STATUS_LABELS as $value => $label)<option value="{{ $value }}" @selected($selectedStatus === $value)>{{ $label }}</option>@endforeach</select></label>
+                        <label><span>Trả lời khách <small>Hiển thị công khai</small></span><textarea name="reply" maxlength="1000" rows="3" placeholder="{{ $review->replies->last() && ! $review->replies->last()->isFromShop() ? 'Trả lời tin nhắn mới của khách…' : 'Cảm ơn bạn đã chia sẻ trải nghiệm…' }}" @if($replyError) aria-invalid="true" @endif>{{ $isOldForm ? old('reply') : '' }}</textarea>@if($replyError)<small class="field-error" role="alert">{{ $replyError }}</small>@endif</label>
+                        <label><span>Ghi chú nội bộ <small data-note-hint>{{ $selectedStatus === 'hidden' ? 'Bắt buộc · lý do ẩn' : 'Bắt buộc khi ẩn' }}</small></span><input name="admin_note" value="{{ $isOldForm ? old('admin_note') : $review->admin_note }}" maxlength="1000" placeholder="Lý do ẩn đánh giá" @if($selectedStatus === 'hidden') required minlength="5" @endif @if($noteError) aria-invalid="true" @endif>@if($noteError)<small class="field-error" role="alert">{{ $noteError }}</small>@endif</label>
+                        <button class="button secondary small" type="submit">Lưu</button>
                     </form>
                 @endif
             </article>

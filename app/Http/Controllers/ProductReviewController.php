@@ -7,6 +7,7 @@ use App\Models\ProductReview;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class ProductReviewController extends Controller
@@ -69,12 +70,12 @@ class ProductReviewController extends Controller
                 'comment' => trim($data['comment']),
                 'status' => 'approved',
                 'admin_note' => null,
-                'shop_reply' => null,
-                'replied_by' => null,
-                'replied_at' => null,
+                'edited_at' => $wasCreated ? null : now(),
                 'moderated_by' => null,
                 'moderated_at' => null,
             ])->save();
+            // Trao đổi cũ được giữ lại; bản sửa mới cần shop xem và trả lời.
+            $review->refreshAwaitingShopReply();
         });
 
         return redirect()
@@ -83,5 +84,41 @@ class ProductReviewController extends Controller
             ->with('success', $wasCreated
                 ? 'Cảm ơn bạn. Đánh giá đã được đăng công khai.'
                 : 'Đánh giá đã được cập nhật và đăng công khai.');
+    }
+
+    public function reply(Request $request, Product $product, ProductReview $review): RedirectResponse
+    {
+        abort_unless($product->status === 'active' && $review->product_id === $product->id, 404);
+        abort_unless($review->user_id === $request->user()->id, 403);
+
+        $back = redirect()->route('products.show', $product->slug)->withFragment('review-'.$review->id);
+
+        if ($review->status !== 'approved') {
+            return $back->withErrors(['reply' => 'Đánh giá đang được shop ẩn nên chưa thể gửi thêm phản hồi.'], 'reviewReply');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'reply' => ['required', 'string', 'max:1000'],
+        ], [
+            'reply.required' => 'Vui lòng nhập nội dung phản hồi.',
+            'reply.max' => 'Phản hồi không được vượt quá 1.000 ký tự.',
+        ]);
+
+        if ($validator->fails()) {
+            return $back->withErrors($validator, 'reviewReply')->withInput();
+        }
+
+        $data = $validator->validated();
+
+        DB::transaction(function () use ($request, $review, $data) {
+            $review->replies()->create([
+                'user_id' => $request->user()->id,
+                'author' => 'customer',
+                'body' => trim($data['reply']),
+            ]);
+            $review->refreshAwaitingShopReply();
+        });
+
+        return $back->with('success', 'Đã gửi phản hồi của bạn.');
     }
 }

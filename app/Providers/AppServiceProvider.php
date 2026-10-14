@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('layouts.admin', function ($view) {
             $view->with([
-                'adminUnansweredReviewCount' => ProductReview::approved()->whereNull('shop_reply')->count(),
+                'adminUnansweredReviewCount' => ProductReview::approved()->where('awaiting_shop_reply', true)->count(),
                 'adminNewContactCount' => ContactMessage::where('status', 'new')->count(),
                 'adminUnreadChatCount' => Schema::hasTable('chat_conversations') ? ChatConversation::where('admin_unread_count', '>', 0)->count() : 0,
             ]);

@@ -79,7 +79,7 @@
                 </a>
                 <a href="{{ route('admin.reviews', ['unanswered' => 1]) }}">
                     <span class="dashboard-action-icon"><x-admin-icon name="reviews" /></span>
-                    <span><strong>Đánh giá chưa phản hồi</strong><small>Trả lời khách đã mua hàng</small></span><b>{{ $unansweredReviewCount }}</b>
+                    <span><strong>Đánh giá chờ trả lời</strong><small>Đánh giá mới hoặc khách vừa nhắn thêm</small></span><b>{{ $unansweredReviewCount }}</b>
                 </a>
                 <a href="{{ route('admin.contacts', ['status' => 'new']) }}">
                     <span class="dashboard-action-icon"><x-admin-icon name="contacts" /></span>
@@ -95,10 +95,10 @@
 
     <section class="dashboard-care-grid" aria-label="Hàng đợi chăm sóc khách hàng">
         <article class="admin-panel dashboard-care-card">
-            <header class="dashboard-section-head"><div><p class="dashboard-kicker">Chăm sóc sau mua</p><h2>Đánh giá chưa phản hồi</h2></div><a class="dashboard-section-link" href="{{ route('admin.reviews', ['unanswered' => 1]) }}">Mở danh sách <span aria-hidden="true">→</span></a></header>
+            <header class="dashboard-section-head"><div><p class="dashboard-kicker">Chăm sóc sau mua</p><h2>Đánh giá chờ trả lời</h2></div><a class="dashboard-section-link" href="{{ route('admin.reviews', ['unanswered' => 1]) }}">Mở danh sách <span aria-hidden="true">→</span></a></header>
             <div class="dashboard-care-list">
                 @forelse($unansweredReviews as $review)
-                    <a href="{{ route('admin.reviews', ['q' => $review->user?->email]) }}"><span><strong>{{ $review->product?->name }}</strong><small>{{ $review->user?->name }} · {{ $review->rating }}/5 sao</small></span><time>{{ $review->created_at->format('d/m') }}</time></a>
+                    <a href="{{ route('admin.reviews', ['q' => $review->user?->email]) }}"><span><strong>{{ $review->product?->name }}</strong><small>{{ $review->user?->name }} · {{ $review->rating }}/5 sao</small></span><time>{{ $review->updated_at->format('d/m') }}</time></a>
                 @empty
                     <div class="dashboard-care-empty">Mọi đánh giá đã được shop phản hồi.</div>
                 @endforelse
