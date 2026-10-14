@@ -11,7 +11,7 @@ use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\MomoGateway;
 use App\Services\OnePayGateway;
-use App\Services\ResendMailer;
+use App\Services\OrderMailer;
 use App\Services\SepayGateway;
 use App\Services\ShippingCalculator;
 use App\Services\VnPayGateway;
@@ -284,7 +284,7 @@ class CheckoutController extends Controller
 
             return $this->idempotentReplayResponse($order);
         }
-        app(ResendMailer::class)->sendOrderConfirmation($order);
+        app(OrderMailer::class)->sendOrderConfirmation($order);
         session()->forget('cart');
         session()->forget('checkout_idempotency_key');
         session()->put('last_order', $order->id);

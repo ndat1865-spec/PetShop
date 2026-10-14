@@ -63,21 +63,6 @@ class CommerceTest extends TestCase
         $this->assertTrue(Hash::check('MatKhauMoi@2026', $customer->fresh()->password));
     }
 
-    public function test_password_reset_email_uses_resend_when_it_is_configured(): void
-    {
-        config()->set('services.resend.key', 'test-resend-key');
-        config()->set('services.resend.from', 'onboarding@resend.dev');
-        Http::fake(['api.resend.com/emails' => Http::response(['id' => 'email_123'], 200)]);
-        $customer = User::factory()->create(['email' => 'mail-reset@pawora.vn']);
-
-        $customer->sendPasswordResetNotification('secure-reset-token');
-
-        Http::assertSent(fn ($request) => $request->url() === 'https://api.resend.com/emails'
-            && $request['to'] === [$customer->email]
-            && str_contains($request['html'], 'secure-reset-token')
-            && $request->hasHeader('Authorization', 'Bearer test-resend-key'));
-    }
-
     public function test_admin_can_assign_roles_but_staff_cannot_manage_accounts(): void
     {
         $admin = User::factory()->create(['name' => 'Pawora Admin', 'role' => 'admin']);

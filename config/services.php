@@ -44,11 +44,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
-    'resend' => [
-        'key' => env('RESEND_API_KEY'),
-        'from' => env('RESEND_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev')),
-        'from_name' => env('RESEND_FROM_NAME', env('MAIL_FROM_NAME', 'Pawora')),
-        'ssl_verify' => env('RESEND_SSL_VERIFY', true),
+    'brevo' => [
+        'key' => env('BREVO_API_KEY'),
+        'ssl_verify' => env('BREVO_SSL_VERIFY', true),
     ],
 
     'vnpay' => [

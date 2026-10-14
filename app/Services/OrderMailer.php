@@ -3,69 +3,35 @@
 namespace App\Services;
 
 use App\Models\Order;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
-class ResendMailer
+class OrderMailer
 {
     public function sendOrderConfirmation(Order $order): bool
     {
-        if (! $this->configured() || blank($order->email)) {
+        if (blank($order->email)) {
             return false;
         }
 
         $order->loadMissing('items');
 
         try {
-            $request = Http::acceptJson()
-                ->withToken((string) config('services.resend.key'))
-                ->timeout(10);
-
-            if (! (bool) config('services.resend.ssl_verify', true)) {
-                $request = $request->withoutVerifying();
-            }
-
-            $response = $request
-                ->post('https://api.resend.com/emails', [
-                    'from' => $this->from(),
-                    'to' => [$order->email],
-                    'subject' => "Pawora đã nhận đơn {$order->number}",
-                    'html' => $this->html($order),
-                    'text' => $this->text($order),
-                ]);
-
-            if (! $response->successful()) {
-                Log::warning('Resend order confirmation failed', [
-                    'order_id' => $order->id,
-                    'status' => $response->status(),
-                    'message' => $response->json('message'),
-                ]);
-
-                return false;
-            }
+            Mail::html($this->html($order), fn (Message $message) => $message
+                ->to($order->email, $order->customer_name)
+                ->subject("Pawora đã nhận đơn {$order->number}")
+                ->text($this->text($order)));
 
             return true;
         } catch (\Throwable $exception) {
-            Log::warning('Resend order confirmation exception', [
+            Log::warning('Order confirmation email failed', [
                 'order_id' => $order->id,
                 'message' => $exception->getMessage(),
             ]);
 
             return false;
         }
-    }
-
-    public function configured(): bool
-    {
-        return filled(config('services.resend.key'));
-    }
-
-    private function from(): string
-    {
-        $name = (string) config('services.resend.from_name', 'Pawora');
-        $address = (string) config('services.resend.from', 'onboarding@resend.dev');
-
-        return "{$name} <{$address}>";
     }
 
     private function html(Order $order): string
