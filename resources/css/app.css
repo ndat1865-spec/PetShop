@@ -790,3 +790,8 @@ html:has(.dashboard-page),.admin-body:has(.dashboard-page){overflow-x:clip}.admi
 .moderation-edited { display: block; margin-top: 6px; color: var(--dashboard-muted); font-size: 10px; }
 .moderation-action label > span small { margin-left: 4px; font-weight: 500; }
 .moderation-action [aria-invalid=true] { border-color: #b42318; }
+.moderation-list > .moderation-card { scroll-margin-top: 90px; margin-top: 16px; border: 1px solid var(--dashboard-border); border-radius: 14px; overflow: hidden; background: #fff; transition: border-color .2s, box-shadow .2s; }
+.moderation-list > .moderation-card + .moderation-card { border-top: 1px solid var(--dashboard-border); }
+.moderation-list > .moderation-card:target { border-color: var(--dashboard-blue); box-shadow: 0 0 0 3px rgba(0, 102, 204, .12); }
+.moderation-list > .moderation-card .moderation-card__summary { border-bottom: 1px solid #eceef2; }
+@media (prefers-reduced-motion: reduce) { .moderation-list > .moderation-card { transition: none; } }
