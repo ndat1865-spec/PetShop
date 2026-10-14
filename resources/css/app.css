@@ -708,3 +708,35 @@ html:has(.dashboard-page),.admin-body:has(.dashboard-page){overflow-x:clip}.admi
     .hunt-ticket, .hunt-ticket__action { transition: none; }
 }
 .member-voucher-summary a{color:var(--member-blue);font-weight:700;white-space:nowrap}
+
+/* Keep receipt and review actions visible as soon as the order opens. */
+.member-order-detail-layout .customer-receipt--prominent {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-color: #b9d7f5;
+    background: #f4f9ff;
+}
+.member-order-detail-layout .customer-receipt--prominent.is-confirmed {
+    border-color: #b9e6c7;
+    background: #f2fbf5;
+}
+.customer-receipt--prominent .customer-receipt__icon { width: 40px; height: 40px; border-radius: 12px; }
+.customer-receipt--prominent .customer-receipt__icon svg { width: 23px; height: 23px; }
+.customer-receipt--prominent .customer-receipt__content { min-width: 0; }
+.customer-receipt--prominent .eyebrow { font-size: 10px; }
+.customer-receipt--prominent .customer-receipt__content h2 { margin-bottom: 6px; font-size: 20px; line-height: 1.25; }
+.customer-receipt--prominent .customer-receipt__content > p:not(.eyebrow) { font-size: 13px; line-height: 1.6; }
+.customer-receipt--prominent .customer-receipt__action { margin: 0; }
+.customer-receipt--prominent .button { min-height: 46px; padding-inline: 18px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 1023px) {
+    .member-order-detail-layout .order-timeline { grid-template-columns: repeat(7, minmax(110px, 1fr)); }
+}
+@media (max-width: 767px) {
+    .member-order-detail-layout .customer-receipt--prominent { grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 16px; }
+    .customer-receipt--prominent .customer-receipt__content h2 { font-size: 18px; }
+    .customer-receipt--prominent .customer-receipt__action { grid-column: 1 / -1; width: 100%; }
+    .customer-receipt--prominent .button { width: 100%; }
+}

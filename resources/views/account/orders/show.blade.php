@@ -18,6 +18,34 @@
 <section class="account-order-detail member-order-detail-layout">
     <div class="order-detail-main">
         @if($order->status === 'cancelled')<div class="cancelled-note"><strong>Đơn hàng đã được huỷ</strong><p>Đơn hàng này không tiếp tục được chuẩn bị hoặc giao đi.</p></div>@else<ol class="order-timeline">@foreach($steps as $value=>$label)@php($stepIndex=$loop->index)<li @class(['is-complete'=>$currentIndex!==false && $stepIndex<$currentIndex,'is-current'=>$currentIndex===$stepIndex]) @if($currentIndex===$stepIndex) aria-current="step" @endif><span aria-hidden="true">@if($currentIndex!==false && $stepIndex<$currentIndex)✓@else{{ $loop->iteration }}@endif</span><strong>{{ $label }}</strong></li>@endforeach</ol>@endif
+        @if($shipment && ($order->status === 'shipped' || ($order->status === 'delivered' && ! $receiptConfirmed)))
+            <section class="order-detail-section customer-receipt customer-receipt--prominent" id="nhan-hang">
+                <div class="customer-receipt__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9ZM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/></svg>
+                </div>
+                <div class="customer-receipt__content">
+                    <p class="eyebrow">Xác nhận giao nhận</p>
+                    <h2>Bạn đã nhận được kiện hàng?</h2>
+                    <p>Xác nhận khi kiện hàng đã đến tay bạn để đánh giá sản phẩm.</p>
+                </div>
+                <form method="post" action="{{ route('account.orders.received', $order) }}" class="customer-receipt__action" data-submit-form>
+                    @csrf @method('patch')
+                    <button class="button primary" type="submit" data-submit-button data-loading-label="Đang xác nhận…">Tôi đã nhận được hàng</button>
+                </form>
+            </section>
+        @elseif($receiptConfirmed)
+            <section class="order-detail-section customer-receipt customer-receipt--prominent is-confirmed" id="nhan-hang">
+                <div class="customer-receipt__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9ZM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/><path d="m8.5 15 2 2 4.5-5"/></svg>
+                </div>
+                <div class="customer-receipt__content">
+                    <p class="eyebrow">Đã nhận hàng</p>
+                    <h2>Bạn đã xác nhận nhận hàng</h2>
+                    <p>Xác nhận lúc {{ $shipment->customer_received_at->format('H:i d/m/Y') }}. Chia sẻ cảm nhận của bạn về sản phẩm nhé.</p>
+                </div>
+                <a class="button primary customer-receipt__action" href="{{ route('account.orders.received.success', $order) }}">Đánh giá sản phẩm</a>
+            </section>
+        @endif
         <section class="order-detail-section"><h2>Sản phẩm</h2>@foreach($order->items as $item)<article class="order-detail-item">@if($item->product?->image)<img src="{{ $item->product->image }}" alt="{{ $item->product_name }}" width="84" height="84">@else<span class="order-item-placeholder" aria-hidden="true"></span>@endif<div><strong>{{ $item->product_name }}</strong><small>{{ $item->sku }} · Số lượng {{ $item->quantity }}</small></div><b>{{ number_format($item->line_total, 0, ',', '.') }}đ</b></article>@endforeach</section>
         <section class="order-detail-section"><h2>Giao đến</h2><p><strong>{{ $order->customer_name }}</strong><br>{{ $order->phone }}<br>{{ $order->shipping_address }}</p></section>
         @if($returnRequest)
@@ -41,35 +69,6 @@
             </details>
         @elseif($order->status === 'delivered' && $returnDeadline)
             <section class="order-detail-section return-window-closed"><h2>Đổi trả</h2><p>Thời hạn đổi trả đã kết thúc lúc {{ $returnDeadline->format('H:i d/m/Y') }}.</p></section>
-        @endif
-        @if($shipment && ($order->status === 'shipped' || ($order->status === 'delivered' && ! $receiptConfirmed)))
-            <section class="order-detail-section customer-receipt" id="nhan-hang">
-                <div class="customer-receipt__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9ZM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/></svg>
-                </div>
-                <div class="customer-receipt__content">
-                    <p class="eyebrow">Xác nhận giao nhận</p>
-                    <h2>Bạn đã nhận được kiện hàng?</h2>
-                    <p>Bấm xác nhận khi bạn đã nhận được kiện hàng. Sau đó, bạn có thể đánh giá các sản phẩm trong đơn.</p>
-                    <form method="post" action="{{ route('account.orders.received', $order) }}" data-submit-form>
-                        @csrf @method('patch')
-                        <button class="button primary" type="submit" data-submit-button data-loading-label="Đang xác nhận…">Tôi đã nhận được hàng</button>
-                    </form>
-                    <small>Chưa nhận được hàng? Không cần thao tác và tiếp tục theo dõi mã vận đơn <strong>{{ $shipment->tracking_code }}</strong>.</small>
-                </div>
-            </section>
-        @elseif($receiptConfirmed)
-            <section class="order-detail-section customer-receipt is-confirmed" id="nhan-hang">
-                <div class="customer-receipt__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9ZM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/><path d="m8.5 15 2 2 4.5-5"/></svg>
-                </div>
-                <div class="customer-receipt__content">
-                    <p class="eyebrow">Đã nhận hàng</p>
-                    <h2>Bạn đã xác nhận nhận hàng</h2>
-                    <p>Xác nhận lúc {{ $shipment->customer_received_at->format('H:i d/m/Y') }}. Chia sẻ cảm nhận của bạn về sản phẩm nhé.</p>
-                    <a class="button primary" href="{{ route('account.orders.received.success', $order) }}">Đánh giá sản phẩm</a>
-                </div>
-            </section>
         @endif
     </div>
     <aside class="order-detail-aside">
