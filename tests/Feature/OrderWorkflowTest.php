@@ -183,18 +183,17 @@ class OrderWorkflowTest extends TestCase
         $deliveredAt = $order->shipments()->firstOrFail()->delivered_at;
         // Khách vẫn xác nhận được sau khi admin đã hoàn tất giao vận.
         $this->actingAs($customer)->patch(route('account.orders.received', $order))
-            ->assertRedirect(route('account.orders.received.success', $order));
+            ->assertRedirect(route('account.orders.show', $order));
         $shipment = $order->shipments()->firstOrFail();
         $this->assertNotNull($shipment->customer_received_at);
         $this->assertTrue($shipment->delivered_at->equalTo($deliveredAt));
         $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
             ->assertSee('Bạn đã xác nhận nhận hàng')
-            ->assertSee('Đánh giá sản phẩm')
             ->assertDontSee('Tôi đã nhận được hàng');
     }
 
-    public function test_customer_receipt_confirmation_completes_the_order_and_opens_the_review_page(): void
+    public function test_customer_receipt_confirmation_returns_to_order_detail_with_a_direct_review_link(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create();
@@ -217,7 +216,7 @@ class OrderWorkflowTest extends TestCase
         ]);
 
         $this->actingAs($customer)->patch(route('account.orders.received', $order))
-            ->assertRedirect(route('account.orders.received.success', $order));
+            ->assertRedirect(route('account.orders.show', $order));
 
         $shipment = $order->shipments()->firstOrFail();
         $this->assertSame('delivered', $order->fresh()->status);
@@ -234,14 +233,16 @@ class OrderWorkflowTest extends TestCase
 
         // Gửi lại cùng xác nhận không được tạo thêm lịch sử.
         $this->actingAs($customer)->patch(route('account.orders.received', $order))
-            ->assertRedirect(route('account.orders.received.success', $order));
+            ->assertRedirect(route('account.orders.show', $order));
         $this->assertSame(1, $order->histories()->where('to_status', 'delivered')->count());
 
-        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
-            ->assertSee('Nhận hàng thành công')
+            ->assertSee('Bạn đã xác nhận nhận hàng')
+            ->assertDontSee('Nhận hàng thành công')
+            ->assertDontSee(route('account.orders.received.success', $order), false)
             ->assertSee($product->name)
-            ->assertSee('Viết đánh giá')
+            ->assertSee('Đánh giá sản phẩm')
             ->assertSee(route('products.show', $product->slug).'#danh-gia', false);
 
         // Admin thấy đơn đã giao thành công mà không cần thao tác, và vận chuyển đã khóa.
@@ -259,9 +260,8 @@ class OrderWorkflowTest extends TestCase
             'rating' => 5,
             'comment' => 'Bé ăn rất ngon miệng.',
         ])->assertRedirect();
-        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
-            ->assertSee('Đã đánh giá')
             ->assertSee('Sửa đánh giá');
     }
 
@@ -295,7 +295,7 @@ class OrderWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_received_page_is_only_for_the_owner_of_a_delivered_order(): void
+    public function test_legacy_receipt_url_redirects_to_order_detail_and_checks_ownership(): void
     {
         $customer = User::factory()->create();
         $otherCustomer = User::factory()->create();
@@ -305,7 +305,40 @@ class OrderWorkflowTest extends TestCase
             ->assertRedirect(route('account.orders.show', $order));
 
         $order->update(['status' => 'delivered']);
+        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+            ->assertRedirect(route('account.orders.show', $order));
         $this->actingAs($otherCustomer)->get(route('account.orders.received.success', $order))->assertForbidden();
+    }
+
+    public function test_confirmed_order_lets_customers_choose_reviewable_products_inline(): void
+    {
+        $customer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'delivered', 'payment_status' => 'paid']);
+        $order->shipments()->create([
+            'status' => 'delivered', 'tracking_code' => 'INLINE-REVIEWS', 'fee' => 30000,
+            'delivered_at' => now(), 'customer_received_at' => now(),
+        ]);
+        $first = $this->product('Bát ăn gốm', 'bat-an-inline-review');
+        $second = $this->product('Dây dắt', 'day-dat-inline-review');
+        $unavailable = $this->product('Sản phẩm ngừng bán', 'ngung-ban-inline-review');
+        $unavailable->update(['status' => 'draft']);
+
+        foreach ([$first, $first, $second, $unavailable] as $product) {
+            $order->items()->create([
+                'product_id' => $product->id, 'product_name' => $product->name,
+                'sku' => $product->sku, 'unit_price' => 200000,
+                'quantity' => 1, 'line_total' => 200000,
+            ]);
+        }
+
+        $response = $this->actingAs($customer)->get(route('account.orders.show', $order));
+        $response->assertOk()
+            ->assertSee('Chọn sản phẩm để đánh giá')
+            ->assertSee(route('products.show', $first->slug).'#danh-gia', false)
+            ->assertSee(route('products.show', $second->slug).'#danh-gia', false)
+            ->assertDontSee(route('products.show', $unavailable->slug).'#danh-gia', false)
+            ->assertDontSee(route('account.orders.received.success', $order), false);
+        $this->assertSame(1, substr_count($response->getContent(), route('products.show', $first->slug).'#danh-gia'));
     }
 
     public function test_only_the_order_owner_can_confirm_receipt_for_shipping_or_delivered_orders(): void
@@ -354,11 +387,11 @@ class OrderWorkflowTest extends TestCase
         $this->get(route('account.orders.show', $order))->assertSee('Tôi đã nhận được hàng');
 
         $this->patch(route('account.orders.received', $order))
-            ->assertRedirect(route('account.orders.received.success', $order));
+            ->assertRedirect(route('account.orders.show', $order));
         $firstReceipt = $shipment->fresh()->customer_received_at;
         $this->travel(5)->minutes();
         $this->patch(route('account.orders.received', $order))
-            ->assertRedirect(route('account.orders.received.success', $order));
+            ->assertRedirect(route('account.orders.show', $order));
 
         $order->refresh();
         $shipment->refresh();
@@ -372,7 +405,6 @@ class OrderWorkflowTest extends TestCase
         $this->assertSame(1, $order->histories()->count());
         $this->get(route('account.orders.show', $order))
             ->assertSee('Bạn đã xác nhận nhận hàng')
-            ->assertSee('Đánh giá sản phẩm')
             ->assertSee('Thời hạn đổi trả đã kết thúc');
     }
 

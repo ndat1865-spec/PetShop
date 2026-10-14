@@ -43,7 +43,22 @@
                     <h2>Bạn đã xác nhận nhận hàng</h2>
                     <p>Xác nhận lúc {{ $shipment->customer_received_at->format('H:i d/m/Y') }}. Chia sẻ cảm nhận của bạn về sản phẩm nhé.</p>
                 </div>
-                <a class="button primary customer-receipt__action" href="{{ route('account.orders.received.success', $order) }}">Đánh giá sản phẩm</a>
+                @if($reviewableItems->count() === 1)
+                    @php($reviewItem = $reviewableItems->first())
+                    <a class="button primary customer-receipt__action" href="{{ route('products.show', $reviewItem->product->slug) }}#danh-gia">{{ in_array($reviewItem->product_id, $reviewedProductIds) ? 'Sửa đánh giá' : 'Đánh giá sản phẩm' }}</a>
+                @elseif($reviewableItems->count() > 1)
+                    <details class="member-review-picker customer-receipt__action customer-receipt__review-picker">
+                        <summary class="button primary">Đánh giá sản phẩm <span aria-hidden="true">⌄</span></summary>
+                        <div class="member-review-options" role="group" aria-label="Chọn sản phẩm để đánh giá">
+                            <strong>Chọn sản phẩm</strong>
+                            @foreach($reviewableItems as $reviewItem)
+                                <a href="{{ route('products.show', $reviewItem->product->slug) }}#danh-gia"><span>{{ $reviewItem->product->name }}</span><small>{{ in_array($reviewItem->product_id, $reviewedProductIds) ? 'Sửa đánh giá' : 'Viết đánh giá' }}</small></a>
+                            @endforeach
+                        </div>
+                    </details>
+                @else
+                    <p class="customer-receipt__unavailable">Các sản phẩm trong đơn đã ngừng bán.</p>
+                @endif
             </section>
         @endif
         <section class="order-detail-section"><h2>Sản phẩm</h2>@foreach($order->items as $item)<article class="order-detail-item">@if($item->product?->image)<img src="{{ $item->product->image }}" alt="{{ $item->product_name }}" width="84" height="84">@else<span class="order-item-placeholder" aria-hidden="true"></span>@endif<div><strong>{{ $item->product_name }}</strong><small>{{ $item->sku }} · Số lượng {{ $item->quantity }}</small></div><b>{{ number_format($item->line_total, 0, ',', '.') }}đ</b></article>@endforeach</section>

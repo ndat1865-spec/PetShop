@@ -121,9 +121,17 @@ class AccountController extends Controller
     {
         abort_unless($order->user_id === $request->user()->id, 403);
 
-        return view('account.orders.show', [
-            'order' => $order->load(['items.product', 'histories', 'shipments', 'payments', 'returnRequests']),
-        ]);
+        $order->load(['items.product', 'histories', 'shipments', 'payments', 'returnRequests']);
+        $reviewableItems = $order->items
+            ->filter(fn ($item) => $item->product && $item->product->status === 'active')
+            ->unique('product_id')
+            ->values();
+        $reviewedProductIds = $request->user()->productReviews()
+            ->whereIn('product_id', $reviewableItems->pluck('product_id'))
+            ->pluck('product_id')
+            ->all();
+
+        return view('account.orders.show', compact('order', 'reviewableItems', 'reviewedProductIds'));
     }
 
     public function updateProfile(Request $request)
@@ -367,27 +375,15 @@ class AccountController extends Controller
             ]);
         });
 
-        return redirect()->route('account.orders.received.success', $order);
+        return redirect()->route('account.orders.show', $order);
     }
 
     public function showOrderReceived(Request $request, Order $order)
     {
         abort_unless($order->user_id === $request->user()->id, 403);
 
-        $order->load(['items.product', 'items.variant', 'shipments', 'returnRequests']);
-
-        if ($order->status !== 'delivered' || ! $order->shipments->sortByDesc('id')->first()?->customer_received_at) {
-            return redirect()->route('account.orders.show', $order);
-        }
-
-        // Mỗi khách chỉ có một đánh giá cho mỗi sản phẩm, nên gộp các biến thể cùng sản phẩm thành một dòng.
-        $reviewItems = $order->items->unique(fn ($item) => $item->product_id ?? 'item-'.$item->id)->values();
-        $reviewedProductIds = $request->user()->productReviews()
-            ->whereIn('product_id', $reviewItems->pluck('product_id'))
-            ->pluck('product_id')
-            ->all();
-
-        return view('account.orders.received', compact('order', 'reviewItems', 'reviewedProductIds'));
+        // Giữ đường dẫn cũ hoạt động nhưng đưa khách thẳng về chi tiết đơn, không còn trang trung gian.
+        return redirect()->route('account.orders.show', $order);
     }
 
     public function reorder(Request $request, Order $order, CartService $cart)
