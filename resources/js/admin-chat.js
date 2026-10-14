@@ -82,6 +82,19 @@ if (adminChat) {
                 text.textContent = message.content;
                 article.append(text);
             }
+            if (message.products?.length) {
+                const list = document.createElement('div');
+                list.className = 'chat-bubble__products';
+                message.products.forEach((product) => {
+                    const link = document.createElement('a');
+                    link.href = product.url;
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    link.textContent = `${product.name}${product.variant ? ` · ${product.variant}` : ''} · ${product.price} ↗`;
+                    list.append(link);
+                });
+                article.append(list);
+            }
             const time = document.createElement('time');
             time.dateTime = message.created_at;
             time.textContent = formatTime(message.created_at);

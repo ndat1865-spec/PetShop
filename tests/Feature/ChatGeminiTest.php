@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\ChatAutoReplyRule;
 use App\Models\ChatConversation;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\ChatAutoReplyService;
+use App\Services\ChatMessagePresenter;
 use Database\Seeders\ChatSupportRuleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -42,6 +46,72 @@ class ChatGeminiTest extends TestCase
             && str_contains($request->url(), 'models/gemini-3.5-flash-lite:generateContent')
             && ! str_contains($request->url(), 'test-gemini-key')
             && $request['contents'][0]['parts'][0]['text'] === 'meo nha minh 3 thang tuoi choi gi thi hop');
+    }
+
+    public function test_gemini_reply_links_the_chosen_product_and_variant(): void
+    {
+        $product = $this->moonBall();
+        $pinkSmall = $product->variants->firstWhere('name', 'Hồng · Nhỏ');
+        $this->fakeGemini('reply', 'Bóng len Moon Ball màu Hồng size Nhỏ giá 264.000đ và còn hàng.', [
+            ['product_ref' => $product->id, 'variant_ref' => $pinkSmall->id],
+        ]);
+
+        $reply = $this->ask($this->conversation(), 'màu hồng và size nhỏ');
+
+        $this->assertSame([['product_id' => $product->id, 'variant_id' => $pinkSmall->id]], $reply[0]->product_refs);
+        $cards = app(ChatMessagePresenter::class)->toArray($reply[0])['products'];
+        $this->assertCount(1, $cards);
+        $this->assertSame('Bóng len Moon Ball', $cards[0]['name']);
+        $this->assertSame('Hồng · Nhỏ', $cards[0]['variant']);
+        $this->assertSame('264.000đ', $cards[0]['price']);
+        $this->assertTrue($cards[0]['in_stock']);
+        $this->assertSame(route('products.show', ['slug' => $product->slug, 'variant' => $pinkSmall->id]), $cards[0]['url']);
+        Http::assertSent(fn (Request $request) => str_contains($request['systemInstruction']['parts'][0]['text'], '"ref":'.$product->id));
+
+        $this->get($cards[0]['url'])->assertOk()->assertSee('Đã chọn: <strong>Hồng · Nhỏ</strong>', false);
+    }
+
+    public function test_product_refs_outside_the_shared_catalog_are_dropped(): void
+    {
+        $product = $this->moonBall();
+        $otherVariant = ProductVariant::create([
+            'product_id' => $product->id, 'name' => 'Ẩn', 'sku' => 'PAW-MOON-HIDDEN', 'color' => 'Đen', 'size' => 'Nhỏ',
+            'price' => 1, 'stock' => 1, 'is_active' => false,
+        ]);
+        $this->fakeGemini('reply', 'Shop gợi ý vài món cho bé.', [
+            ['product_ref' => 999999],
+            ['product_ref' => $product->id, 'variant_ref' => $otherVariant->id],
+        ]);
+
+        $reply = $this->ask($this->conversation(), 'meo choi gi');
+
+        $this->assertSame([['product_id' => $product->id, 'variant_id' => null]], $reply[0]->product_refs);
+    }
+
+    public function test_product_named_in_the_answer_is_linked_when_the_model_omits_refs(): void
+    {
+        $product = $this->moonBall();
+        $answer = fn (string $text) => ['candidates' => [['finishReason' => 'STOP', 'content' => ['parts' => [['text' => json_encode(['action' => 'reply', 'answer' => $text], JSON_UNESCAPED_UNICODE)]]]]]];
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::sequence()
+            ->push($answer('Bóng len Moon Ball có size Nhỏ và Lớn, màu Hồng hoặc Tím. Bạn chọn loại nào?'))
+            ->push($answer('Bóng len Moon Ball màu Tím size Nhỏ đang có sẵn.'))]);
+
+        $reply = $this->ask($this->conversation(), 'bong len moon ball');
+        $this->assertSame([['product_id' => $product->id, 'variant_id' => null]], $reply[0]->product_refs);
+
+        $reply = $this->ask($this->conversation(), 'tim nho');
+        $this->assertSame([['product_id' => $product->id, 'variant_id' => $product->variants->firstWhere('name', 'Tím · Nhỏ')->id]], $reply[0]->product_refs);
+    }
+
+    public function test_product_cards_disappear_when_the_product_stops_selling(): void
+    {
+        $product = $this->moonBall();
+        $this->fakeGemini('reply', 'Bóng len Moon Ball đang có hàng.', [['product_ref' => $product->id]]);
+        $reply = $this->ask($this->conversation(), 'bong len');
+
+        $product->update(['status' => 'draft']);
+
+        $this->assertSame([], app(ChatMessagePresenter::class)->toArray($reply[0]->fresh())['products']);
     }
 
     public function test_untouched_template_topic_is_answered_by_gemini_with_history(): void
@@ -137,12 +207,30 @@ class ChatGeminiTest extends TestCase
         Http::assertNothingSent();
     }
 
-    private function fakeGemini(string $action, string $answer): void
+    private function fakeGemini(string $action, string $answer, ?array $products = null): void
     {
+        $payload = array_filter(['action' => $action, 'answer' => $answer, 'products' => $products], fn ($value) => $value !== null);
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [[
             'finishReason' => 'STOP',
-            'content' => ['role' => 'model', 'parts' => [['text' => json_encode(['action' => $action, 'answer' => $answer], JSON_UNESCAPED_UNICODE)]]],
+            'content' => ['role' => 'model', 'parts' => [['text' => json_encode($payload, JSON_UNESCAPED_UNICODE)]]],
         ]]])]);
+    }
+
+    private function moonBall(): Product
+    {
+        $category = Category::create(['name' => 'Đồ chơi cho mèo', 'slug' => 'do-choi-cho-meo', 'is_active' => true]);
+        $product = Product::create([
+            'category_id' => $category->id, 'name' => 'Bóng len Moon Ball', 'slug' => 'bong-len-moon-ball', 'sku' => 'PAW-MOON',
+            'pet_type' => 'cat', 'short_description' => 'Bóng len mềm cho mèo.', 'price' => 264000, 'stock' => 20, 'status' => 'active',
+        ]);
+        foreach ([['Hồng', 'Nhỏ', 264000], ['Hồng', 'Lớn', 294000], ['Tím', 'Nhỏ', 264000]] as [$color, $size, $price]) {
+            $product->variants()->create([
+                'name' => $color.' · '.$size, 'sku' => 'PAW-MOON-'.Str::upper(Str::random(4)),
+                'color' => $color, 'size' => $size, 'price' => $price, 'stock' => 5, 'is_active' => true,
+            ]);
+        }
+
+        return $product->load('variants');
     }
 
     private function conversation(): ChatConversation

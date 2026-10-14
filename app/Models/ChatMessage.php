@@ -13,7 +13,7 @@ class ChatMessage extends Model
 
     protected $fillable = [
         'conversation_id', 'client_message_id', 'sender_type', 'sender_id', 'auto_reply_rule_id',
-        'message_type', 'content', 'attachment_path', 'attachment_name', 'attachment_mime',
+        'message_type', 'content', 'product_refs', 'attachment_path', 'attachment_name', 'attachment_mime',
         'attachment_size', 'deliver_at', 'read_at',
         'delivered_at', 'cancelled_at', 'auto_reply_processed_at',
     ];
@@ -21,6 +21,7 @@ class ChatMessage extends Model
     protected $hidden = ['attachment_path'];
 
     protected $casts = [
+        'product_refs' => 'array',
         'deliver_at' => 'datetime',
         'read_at' => 'datetime',
         'delivered_at' => 'datetime',

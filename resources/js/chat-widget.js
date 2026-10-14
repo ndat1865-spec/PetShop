@@ -91,6 +91,41 @@ if (widget) {
     };
     const formatTime = (value) => new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 
+    // Thẻ sản phẩm bot gợi ý: bấm là mở đúng sản phẩm (và màu/size nếu khách đã chọn).
+    const renderProductCards = (products) => {
+        const list = document.createElement('div');
+        list.className = 'support-chat__products';
+        products.forEach((product) => {
+            const card = document.createElement('a');
+            card.className = 'support-chat__product';
+            card.href = product.url;
+            if (product.image) {
+                const image = document.createElement('img');
+                image.src = product.image;
+                image.alt = '';
+                image.loading = 'lazy';
+                card.append(image);
+            } else {
+                const placeholder = document.createElement('i');
+                placeholder.setAttribute('aria-hidden', 'true');
+                card.append(placeholder);
+            }
+            const info = document.createElement('span');
+            const name = document.createElement('strong');
+            name.textContent = product.name;
+            const meta = document.createElement('small');
+            meta.textContent = [product.variant, product.price, product.in_stock ? null : 'Tạm hết hàng'].filter(Boolean).join(' · ');
+            info.append(name, meta);
+            const action = document.createElement('b');
+            action.textContent = 'Xem';
+            action.setAttribute('aria-hidden', 'true');
+            card.append(info, action);
+            card.setAttribute('aria-label', `Xem ${product.name}${product.variant ? ` (${product.variant})` : ''}, ${product.price}`);
+            list.append(card);
+        });
+        return list;
+    };
+
     const renderMessage = (message, { announce = false } = {}) => {
         if (!message?.id || messagesBox.querySelector(`[data-message-id="${message.id}"]`)) return;
         const atBottom = firstLoad || message.sender_type === 'customer' || messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 64;
@@ -118,6 +153,7 @@ if (widget) {
             text.textContent = message.content;
             article.append(text);
         }
+        if (message.products?.length) article.append(renderProductCards(message.products));
         const time = document.createElement('time');
         time.dateTime = message.created_at;
         time.textContent = formatTime(message.created_at);

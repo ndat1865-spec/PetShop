@@ -19,6 +19,7 @@ class ChatShopKnowledge
 
             return count(array_filter($words, fn ($word) => str_contains($description, $word)));
         })->take(12)->values()->map(fn ($product) => [
+            'ref' => $product->id,
             'name' => $product->name,
             'category' => $product->category?->name,
             'pet_type' => $product->pet_type,
@@ -26,6 +27,7 @@ class ChatShopKnowledge
             'price_vnd' => (int) $product->price,
             'in_stock' => $product->stock > 0,
             'variants' => $product->variants->take(8)->map(fn ($variant) => [
+                'ref' => $variant->id,
                 'name' => $variant->name, 'size' => $variant->size, 'color' => $variant->color,
                 'price_vnd' => (int) ($variant->price ?? $product->price), 'in_stock' => $variant->stock > 0,
             ])->all(),

@@ -71,7 +71,7 @@ class ChatAutoReplyService
                 }
                 $conversation->update(['fallback_sent_at' => null]);
 
-                return [$this->createResponse($conversation, $aiReply['answer'])];
+                return [$this->createResponse($conversation, $aiReply['answer'], productRefs: $aiReply['products'] ?? [])];
             }
             if (! $rule) {
                 if ($conversation->fallback_sent_at) {
@@ -114,11 +114,11 @@ class ChatAutoReplyService
         $rule->increment('trigger_count');
     }
 
-    private function createResponse(ChatConversation $conversation, string $content, ?ChatAutoReplyRule $rule = null): ChatMessage
+    private function createResponse(ChatConversation $conversation, string $content, ?ChatAutoReplyRule $rule = null, array $productRefs = []): ChatMessage
     {
         $delay = (int) ($rule?->delay_seconds ?? 0);
         $message = $conversation->messages()->create([
-            'sender_type' => 'bot', 'message_type' => 'text', 'content' => $content,
+            'sender_type' => 'bot', 'message_type' => 'text', 'content' => $content, 'product_refs' => $productRefs ?: null,
             'auto_reply_rule_id' => $rule?->id, 'deliver_at' => now()->addSeconds($delay),
             'delivered_at' => $delay === 0 ? now() : null,
         ]);

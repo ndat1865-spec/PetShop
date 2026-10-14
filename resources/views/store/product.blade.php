@@ -6,7 +6,8 @@
     $variants = $product->variants;
     $reviewCount = (int) ($product->approved_review_count ?? 0);
     $averageRating = (float) ($product->approved_rating ?? 0);
-    $defaultVariant = $variants->firstWhere('stock', '>', 0) ?? $variants->first();
+    // ?variant= cho phép liên kết (ví dụ từ bot hỗ trợ) mở sẵn đúng màu và size.
+    $defaultVariant = $variants->firstWhere('id', (int) request()->query('variant')) ?? $variants->firstWhere('stock', '>', 0) ?? $variants->first();
     $colors = $variants->pluck('color')->filter()->unique()->values();
     $sizes = $variants->pluck('size')->filter()->unique()->values();
     $hasSizeVariants = $sizes->isNotEmpty();
