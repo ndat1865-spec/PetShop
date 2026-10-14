@@ -710,6 +710,7 @@ html:has(.dashboard-page),.admin-body:has(.dashboard-page){overflow-x:clip}.admi
 .member-voucher-summary a{color:var(--member-blue);font-weight:700;white-space:nowrap}
 
 /* Keep receipt and review actions visible as soon as the order opens. */
+.member-order-detail-layout .order-detail-main { min-width: 0; }
 .member-order-detail-layout .customer-receipt--prominent {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
