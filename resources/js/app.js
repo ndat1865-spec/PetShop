@@ -687,6 +687,8 @@ if (shippingForm) {
     const voucherCount = shippingForm.querySelector('[data-voucher-count]');
     const voucherEmpty = shippingForm.querySelector('[data-voucher-empty]');
     const subtotal = Number(shippingForm.dataset.subtotal || 0);
+    const paymentInputs = [...shippingForm.querySelectorAll('[name="payment_method"]')];
+    const freeOrderNote = shippingForm.querySelector('[data-free-order-note]');
     const slotCopy = {
         order: { title: 'Chọn mã giảm giá', description: 'Giảm trực tiếp vào tiền hàng. Mỗi đơn dùng 1 mã.', placeholder: 'Nhập mã giảm giá' },
         shipping: { title: 'Chọn mã vận chuyển', description: 'Giảm phí giao hàng, dùng được cùng mã giảm giá.', placeholder: 'Nhập mã vận chuyển' },
@@ -727,14 +729,31 @@ if (shippingForm) {
     const orderDiscount = () => (couponSlots.order?.code ? couponSlots.order.discount : 0);
     const shippingDiscount = () => (couponSlots.shipping?.code && currentShippingFee !== null ? couponSlots.shipping.discount : 0);
 
+    // Đơn 0đ chỉ đi COD (server cũng tự chuyển), nên ẩn các lựa chọn online cho khớp.
+    // Chưa có phí ship thì chưa biết tổng thật, nên chưa coi là đơn 0đ.
+    const syncPaymentOptions = (total) => {
+        const isFree = currentShippingFee !== null && total <= 0;
+        paymentInputs.forEach((input) => {
+            if (input.value === 'cod') {
+                if (isFree) input.checked = true;
+                return;
+            }
+            input.disabled = isFree;
+            input.closest('.payment-option').hidden = isFree;
+        });
+        if (freeOrderNote) freeOrderNote.hidden = !isFree;
+    };
+
     const renderTotals = () => {
         const discount = orderDiscount();
         const shipDiscount = shippingDiscount();
+        const total = subtotal - discount + (currentShippingFee || 0) - shipDiscount;
         discountRow.hidden = discount <= 0;
         discountOutput.textContent = `-${money.format(discount)}`;
         shippingDiscountRow.hidden = shipDiscount <= 0;
         shippingDiscountOutput.textContent = `-${money.format(shipDiscount)}`;
-        totalOutput.textContent = money.format(subtotal - discount + (currentShippingFee || 0) - shipDiscount);
+        totalOutput.textContent = money.format(total);
+        syncPaymentOptions(total);
     };
 
     const appliedCopy = (slot) => {

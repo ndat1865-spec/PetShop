@@ -222,6 +222,46 @@ class VoucherManagementTest extends TestCase
         $this->assertSame(1, $shippingCoupon->fresh()->used_count);
     }
 
+    public function test_zero_total_order_is_placed_as_cod_even_when_an_online_method_is_chosen(): void
+    {
+        config()->set('services.vnpay.enabled', true);
+        config()->set('services.vnpay.tmn_code', 'PAWTEST');
+        config()->set('services.vnpay.hash_secret', 'vnpay-test-secret');
+        $customer = User::factory()->create();
+        $product = $this->product(129000);
+        $this->coupon(['code' => 'GIAM100', 'type' => 'percent', 'value' => 100]);
+        $this->coupon(['code' => 'GIAMVC100', 'type' => 'shipping', 'value' => 100]);
+
+        $idempotencyKey = (string) Str::uuid();
+        $response = $this->actingAs($customer)->withSession(['cart' => [$product->id => 1], 'checkout_idempotency_key' => $idempotencyKey])
+            ->post(route('checkout.store'), [
+                ...$this->checkoutData(),
+                'payment_method' => 'vnpay',
+                'coupon_code' => 'GIAM100',
+                'shipping_coupon_code' => 'GIAMVC100',
+                'idempotency_key' => $idempotencyKey,
+            ]);
+
+        $order = Order::where('idempotency_key', $idempotencyKey)->firstOrFail();
+        $response->assertRedirect(route('orders.confirmation', $order));
+        $this->assertEquals(0, $order->total);
+        $this->assertSame('cod', $order->payment_method);
+        $this->assertSame('unpaid', $order->payment_status);
+        $this->assertDatabaseHas('order_status_histories', ['order_id' => $order->id, 'note' => 'Đơn hàng được tạo. Tổng thanh toán 0đ nên chuyển sang thanh toán khi nhận hàng.']);
+        $this->assertDatabaseCount('payment_transactions', 0);
+    }
+
+    public function test_checkout_page_ships_the_zero_total_payment_note_hidden(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product(129000);
+
+        $this->actingAs($customer)->withSession(['cart' => [$product->id => 1]])
+            ->get(route('checkout.create'))
+            ->assertOk()
+            ->assertSee('data-free-order-note role="status" hidden', false);
+    }
+
     public function test_each_voucher_slot_only_accepts_its_own_voucher_type(): void
     {
         $customer = User::factory()->create();

@@ -85,6 +85,9 @@
         </fieldset>
         <fieldset>
             <legend>Thanh toán</legend>
+            <p class="payment-free-note" data-free-order-note role="status" hidden><strong>Đơn hàng 0đ</strong><span>Voucher đã
+                    trả hết tiền hàng và phí ship, nên bạn không cần thanh toán online. Đơn sẽ giao theo hình thức
+                    nhận hàng và không thu thêm tiền.</span></p>
             <div class="payment-options">
                 <label class="payment-option cod"><input type="radio" name="payment_method" value="cod" checked><span
                         class="pay-icon"><svg viewBox="0 0 24 24" aria-hidden="true">

@@ -249,12 +249,18 @@ class CheckoutController extends Controller
                     $shippingDiscount = $evaluation['discount'];
                 }
                 $shippingAddress = implode(', ', array_filter([$data['address_line'], $data['ward'], $data['district'] ?? null, $data['province']]));
-                $order = Order::create([...$data, 'payment_status' => in_array($data['payment_method'], ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'shipping_coupon_code' => $shippingCoupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_discount' => $shippingDiscount, 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $subtotal - $discount + $shippingQuote['fee'] - $shippingDiscount]);
+                $total = $subtotal - $discount + $shippingQuote['fee'] - $shippingDiscount;
+                // Cổng online và chuyển khoản không nhận số tiền 0đ, nên đơn 0đ luôn đi luồng COD.
+                $isFreeOrder = $total <= 0;
+                $paymentMethod = $isFreeOrder ? 'cod' : $data['payment_method'];
+                $order = Order::create([...$data, 'payment_method' => $paymentMethod, 'payment_status' => in_array($paymentMethod, ['vnpay', 'zalopay', 'momo', 'onepay'], true) ? 'pending' : 'unpaid', 'shipping_address' => $shippingAddress, 'coupon_code' => $coupon?->code, 'shipping_coupon_code' => $shippingCoupon?->code, 'number' => 'PAW-'.now()->format('ymd').'-'.strtoupper(Str::random(6)), 'public_token' => (string) Str::uuid(), 'idempotency_key' => $idempotencyKey, 'user_id' => $request->user()->id, 'subtotal' => $subtotal, 'discount' => $discount, 'shipping_fee' => $shippingQuote['fee'], 'shipping_discount' => $shippingDiscount, 'shipping_zone' => $shippingQuote['zone'], 'estimated_delivery' => $shippingQuote['estimated_days'], 'total' => $total]);
                 foreach ($orderLines as [$product, $variant, $qty, $unitPrice, $line]) {
                     $order->items()->create(['product_id' => $product->id, 'product_variant_id' => $variant?->id, 'product_name' => $product->name.($variant ? ' · '.$variant->name : ''), 'sku' => $variant?->sku ?? $product->sku, 'unit_price' => $unitPrice, 'quantity' => $qty, 'line_total' => $line]);
                     app(InventoryService::class)->deductForOrder($product, $variant, $qty, $order);
                 }
-                $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => 'Đơn hàng được tạo.']);
+                $order->histories()->create(['user_id' => $request->user()?->id, 'to_status' => 'pending', 'note' => $isFreeOrder && $data['payment_method'] !== 'cod'
+                    ? 'Đơn hàng được tạo. Tổng thanh toán 0đ nên chuyển sang thanh toán khi nhận hàng.'
+                    : 'Đơn hàng được tạo.']);
                 if ($coupon) {
                     $couponService->recordUsage($coupon, $request->user(), $order, $discount);
                 }

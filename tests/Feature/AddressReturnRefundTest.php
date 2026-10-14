@@ -222,6 +222,48 @@ class AddressReturnRefundTest extends TestCase
         $this->assertDatabaseCount('payment_transactions', 0);
     }
 
+    public function test_return_on_a_zero_total_order_can_be_closed_without_a_refund(): void
+    {
+        $customer = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order($customer, ['subtotal' => 129000, 'discount' => 129000, 'total' => 0, 'payment_method' => 'cod']);
+        $return = $order->returnRequests()->create([
+            'user_id' => $customer->id, 'status' => 'received', 'reason' => 'damaged', 'details' => 'Hàng lỗi.',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.returns'))
+            ->assertOk()
+            ->assertSee('<option value="completed">Hoàn tất, không cần hoàn tiền</option>', false)
+            ->assertDontSee('name="refund_amount"', false);
+
+        $this->actingAs($admin)->patch(route('admin.returns.update', $return), ['status' => 'refund_pending', 'refund_amount' => 1])
+            ->assertSessionHasErrors(['refund_amount' => 'Số tiền hoàn tối đa cho đơn này là 0đ.']);
+        $this->actingAs($admin)->patch(route('admin.returns.update', $return), ['status' => 'completed', 'resolution' => 'Đổi sản phẩm mới cho khách.'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $return->refresh();
+        $this->assertSame('completed', $return->status);
+        $this->assertNotNull($return->resolved_at);
+        $this->assertSame([], $return->allowedTransitions());
+        $this->assertDatabaseCount('payment_transactions', 0);
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()->assertSee('Hoàn tất, không cần hoàn tiền');
+    }
+
+    public function test_return_on_an_order_with_money_left_cannot_skip_the_refund(): void
+    {
+        $customer = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $return = $this->order($customer)->returnRequests()->create([
+            'user_id' => $customer->id, 'status' => 'received', 'reason' => 'damaged', 'details' => 'Hàng lỗi.',
+        ]);
+
+        $this->assertSame(['refund_pending'], $return->allowedTransitions());
+        $this->actingAs($admin)->patch(route('admin.returns.update', $return), ['status' => 'completed'])
+            ->assertStatus(422);
+        $this->assertDatabaseHas('return_requests', ['id' => $return->id, 'status' => 'received']);
+    }
+
     public function test_refund_stays_pending_until_a_signed_callback_and_callback_is_idempotent(): void
     {
         config()->set('services.vnpay.enabled', false);

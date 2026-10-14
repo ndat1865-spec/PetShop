@@ -792,7 +792,7 @@ class AdminController extends Controller
     {
         $refundable = (int) $return->order?->refundableAmount();
         $data = $request->validate([
-            'status' => 'required|in:requested,approved,rejected,received,refund_pending',
+            'status' => 'required|in:requested,approved,rejected,received,refund_pending,completed',
             'resolution' => 'nullable|string|max:255',
             'refund_amount' => ['exclude_unless:status,refund_pending', 'required', 'integer', 'min:1', 'max:'.$refundable],
             'admin_note' => 'nullable|string|max:1000',
@@ -812,7 +812,7 @@ class AdminController extends Controller
             abort_unless($request->user()->hasPermission('payments.refund'), 403);
             abort_unless($return->order && in_array($return->order->payment_status, ['paid', 'refund_pending'], true), 422, 'Đơn hàng chưa có khoản thanh toán đủ điều kiện hoàn.');
         }
-        $return->update([...$data, 'resolved_at' => $data['status'] === 'rejected' ? now() : null]);
+        $return->update([...$data, 'resolved_at' => in_array($data['status'], ['rejected', 'completed'], true) ? now() : null]);
 
         if ($data['status'] === 'refund_pending') {
             try {

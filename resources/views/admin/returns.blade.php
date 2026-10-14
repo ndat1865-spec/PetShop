@@ -38,6 +38,8 @@
                                 </form>
                             @elseif($return->status === 'refunded')
                                 <strong>Đã hoàn {{ number_format($return->refund_amount, 0, ',', '.') }}đ</strong>
+                            @elseif($return->status === 'completed')
+                                <span class="fine">Đã đóng, đơn không có tiền để hoàn</span>
                             @elseif($return->status === 'refund_pending')
                                 <span class="fine">Chờ callback hoặc xác nhận demo</span>
                             @else

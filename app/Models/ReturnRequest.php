@@ -13,6 +13,7 @@ class ReturnRequest extends Model
         'received' => 'Đã nhận hàng',
         'refund_pending' => 'Đang hoàn tiền',
         'refunded' => 'Đã hoàn tiền',
+        'completed' => 'Hoàn tất, không cần hoàn tiền',
     ];
 
     public const REASON_LABELS = [
@@ -28,10 +29,11 @@ class ReturnRequest extends Model
     public const TRANSITIONS = [
         'requested' => ['approved', 'rejected'],
         'approved' => ['received', 'rejected'],
-        'received' => ['refund_pending'],
+        'received' => ['refund_pending', 'completed'],
         'refund_pending' => [],
         'rejected' => [],
         'refunded' => [],
+        'completed' => [],
     ];
 
     protected $fillable = ['user_id', 'status', 'reason', 'details', 'resolution', 'refund_amount', 'admin_note', 'resolved_at'];
@@ -60,7 +62,16 @@ class ReturnRequest extends Model
 
     public function allowedTransitions(): array
     {
-        return self::TRANSITIONS[$this->status] ?? [];
+        $transitions = self::TRANSITIONS[$this->status] ?? [];
+
+        // Sau khi nhận hàng: đơn còn tiền thì phải hoàn tiền, đơn không còn gì để hoàn
+        // (vd. đơn 0đ) thì chỉ đóng yêu cầu được.
+        if ($this->status === 'received') {
+            $nothingToRefund = $this->order && $this->order->refundableAmount() <= 0;
+            $transitions = array_values(array_diff($transitions, [$nothingToRefund ? 'refund_pending' : 'completed']));
+        }
+
+        return $transitions;
     }
 
     public function canTransitionTo(string $status): bool
