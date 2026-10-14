@@ -38,19 +38,19 @@ Route::get('/', [StoreController::class, 'home'])->name('home');
 Route::get('/san-pham', [StoreController::class, 'index'])->name('products.index');
 Route::get('/san-pham/{slug}', [StoreController::class, 'show'])->name('products.show');
 Route::get('/san-voucher', [VoucherController::class, 'index'])->name('vouchers.index');
-Route::post('/san-voucher/{coupon:code}/luu', [VoucherController::class, 'claim'])->middleware(['auth', 'throttle:20,1'])->name('vouchers.claim');
+Route::post('/san-voucher/{coupon:code}/luu', [VoucherController::class, 'claim'])->middleware(['auth', 'throttle:20,1,vouchers.claim'])->name('vouchers.claim');
 Route::get('/gio-hang', [CartController::class, 'index'])->name('cart.index');
 Route::post('/gio-hang/{product}', [CartController::class, 'store'])->name('cart.store');
 Route::patch('/gio-hang/{product}/{lineKey?}', [CartController::class, 'update'])->name('cart.update');
 Route::delete('/gio-hang/{product}/{lineKey?}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::middleware('auth')->group(function () {
-    Route::post('/san-pham/{product:slug}/danh-gia', [ProductReviewController::class, 'store'])->middleware('throttle:5,1')->name('products.reviews.store');
+    Route::post('/san-pham/{product:slug}/danh-gia', [ProductReviewController::class, 'store'])->middleware('throttle:5,1,products.reviews.store')->name('products.reviews.store');
     Route::get('/thanh-toan', [CheckoutController::class, 'create'])->name('checkout.create');
-    Route::get('/phi-van-chuyen', [CheckoutController::class, 'shippingQuote'])->middleware('throttle:30,1')->name('shipping.quote');
-    Route::get('/ma-uu-dai/kiem-tra', [CheckoutController::class, 'couponPreview'])->middleware('throttle:30,1')->name('coupons.preview');
-    Route::get('/dia-chi/quan-huyen', [CheckoutController::class, 'districts'])->middleware('throttle:30,1')->name('address.districts');
-    Route::get('/dia-chi/phuong-xa', [CheckoutController::class, 'wards'])->middleware('throttle:30,1')->name('address.wards');
-    Route::post('/thanh-toan', [CheckoutController::class, 'store'])->middleware('throttle:30,1')->name('checkout.store');
+    Route::get('/phi-van-chuyen', [CheckoutController::class, 'shippingQuote'])->middleware('throttle:30,1,shipping.quote')->name('shipping.quote');
+    Route::get('/ma-uu-dai/kiem-tra', [CheckoutController::class, 'couponPreview'])->middleware('throttle:30,1,coupons.preview')->name('coupons.preview');
+    Route::get('/dia-chi/quan-huyen', [CheckoutController::class, 'districts'])->middleware('throttle:30,1,address.districts')->name('address.districts');
+    Route::get('/dia-chi/phuong-xa', [CheckoutController::class, 'wards'])->middleware('throttle:30,1,address.wards')->name('address.wards');
+    Route::post('/thanh-toan', [CheckoutController::class, 'store'])->middleware('throttle:30,1,checkout.store')->name('checkout.store');
 });
 Route::get('/thanh-toan/vnpay/return', [VnPayController::class, 'return'])->name('payments.vnpay.return');
 Route::get('/thanh-toan/vnpay/ipn', [VnPayController::class, 'ipn'])->name('payments.vnpay.ipn');
@@ -62,7 +62,7 @@ Route::get('/thanh-toan/momo/return/{order}', [MomoController::class, 'return'])
 Route::post('/thanh-toan/momo/ipn', [MomoController::class, 'ipn'])->name('payments.momo.ipn');
 Route::post('/thanh-toan/hoan-tien/{provider}/callback', RefundWebhookController::class)->name('payments.refunds.callback');
 Route::get('/thanh-toan/sepay/{order}', [SepayController::class, 'payment'])->name('payments.sepay.payment');
-Route::get('/thanh-toan/sepay/{order}/trang-thai', [SepayController::class, 'status'])->middleware('throttle:60,1')->name('payments.sepay.status');
+Route::get('/thanh-toan/sepay/{order}/trang-thai', [SepayController::class, 'status'])->middleware('throttle:60,1,payments.sepay.status')->name('payments.sepay.status');
 Route::get('/don-hang/{order}', [CheckoutController::class, 'show'])->name('orders.show');
 Route::get('/dat-hang/{order}/thanh-cong', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function () {
@@ -87,27 +87,27 @@ Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function
 });
 Route::middleware('guest')->group(function () {
     Route::get('/dang-nhap', [AuthController::class, 'loginForm'])->name('login');
-    Route::post('/dang-nhap', [AuthController::class, 'login'])->middleware('throttle:20,1');
+    Route::post('/dang-nhap', [AuthController::class, 'login'])->middleware('throttle:20,1,login');
     Route::get('/dang-ky', [AuthController::class, 'registerForm'])->name('register');
     Route::post('/dang-ky', [AuthController::class, 'register']);
     Route::get('/quen-mat-khau', [AuthController::class, 'forgotPasswordForm'])->name('password.request');
-    Route::post('/quen-mat-khau', [AuthController::class, 'sendResetLinkEmail'])->middleware('throttle:5,1')->name('password.email');
+    Route::post('/quen-mat-khau', [AuthController::class, 'sendResetLinkEmail'])->middleware('throttle:5,1,password.email')->name('password.email');
     Route::get('/dat-lai-mat-khau/{token}', [AuthController::class, 'resetPasswordForm'])->name('password.reset');
-    Route::post('/dat-lai-mat-khau', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
+    Route::post('/dat-lai-mat-khau', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1,password.update')->name('password.update');
     Route::get('/xac-thuc-quan-tri', [AuthController::class, 'adminTwoFactorForm'])->name('admin.two-factor.challenge');
-    Route::post('/xac-thuc-quan-tri', [AuthController::class, 'verifyAdminTwoFactor'])->middleware('throttle:8,1')->name('admin.two-factor.verify');
-    Route::post('/xac-thuc-quan-tri/gui-lai', [AuthController::class, 'resendAdminTwoFactor'])->middleware('throttle:3,1')->name('admin.two-factor.resend');
+    Route::post('/xac-thuc-quan-tri', [AuthController::class, 'verifyAdminTwoFactor'])->middleware('throttle:8,1,admin.two-factor.verify')->name('admin.two-factor.verify');
+    Route::post('/xac-thuc-quan-tri/gui-lai', [AuthController::class, 'resendAdminTwoFactor'])->middleware('throttle:3,1,admin.two-factor.resend')->name('admin.two-factor.resend');
 });
 Route::get('/auth/{provider}', [AuthController::class, 'redirectToProvider'])->where('provider', 'google|facebook')->name('social.redirect');
 Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderCallback'])->where('provider', 'google|facebook')->name('social.callback');
 Route::post('/dang-xuat', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 Route::prefix('ho-tro/tin-nhan')->name('chat.')->group(function () {
     Route::get('/hien-tai', [CustomerChatController::class, 'current'])->name('current');
-    Route::post('/hoi-thoai', [CustomerChatController::class, 'store'])->middleware('throttle:5,1')->block(10, 10)->name('conversations.store');
-    Route::get('/hoi-thoai/{conversation}', [CustomerChatController::class, 'show'])->middleware('throttle:60,1')->name('conversations.show');
-    Route::post('/hoi-thoai/{conversation}/tin-nhan', [CustomerChatController::class, 'message'])->middleware('throttle:20,1')->name('messages.store');
-    Route::post('/hoi-thoai/{conversation}/nhan-vien', [CustomerChatController::class, 'handoff'])->middleware('throttle:20,1')->name('handoff');
-    Route::post('/hoi-thoai/{conversation}/da-doc', [CustomerChatController::class, 'read'])->middleware('throttle:30,1')->name('read');
+    Route::post('/hoi-thoai', [CustomerChatController::class, 'store'])->middleware('throttle:5,1,chat.conversations.store')->block(10, 10)->name('conversations.store');
+    Route::get('/hoi-thoai/{conversation}', [CustomerChatController::class, 'show'])->middleware('throttle:60,1,chat.conversations.show')->name('conversations.show');
+    Route::post('/hoi-thoai/{conversation}/tin-nhan', [CustomerChatController::class, 'message'])->middleware('throttle:20,1,chat.messages.store')->name('messages.store');
+    Route::post('/hoi-thoai/{conversation}/nhan-vien', [CustomerChatController::class, 'handoff'])->middleware('throttle:20,1,chat.handoff')->name('handoff');
+    Route::post('/hoi-thoai/{conversation}/da-doc', [CustomerChatController::class, 'read'])->middleware('throttle:30,1,chat.read')->name('read');
     Route::get('/tep/{message}', [CustomerChatController::class, 'attachment'])->middleware('signed')->name('attachments.show');
 });
 Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.')->group(function () {
@@ -137,7 +137,7 @@ Route::prefix('admin')->middleware(['auth', 'admin', 'admin.2fa'])->name('admin.
     Route::patch('/lien-he/{contact}', [AdminContactController::class, 'update'])->middleware('permission:contacts.manage')->name('contacts.update');
     Route::get('/tin-nhan', [AdminChatController::class, 'index'])->middleware('permission:chats.view')->name('chats');
     Route::get('/tin-nhan/du-lieu', [AdminChatController::class, 'data'])->middleware('permission:chats.view')->name('chats.data');
-    Route::post('/tin-nhan/{conversation}/tra-loi', [AdminChatController::class, 'reply'])->middleware(['permission:chats.reply', 'throttle:60,1'])->name('chats.reply');
+    Route::post('/tin-nhan/{conversation}/tra-loi', [AdminChatController::class, 'reply'])->middleware(['permission:chats.reply', 'throttle:60,1,admin.chats.reply'])->name('chats.reply');
     Route::patch('/tin-nhan/{conversation}', [AdminChatController::class, 'update'])->middleware('permission:chats.manage')->name('chats.update');
     Route::patch('/tin-nhan/{conversation}/phan-cong', [AdminChatController::class, 'assign'])->middleware('permission:chats.assign')->name('chats.assign');
     Route::post('/tin-nhan/{conversation}/tiep-nhan', [AdminChatController::class, 'accept'])->middleware('permission:chats.reply')->name('chats.accept');
@@ -170,7 +170,7 @@ Route::view('/ve-pawora', 'pages.about')->name('about');
 Route::view('/dieu-khoan-mua-hang', 'pages.terms')->name('legal.terms');
 Route::view('/chinh-sach-bao-mat', 'pages.privacy')->name('legal.privacy');
 Route::get('/lien-he', [ContactController::class, 'create'])->name('contact');
-Route::post('/lien-he', [ContactController::class, 'store'])->middleware('throttle:5,1')->name('contact.store');
+Route::post('/lien-he', [ContactController::class, 'store'])->middleware('throttle:5,1,contact.store')->name('contact.store');
 Route::get('/sitemap.xml', function () {
     $urls = collect([route('home'), route('products.index'), route('about'), route('contact')])
         ->merge(Product::active()->pluck('slug')->map(fn ($slug) => route('products.show', $slug)));

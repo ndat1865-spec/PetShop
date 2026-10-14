@@ -138,6 +138,27 @@ class ProductReviewTest extends TestCase
             ->assertSee('Đã mua hàng');
     }
 
+    public function test_other_throttled_requests_do_not_use_up_the_review_limit(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $product = $this->product();
+        $this->deliveredOrder($customer, $product);
+
+        // Khung chat tự gọi máy chủ liên tục; các lượt đó không được tính vào giới hạn gửi đánh giá.
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($customer)->getJson(route('address.districts'));
+        }
+
+        $this->actingAs($customer)
+            ->post(route('products.reviews.store', $product), [
+                'rating' => 5,
+                'comment' => 'Bé nhà tôi rất thích.',
+            ])
+            ->assertRedirect(route('products.show', $product->slug).'#danh-gia');
+
+        $this->assertDatabaseHas('product_reviews', ['product_id' => $product->id, 'user_id' => $customer->id]);
+    }
+
     public function test_customer_can_submit_a_short_non_empty_review(): void
     {
         $customer = User::factory()->create(['role' => 'customer']);
