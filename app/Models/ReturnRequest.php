@@ -15,6 +15,16 @@ class ReturnRequest extends Model
         'refunded' => 'Đã hoàn tiền',
     ];
 
+    public const REASON_LABELS = [
+        'wrong_item' => 'Giao sai sản phẩm',
+        'damaged' => 'Sản phẩm bị hư hỏng',
+        'not_fit' => 'Không phù hợp',
+        'changed_mind' => 'Thay đổi nhu cầu',
+        'other' => 'Lý do khác',
+    ];
+
+    public const OPEN_STATUSES = ['requested', 'approved', 'received', 'refund_pending'];
+
     public const TRANSITIONS = [
         'requested' => ['approved', 'rejected'],
         'approved' => ['received', 'rejected'],
@@ -41,6 +51,11 @@ class ReturnRequest extends Model
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst($this->status);
+    }
+
+    public function reasonLabel(): string
+    {
+        return self::REASON_LABELS[$this->reason] ?? $this->reason;
     }
 
     public function allowedTransitions(): array

@@ -66,16 +66,16 @@
         @if($returnRequest)
             <section class="order-detail-section return-status-card">
                 <div class="return-status-card__head"><div><p class="eyebrow">Yêu cầu đổi trả</p><h2>{{ $returnRequest->statusLabel() }}</h2></div><span class="order-status status-{{ $returnRequest->status }}">{{ $returnRequest->statusLabel() }}</span></div>
-                <dl><div><dt>Gửi lúc</dt><dd>{{ $returnRequest->created_at->format('H:i d/m/Y') }}</dd></div><div><dt>Lý do</dt><dd>{{ ['wrong_item'=>'Giao sai sản phẩm','damaged'=>'Sản phẩm bị hư hỏng','not_fit'=>'Không phù hợp','changed_mind'=>'Thay đổi nhu cầu','other'=>'Lý do khác'][$returnRequest->reason] ?? $returnRequest->reason }}</dd></div></dl>
+                <dl><div><dt>Gửi lúc</dt><dd>{{ $returnRequest->created_at->format('H:i d/m/Y') }}</dd></div><div><dt>Lý do</dt><dd>{{ $returnRequest->reasonLabel() }}</dd></div></dl>
                 <p>{{ $returnRequest->details }}</p>
                 @if($returnRequest->resolution)<p class="return-resolution"><strong>Hướng xử lý:</strong> {{ $returnRequest->resolution }}</p>@endif
             </section>
         @elseif($order->canRequestReturn())
-            <details class="order-detail-section return-request" id="return-request" @if($errors->hasAny(['reason','details'])) open @endif>
+            <details class="order-detail-section return-request" id="return-request" @if($errors->hasAny(['reason','details']) || request('focus') === 'return') open @endif>
                 <summary>Yêu cầu đổi trả</summary>
                 <p class="fine">Bạn có thể gửi yêu cầu đến hết <strong>{{ $returnDeadline?->format('H:i d/m/Y') }}</strong>, tính từ thời điểm đơn được giao thành công.</p>
                 <form method="post" action="{{ route('account.returns.store',$order) }}">@csrf
-                    <label for="return-reason">Lý do<select id="return-reason" name="reason" required @error('reason') aria-invalid="true" @enderror><option value="">Chọn lý do</option><option value="wrong_item" @selected(old('reason')==='wrong_item')>Giao sai sản phẩm</option><option value="damaged" @selected(old('reason')==='damaged')>Sản phẩm bị hư hỏng</option><option value="not_fit" @selected(old('reason')==='not_fit')>Không phù hợp</option><option value="changed_mind" @selected(old('reason')==='changed_mind')>Thay đổi nhu cầu</option><option value="other" @selected(old('reason')==='other')>Lý do khác</option></select></label>
+                    <label for="return-reason">Lý do<select id="return-reason" name="reason" required @error('reason') aria-invalid="true" @enderror><option value="">Chọn lý do</option>@foreach(\App\Models\ReturnRequest::REASON_LABELS as $reasonValue => $reasonLabel)<option value="{{ $reasonValue }}" @selected(old('reason')===$reasonValue)>{{ $reasonLabel }}</option>@endforeach</select></label>
                     @error('reason')<p class="field-error" role="alert">{{ $message }}</p>@enderror
                     <label for="return-details">Mô tả chi tiết<textarea id="return-details" name="details" minlength="10" maxlength="1000" required @error('details') aria-invalid="true" @enderror placeholder="Mô tả tình trạng sản phẩm và mong muốn xử lý">{{ old('details') }}</textarea></label>
                     @error('details')<p class="field-error" role="alert">{{ $message }}</p>@enderror

@@ -3,7 +3,6 @@
 @section('content')
 @php
     $accountSection = 'returns';
-    $reasonLabels = ['wrong_item'=>'Giao sai sản phẩm','damaged'=>'Sản phẩm bị hư hỏng','not_fit'=>'Không phù hợp','changed_mind'=>'Thay đổi nhu cầu','other'=>'Lý do khác'];
 @endphp
 <section class="container member-account-layout">
     @include('account._sidebar')
@@ -26,7 +25,7 @@
                 <div>
                     @foreach($eligibleOrders as $order)
                         @php($item = $order->items->first())
-                        <a class="member-return-eligible-row" href="{{ route('account.orders.show', $order) }}#return-request">
+                        <a class="member-return-eligible-row" href="{{ route('account.orders.show', ['order' => $order, 'focus' => 'return']) }}#return-request">
                             <span class="member-order-image">@if($item?->product?->image)<img src="{{ $item->product->image }}" alt="" width="52" height="52">@else<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg>@endif</span>
                             <span><strong>{{ $order->number }}</strong><small>Hạn gửi: {{ $order->returnDeadline()?->format('H:i d/m/Y') }}</small></span>
                             <b>Gửi yêu cầu <span aria-hidden="true">›</span></b>
@@ -43,7 +42,7 @@
                     @php($order = $returnRequest->order)
                     <article class="member-return-card">
                         <header><div><small>{{ $returnRequest->created_at->format('H:i · d/m/Y') }}</small><h3>{{ $order->number }}</h3></div><span class="member-order-status status-{{ $returnRequest->status }}">{{ $returnRequest->statusLabel() }}</span></header>
-                        <dl><div><dt>Lý do</dt><dd>{{ $reasonLabels[$returnRequest->reason] ?? $returnRequest->reason }}</dd></div><div><dt>Số tiền hoàn</dt><dd>{{ $returnRequest->refund_amount ? number_format($returnRequest->refund_amount, 0, ',', '.').'đ' : 'Chưa xác định' }}</dd></div></dl>
+                        <dl><div><dt>Lý do</dt><dd>{{ $returnRequest->reasonLabel() }}</dd></div><div><dt>Số tiền hoàn</dt><dd>{{ $returnRequest->refund_amount ? number_format($returnRequest->refund_amount, 0, ',', '.').'đ' : 'Chưa xác định' }}</dd></div></dl>
                         <p>{{ $returnRequest->details }}</p>
                         @if($returnRequest->resolution)<aside><strong>Hướng xử lý</strong><p>{{ $returnRequest->resolution }}</p></aside>@endif
                         <footer><a href="{{ route('account.orders.show', $order) }}">Xem đơn hàng <span aria-hidden="true">›</span></a></footer>

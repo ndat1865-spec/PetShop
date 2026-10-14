@@ -192,13 +192,33 @@ class Order extends Model
         return $this->deliveredAt()?->copy()->addDays((int) config('pawora.returns.window_days', 7));
     }
 
+    /**
+     * Lý do đơn không được gửi yêu cầu đổi trả, hoặc null nếu được gửi. Mỗi đơn chỉ có một yêu cầu đổi trả.
+     */
+    public function returnBlockReason(): ?string
+    {
+        if ($this->returnRequests->whereIn('status', ReturnRequest::OPEN_STATUSES)->isNotEmpty()) {
+            return 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.';
+        }
+        if ($this->returnRequests->isNotEmpty() || in_array($this->payment_status, ['refund_pending', 'refunded'], true)) {
+            return 'Đơn hàng đã được xử lý đổi trả hoặc hoàn tiền nên không thể gửi thêm yêu cầu.';
+        }
+
+        $deadline = $this->returnDeadline();
+        if ($this->status !== 'delivered' || $deadline === null || now()->greaterThan($deadline)) {
+            return 'Đơn hàng không nằm trong thời hạn đổi trả tính từ lúc giao thành công.';
+        }
+
+        return null;
+    }
+
     public function canRequestReturn(): bool
     {
-        $deadline = $this->returnDeadline();
+        return $this->returnBlockReason() === null;
+    }
 
-        return $this->status === 'delivered'
-            && $deadline !== null
-            && now()->lessThanOrEqualTo($deadline)
-            && ! $this->returnRequests->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->isNotEmpty();
+    public function refundableAmount(): int
+    {
+        return max(0, (int) $this->total - (int) $this->refunded_amount);
     }
 }

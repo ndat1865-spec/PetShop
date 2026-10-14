@@ -18,7 +18,7 @@
                     <tr>
                         <td><a class="text-link" href="{{ route('admin.orders.show', $return->order) }}">{{ $return->order?->number }}</a></td>
                         <td>{{ $return->user?->name ?: $return->order?->customer_name }}</td>
-                        <td>{{ $return->reason }}<small>{{ $return->details }}</small></td>
+                        <td>{{ $return->reasonLabel() }}<small>{{ $return->details }}</small></td>
                         <td><span class="admin-badge {{ $return->status }}">{{ $return->statusLabel() }}</span></td>
                         <td>
                             @if($transitions)
@@ -30,7 +30,7 @@
                                         @endforeach
                                     </select>
                                     @if(in_array('refund_pending', $transitions, true))
-                                        <input name="refund_amount" type="number" min="1" max="{{ $return->order?->total }}" value="{{ $return->refund_amount }}" placeholder="Số tiền hoàn" required>
+                                        <input name="refund_amount" type="number" min="1" max="{{ $return->order?->refundableAmount() }}" value="{{ $return->refund_amount ?: '' }}" placeholder="Tối đa {{ number_format($return->order?->refundableAmount() ?? 0, 0, ',', '.') }}đ" aria-label="Số tiền hoàn" required>
                                     @endif
                                     <input name="resolution" value="{{ $return->resolution }}" placeholder="Hướng xử lý">
                                     <input name="admin_note" value="{{ $return->admin_note }}" placeholder="Ghi chú">

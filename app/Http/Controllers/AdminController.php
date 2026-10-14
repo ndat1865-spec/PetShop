@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class AdminController extends Controller
 {
@@ -789,25 +790,41 @@ class AdminController extends Controller
 
     public function updateReturn(Request $request, ReturnRequest $return, RefundService $refunds, AdminAuditLogger $audit)
     {
-        $data = $request->validate(['status' => 'required|in:requested,approved,rejected,received,refund_pending', 'resolution' => 'nullable|string|max:255', 'refund_amount' => 'nullable|numeric|min:0', 'admin_note' => 'nullable|string|max:1000']);
+        $refundable = (int) $return->order?->refundableAmount();
+        $data = $request->validate([
+            'status' => 'required|in:requested,approved,rejected,received,refund_pending',
+            'resolution' => 'nullable|string|max:255',
+            'refund_amount' => ['exclude_unless:status,refund_pending', 'required', 'integer', 'min:1', 'max:'.$refundable],
+            'admin_note' => 'nullable|string|max:1000',
+        ], [
+            'status.required' => 'Vui lòng chọn bước xử lý tiếp theo.',
+            'status.in' => 'Trạng thái đổi trả không hợp lệ.',
+            'resolution.max' => 'Hướng xử lý không được vượt quá 255 ký tự.',
+            'refund_amount.required' => 'Vui lòng nhập số tiền cần hoàn.',
+            'refund_amount.integer' => 'Số tiền hoàn phải là số nguyên.',
+            'refund_amount.min' => 'Số tiền hoàn phải lớn hơn 0đ.',
+            'refund_amount.max' => 'Số tiền hoàn tối đa cho đơn này là '.number_format($refundable, 0, ',', '.').'đ.',
+            'admin_note.max' => 'Ghi chú không được vượt quá 1.000 ký tự.',
+        ]);
         $previousStatus = $return->status;
         abort_unless($return->canTransitionTo($data['status']), 422, 'Không thể chuyển yêu cầu đổi trả sang trạng thái này.');
         if ($data['status'] === 'refund_pending') {
             abort_unless($request->user()->hasPermission('payments.refund'), 403);
             abort_unless($return->order && in_array($return->order->payment_status, ['paid', 'refund_pending'], true), 422, 'Đơn hàng chưa có khoản thanh toán đủ điều kiện hoàn.');
-            abort_unless((int) ($data['refund_amount'] ?? 0) > 0, 422, 'Vui lòng nhập số tiền cần hoàn.');
         }
         $return->update([...$data, 'resolved_at' => $data['status'] === 'rejected' ? now() : null]);
 
         if ($data['status'] === 'refund_pending') {
-            $amount = (int) ($data['refund_amount'] ?? 0);
             try {
-                $refunds->request($return->order, $amount, ['source' => 'return_request', 'return_request_id' => $return->id]);
+                $refunds->request($return->order, (int) $data['refund_amount'], ['source' => 'return_request', 'return_request_id' => $return->id]);
             } catch (\Throwable $exception) {
                 report($exception);
                 $return->update(['status' => $previousStatus]);
+                $message = $exception instanceof HttpExceptionInterface && $exception->getMessage() !== ''
+                    ? $exception->getMessage()
+                    : 'Cổng thanh toán chưa nhận yêu cầu hoàn tiền. Vui lòng thử lại.';
 
-                return back()->withErrors(['refund' => 'Cổng thanh toán chưa nhận yêu cầu hoàn tiền. Vui lòng thử lại.']);
+                return back()->withErrors(['refund' => $message]);
             }
         }
 

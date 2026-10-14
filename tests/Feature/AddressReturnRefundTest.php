@@ -121,8 +121,14 @@ class AddressReturnRefundTest extends TestCase
 
         $eligible = $this->order($user);
         $eligible->shipments()->create(['provider' => 'manual', 'status' => 'delivered', 'delivered_at' => now()->subDays(2)]);
-        $this->actingAs($user)->get(route('account.orders.show', $eligible))
+        $openReturnForm = '/id="return-request"\s+open\b/';
+        $orderPage = $this->actingAs($user)->get(route('account.orders.show', $eligible))
             ->assertOk()->assertSee('Yêu cầu đổi trả')->assertSee($eligible->returnDeadline()?->format('H:i d/m/Y'));
+        $this->assertDoesNotMatchRegularExpression($openReturnForm, $orderPage->getContent());
+        $returnFormUrl = route('account.orders.show', ['order' => $eligible, 'focus' => 'return']);
+        $this->actingAs($user)->get(route('account.returns.index'))
+            ->assertOk()->assertSee(e($returnFormUrl).'#return-request', false);
+        $this->assertMatchesRegularExpression($openReturnForm, $this->actingAs($user)->get($returnFormUrl)->assertOk()->getContent());
 
         $this->actingAs($user)->post(route('account.returns.store', $eligible), [
             'reason' => 'damaged', 'details' => 'Sản phẩm bị vỡ khi mở hộp.',
@@ -147,6 +153,73 @@ class AddressReturnRefundTest extends TestCase
             'reason' => 'other', 'details' => 'Tôi muốn gửi yêu cầu đổi trả.',
         ])->assertForbidden();
         $this->assertDatabaseCount('return_requests', 0);
+    }
+
+    public function test_return_form_errors_are_in_vietnamese(): void
+    {
+        $user = User::factory()->create();
+        $order = $this->order($user);
+        $order->shipments()->create(['provider' => 'manual', 'status' => 'delivered', 'delivered_at' => now()->subDay()]);
+
+        $this->actingAs($user)->post(route('account.returns.store', $order), ['reason' => 'damaged', 'details' => 'Hu'])
+            ->assertSessionHasErrors(['details' => 'Mô tả cần ít nhất 10 ký tự.']);
+        $this->actingAs($user)->post(route('account.returns.store', $order), ['details' => 'Sản phẩm bị vỡ khi mở hộp.'])
+            ->assertSessionHasErrors(['reason' => 'Vui lòng chọn lý do đổi trả.']);
+        $this->assertDatabaseCount('return_requests', 0);
+    }
+
+    public function test_second_return_request_reports_the_open_request(): void
+    {
+        $user = User::factory()->create();
+        $order = $this->order($user);
+        $order->shipments()->create(['provider' => 'manual', 'status' => 'delivered', 'delivered_at' => now()->subDay()]);
+        $payload = ['reason' => 'damaged', 'details' => 'Sản phẩm bị vỡ khi mở hộp.'];
+
+        $this->actingAs($user)->post(route('account.returns.store', $order), $payload)->assertSessionHas('success');
+        $this->actingAs($user)->postJson(route('account.returns.store', $order), $payload)
+            ->assertStatus(422)->assertJson(['message' => 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.']);
+        $this->assertDatabaseCount('return_requests', 1);
+    }
+
+    public function test_order_with_a_finished_return_cannot_be_returned_again(): void
+    {
+        $user = User::factory()->create();
+        $refunded = $this->order($user, ['payment_status' => 'refunded', 'refunded_amount' => 200000]);
+        $refunded->shipments()->create(['provider' => 'manual', 'status' => 'delivered', 'delivered_at' => now()->subDay()]);
+        $refunded->returnRequests()->create(['user_id' => $user->id, 'status' => 'refunded', 'reason' => 'damaged', 'details' => 'Hàng lỗi.', 'refund_amount' => 200000]);
+        $rejected = $this->order($user);
+        $rejected->shipments()->create(['provider' => 'manual', 'status' => 'delivered', 'delivered_at' => now()->subDay()]);
+        $rejected->returnRequests()->create(['user_id' => $user->id, 'status' => 'rejected', 'reason' => 'changed_mind', 'details' => 'Không còn nhu cầu.']);
+
+        $this->actingAs($user)->get(route('account.returns.index'))
+            ->assertOk()
+            ->assertViewHas('eligibleOrders', fn ($orders) => $orders->isEmpty());
+        foreach ([$refunded, $rejected] as $order) {
+            $this->actingAs($user)->postJson(route('account.returns.store', $order), ['reason' => 'other', 'details' => 'Tôi muốn đổi trả lần nữa.'])
+                ->assertStatus(422)->assertJson(['message' => 'Đơn hàng đã được xử lý đổi trả hoặc hoàn tiền nên không thể gửi thêm yêu cầu.']);
+        }
+        $this->assertDatabaseCount('return_requests', 2);
+    }
+
+    public function test_admin_return_list_shows_reason_label_and_rejects_refund_above_order_total(): void
+    {
+        $customer = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order($customer);
+        $return = $order->returnRequests()->create([
+            'user_id' => $customer->id, 'status' => 'received', 'reason' => 'damaged', 'details' => 'Hàng lỗi.',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.returns'))
+            ->assertOk()->assertSee('Sản phẩm bị hư hỏng')
+            ->assertSee('max="200000" value="" placeholder="Tối đa 200.000đ"', false);
+
+        $this->actingAs($admin)->patch(route('admin.returns.update', $return), [
+            'status' => 'refund_pending', 'refund_amount' => 999999,
+        ])->assertSessionHasErrors(['refund_amount' => 'Số tiền hoàn tối đa cho đơn này là 200.000đ.']);
+
+        $this->assertDatabaseHas('return_requests', ['id' => $return->id, 'status' => 'received', 'refund_amount' => 0]);
+        $this->assertDatabaseCount('payment_transactions', 0);
     }
 
     public function test_refund_stays_pending_until_a_signed_callback_and_callback_is_idempotent(): void

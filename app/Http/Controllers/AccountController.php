@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class AccountController extends Controller
@@ -89,7 +90,7 @@ class AccountController extends Controller
             'eligibleOrders' => $eligibleOrders,
             'returnStats' => [
                 'total' => ReturnRequest::where('user_id', $user->id)->count(),
-                'processing' => ReturnRequest::where('user_id', $user->id)->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->count(),
+                'processing' => ReturnRequest::where('user_id', $user->id)->whereIn('status', ReturnRequest::OPEN_STATUSES)->count(),
                 'refunded' => ReturnRequest::where('user_id', $user->id)->where('status', 'refunded')->count(),
             ],
         ]);
@@ -461,12 +462,25 @@ class AccountController extends Controller
     {
         abort_unless($order->user_id === $request->user()->id, 403);
         $order->loadMissing(['shipments', 'returnRequests']);
-        abort_unless($order->canRequestReturn(), 422, 'Đơn hàng không nằm trong thời hạn đổi trả tính từ lúc giao thành công.');
-        $data = $request->validate(['reason' => 'required|in:wrong_item,damaged,not_fit,changed_mind,other', 'details' => 'required|string|min:10|max:1000']);
+        if ($blockReason = $order->returnBlockReason()) {
+            abort(422, $blockReason);
+        }
+        $data = $request->validate([
+            'reason' => ['required', Rule::in(array_keys(ReturnRequest::REASON_LABELS))],
+            'details' => ['required', 'string', 'min:10', 'max:1000'],
+        ], [
+            'reason.required' => 'Vui lòng chọn lý do đổi trả.',
+            'reason.in' => 'Lý do đổi trả không hợp lệ.',
+            'details.required' => 'Vui lòng mô tả tình trạng sản phẩm.',
+            'details.min' => 'Mô tả cần ít nhất 10 ký tự.',
+            'details.max' => 'Mô tả không được vượt quá 1.000 ký tự.',
+        ]);
         DB::transaction(function () use ($request, $order, $data) {
-            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            $lockedOrder = Order::query()->lockForUpdate()->with(['shipments', 'returnRequests'])->findOrFail($order->id);
             abort_unless($lockedOrder->user_id === $request->user()->id, 403);
-            abort_if($lockedOrder->returnRequests()->whereIn('status', ['requested', 'approved', 'received', 'refund_pending'])->exists(), 422, 'Đơn hàng đã có yêu cầu đổi trả đang xử lý.');
+            if ($blockReason = $lockedOrder->returnBlockReason()) {
+                abort(422, $blockReason);
+            }
             $lockedOrder->returnRequests()->create([...$data, 'user_id' => $request->user()->id]);
         });
 
