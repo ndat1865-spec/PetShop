@@ -735,9 +735,8 @@ class AdminController extends Controller
                             : ' Admin xác nhận giao thành công khi khách chưa bấm xác nhận nhận hàng.';
                     }
 
-                    if ($targetOrderStatus === 'delivered' && $lockedOrder->payment_method === 'cod' && $lockedOrder->payment_status !== 'paid') {
-                        $orderChanges['payment_status'] = 'paid';
-                        $orderChanges['paid_at'] = now();
+                    if ($targetOrderStatus === 'delivered' && $codPayment = $lockedOrder->codPaymentOnDelivery()) {
+                        $orderChanges += $codPayment;
                         $historyNote .= ' Thanh toán COD được ghi nhận hoàn tất.';
                     }
 

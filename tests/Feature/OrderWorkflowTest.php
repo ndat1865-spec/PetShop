@@ -34,6 +34,23 @@ class OrderWorkflowTest extends TestCase
         ], $overrides));
     }
 
+    private function product(string $name, string $slug): Product
+    {
+        $category = Category::firstOrCreate(['slug' => 'thuc-an-order-workflow'], ['name' => 'Thức ăn', 'is_active' => true]);
+
+        return Product::create([
+            'category_id' => $category->id,
+            'name' => $name,
+            'slug' => $slug,
+            'sku' => 'PAW-'.Str::upper(Str::random(8)),
+            'pet_type' => 'cat',
+            'short_description' => 'Sản phẩm dùng để kiểm thử luồng đơn hàng.',
+            'price' => 200000,
+            'stock' => 5,
+            'status' => 'active',
+        ]);
+    }
+
     public function test_cancelled_refund_pending_order_has_no_invalid_admin_actions(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -160,15 +177,37 @@ class OrderWorkflowTest extends TestCase
         $this->actingAs($customer)->get(route('account.orders.show', $order))
             ->assertOk()
             ->assertSee('Đã giao hàng')
+            ->assertSee('Đã nhận hàng')
+            ->assertSee('Tôi đã nhận được hàng')
+            ->assertDontSee('Đánh giá sản phẩm');
+        $deliveredAt = $order->shipments()->firstOrFail()->delivered_at;
+        // Khách vẫn xác nhận được sau khi admin đã hoàn tất giao vận.
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))
+            ->assertRedirect(route('account.orders.received.success', $order));
+        $shipment = $order->shipments()->firstOrFail();
+        $this->assertNotNull($shipment->customer_received_at);
+        $this->assertTrue($shipment->delivered_at->equalTo($deliveredAt));
+        $this->actingAs($customer)->get(route('account.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Bạn đã xác nhận nhận hàng')
+            ->assertSee('Đánh giá sản phẩm')
             ->assertDontSee('Tôi đã nhận được hàng');
-        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertStatus(422);
     }
 
-    public function test_customer_receipt_confirmation_is_recorded_once_and_does_not_complete_the_order(): void
+    public function test_customer_receipt_confirmation_completes_the_order_and_opens_the_review_page(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create();
-        $order = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid']);
+        $product = $this->product('Pate cá hồi Purr', 'pate-ca-hoi-purr');
+        $order = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid', 'paid_at' => now()]);
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'sku' => $product->sku,
+            'unit_price' => 200000,
+            'quantity' => 1,
+            'line_total' => 200000,
+        ]);
         $order->shipments()->create([
             'provider' => 'GHN',
             'tracking_code' => 'GHN-RECEIPT-01',
@@ -178,33 +217,98 @@ class OrderWorkflowTest extends TestCase
         ]);
 
         $this->actingAs($customer)->patch(route('account.orders.received', $order))
-            ->assertRedirect()
-            ->assertSessionHas('success');
-        $this->assertSame('shipped', $order->fresh()->status);
-        $this->assertNotNull($order->shipments()->firstOrFail()->customer_received_at);
+            ->assertRedirect(route('account.orders.received.success', $order));
 
-        // Gửi lại cùng xác nhận không được tạo thêm lịch sử hoặc thay đổi trạng thái đơn.
-        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertRedirect();
-        $this->assertSame(1, $order->histories()->where('note', 'Khách hàng xác nhận đã nhận được kiện hàng.')->count());
+        $shipment = $order->shipments()->firstOrFail();
+        $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertSame('delivered', $shipment->status);
+        $this->assertNotNull($shipment->customer_received_at);
+        $this->assertNotNull($shipment->delivered_at);
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id' => $order->id,
+            'user_id' => $customer->id,
+            'from_status' => 'shipped',
+            'to_status' => 'delivered',
+            'note' => 'Khách hàng xác nhận đã nhận hàng; đơn được hoàn tất.',
+        ]);
 
+        // Gửi lại cùng xác nhận không được tạo thêm lịch sử.
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))
+            ->assertRedirect(route('account.orders.received.success', $order));
+        $this->assertSame(1, $order->histories()->where('to_status', 'delivered')->count());
+
+        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+            ->assertOk()
+            ->assertSee('Nhận hàng thành công')
+            ->assertSee($product->name)
+            ->assertSee('Viết đánh giá')
+            ->assertSee(route('products.show', $product->slug).'#danh-gia', false);
+
+        // Admin thấy đơn đã giao thành công mà không cần thao tác, và vận chuyển đã khóa.
         $this->actingAs($admin)->get(route('admin.orders.show', $order))
             ->assertOk()
+            ->assertSee('Đơn đã giao thành công')
             ->assertSee('Khách đã xác nhận nhận hàng');
         $this->actingAs($admin)->patch(route('admin.shipments.update', $order), [
             'provider' => 'GHN',
             'status' => 'delivered',
             'fee' => 30000,
-        ])->assertRedirect();
+        ])->assertStatus(422);
 
-        $this->assertSame('delivered', $order->fresh()->status);
+        $this->actingAs($customer)->post(route('products.reviews.store', $product), [
+            'rating' => 5,
+            'comment' => 'Bé ăn rất ngon miệng.',
+        ])->assertRedirect();
+        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+            ->assertOk()
+            ->assertSee('Đã đánh giá')
+            ->assertSee('Sửa đánh giá');
+    }
+
+    public function test_customer_receipt_confirmation_settles_cod_payment(): void
+    {
+        $customer = User::factory()->create();
+        $order = $this->order($customer, [
+            'status' => 'shipped',
+            'payment_method' => 'cod',
+            'payment_status' => 'unpaid',
+            'paid_at' => null,
+        ]);
+        $order->shipments()->create([
+            'provider' => 'GHN',
+            'tracking_code' => 'GHN-COD-RECEIPT-01',
+            'status' => 'shipped',
+            'fee' => 30000,
+            'shipped_at' => now(),
+        ]);
+
+        $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertRedirect();
+
+        $order->refresh();
+        $this->assertSame('delivered', $order->status);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertNotNull($order->paid_at);
         $this->assertDatabaseHas('order_status_histories', [
             'order_id' => $order->id,
             'to_status' => 'delivered',
-            'note' => 'Đồng bộ từ vận chuyển: Đã giao hàng. Khách đã xác nhận nhận hàng.',
+            'note' => 'Khách hàng xác nhận đã nhận hàng; đơn được hoàn tất. Thanh toán COD được ghi nhận hoàn tất.',
         ]);
     }
 
-    public function test_only_the_order_owner_can_confirm_receipt_and_only_while_shipping(): void
+    public function test_received_page_is_only_for_the_owner_of_a_delivered_order(): void
+    {
+        $customer = User::factory()->create();
+        $otherCustomer = User::factory()->create();
+        $order = $this->order($customer, ['status' => 'shipped', 'payment_status' => 'paid']);
+
+        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+            ->assertRedirect(route('account.orders.show', $order));
+
+        $order->update(['status' => 'delivered']);
+        $this->actingAs($otherCustomer)->get(route('account.orders.received.success', $order))->assertForbidden();
+    }
+
+    public function test_only_the_order_owner_can_confirm_receipt_for_shipping_or_delivered_orders(): void
     {
         $customer = User::factory()->create();
         $otherCustomer = User::factory()->create();
@@ -224,6 +328,52 @@ class OrderWorkflowTest extends TestCase
         $shipment->update(['status' => 'packed']);
         $this->actingAs($customer)->patch(route('account.orders.received', $order))->assertStatus(422);
         $this->assertNull($shipment->fresh()->customer_received_at);
+    }
+
+    public function test_late_receipt_confirmation_preserves_delivery_payment_and_return_deadline(): void
+    {
+        $customer = User::factory()->create();
+        $otherCustomer = User::factory()->create();
+        $deliveredAt = now()->subDays(12)->startOfSecond();
+        $paidAt = now()->subDays(13)->startOfSecond();
+        $order = $this->order($customer, [
+            'status' => 'delivered', 'payment_method' => 'zalopay',
+            'payment_status' => 'paid', 'paid_at' => $paidAt,
+        ]);
+        $shipment = $order->shipments()->create([
+            'provider' => 'GHN', 'tracking_code' => 'GHN-LATE-RECEIPT',
+            'status' => 'delivered', 'fee' => 30000,
+            'shipped_at' => $deliveredAt->copy()->subDay(), 'delivered_at' => $deliveredAt,
+        ]);
+        $deadline = $order->returnDeadline();
+
+        $this->actingAs($otherCustomer)->patch(route('account.orders.received', $order))->assertForbidden();
+        $this->assertNull($shipment->fresh()->customer_received_at);
+        $this->actingAs($customer)->get(route('account.orders.received.success', $order))
+            ->assertRedirect(route('account.orders.show', $order));
+        $this->get(route('account.orders.show', $order))->assertSee('Tôi đã nhận được hàng');
+
+        $this->patch(route('account.orders.received', $order))
+            ->assertRedirect(route('account.orders.received.success', $order));
+        $firstReceipt = $shipment->fresh()->customer_received_at;
+        $this->travel(5)->minutes();
+        $this->patch(route('account.orders.received', $order))
+            ->assertRedirect(route('account.orders.received.success', $order));
+
+        $order->refresh();
+        $shipment->refresh();
+        $this->assertSame('delivered', $order->status);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertTrue($order->paid_at->equalTo($paidAt));
+        $this->assertTrue($shipment->delivered_at->equalTo($deliveredAt));
+        $this->assertTrue($shipment->customer_received_at->equalTo($firstReceipt));
+        $this->assertTrue($order->returnDeadline()->equalTo($deadline));
+        $this->assertFalse($order->canRequestReturn());
+        $this->assertSame(1, $order->histories()->count());
+        $this->get(route('account.orders.show', $order))
+            ->assertSee('Bạn đã xác nhận nhận hàng')
+            ->assertSee('Đánh giá sản phẩm')
+            ->assertSee('Thời hạn đổi trả đã kết thúc');
     }
 
     public function test_cod_is_marked_paid_only_when_admin_completes_delivery(): void

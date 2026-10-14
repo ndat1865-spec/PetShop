@@ -38,7 +38,7 @@
                             $order->status === 'processing' => ['Vận chuyển', $shipment ? 'Xác nhận đóng gói' : 'Khởi tạo vận chuyển', 'Chọn đơn vị giao và chuẩn bị kiện'],
                             $order->status === 'packed' => ['Vận chuyển', 'Nhập mã và bàn giao', 'Mã vận đơn bắt buộc khi bắt đầu giao'],
                             $order->status === 'shipped' => ['Admin giao nhận', 'Hoàn tất giao hàng', $shipment?->customer_received_at ? 'Khách đã xác nhận nhận kiện' : 'Hoàn tất khi đơn vị vận chuyển báo giao xong'],
-                            $order->status === 'delivered' => ['Hoàn tất', 'Đã giao thành công', 'Theo dõi đổi trả nếu phát sinh'],
+                            $order->status === 'delivered' => ['Hoàn tất', 'Đã giao thành công', $shipment?->customer_received_at ? 'Khách đã xác nhận nhận hàng' : 'Theo dõi đổi trả nếu phát sinh'],
                             $order->status === 'cancelled' => ['Đã khóa', 'Đơn đã huỷ', 'Không còn thao tác vận hành'],
                             default => ['Kiểm tra', 'Mở chi tiết đơn', 'Đối chiếu trạng thái và lịch sử'],
                         };

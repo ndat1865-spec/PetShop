@@ -80,6 +80,7 @@ Route::middleware('auth')->prefix('tai-khoan')->name('account.')->group(function
     Route::get('/don-hang/{order}', [AccountController::class, 'showOrder'])->name('orders.show');
     Route::patch('/don-hang/{order}/huy', [AccountController::class, 'cancelOrder'])->name('orders.cancel');
     Route::patch('/don-hang/{order}/da-nhan-hang', [AccountController::class, 'confirmOrderReceived'])->name('orders.received');
+    Route::get('/don-hang/{order}/nhan-hang-thanh-cong', [AccountController::class, 'showOrderReceived'])->name('orders.received.success');
     Route::post('/don-hang/{order}/mua-lai', [AccountController::class, 'reorder'])->name('orders.reorder');
     Route::get('/doi-tra', [AccountController::class, 'returns'])->name('returns.index');
     Route::post('/don-hang/{order}/doi-tra', [AccountController::class, 'requestReturn'])->name('returns.store');

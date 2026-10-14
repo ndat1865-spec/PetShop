@@ -328,29 +328,66 @@ class AccountController extends Controller
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             abort_unless($lockedOrder->user_id === $request->user()->id, 403);
 
-            $shipment = $lockedOrder->shipments()->lockForUpdate()->firstOrFail();
+            $shipment = $lockedOrder->shipments()->latest('id')->lockForUpdate()->first();
+            abort_unless(
+                in_array($lockedOrder->status, ['shipped', 'delivered'], true)
+                    && $shipment && $shipment->status === $lockedOrder->status,
+                422,
+                'Chỉ xác nhận nhận hàng khi đơn đang giao hoặc đã giao thành công.'
+            );
 
-            // Retry từ trình duyệt hoặc gửi lại sau khi admin hoàn tất vẫn là cùng một xác nhận.
-            if ($shipment->customer_received_at) {
+            if ($lockedOrder->status === 'delivered') {
+                if (! $shipment->customer_received_at) {
+                    $shipment->update(['customer_received_at' => now()]);
+                    $lockedOrder->histories()->create([
+                        'user_id' => $request->user()->id,
+                        'from_status' => 'delivered',
+                        'to_status' => 'delivered',
+                        'note' => 'Khách hàng xác nhận đã nhận được hàng.',
+                    ]);
+                }
+
                 return;
             }
 
-            abort_unless(
-                $lockedOrder->status === 'shipped' && $shipment->status === 'shipped',
-                422,
-                'Chỉ xác nhận khi đơn hàng đang được giao.'
-            );
+            // Khách xác nhận đã nhận kiện là đủ để hoàn tất đơn; admin không cần thao tác thêm.
+            $shipment->update([
+                'status' => 'delivered',
+                'customer_received_at' => $shipment->customer_received_at ?? now(),
+                'delivered_at' => now(),
+            ]);
 
-            $shipment->update(['customer_received_at' => now()]);
+            $codPayment = $lockedOrder->codPaymentOnDelivery();
+            $lockedOrder->update(['status' => 'delivered', ...$codPayment]);
             $lockedOrder->histories()->create([
                 'user_id' => $request->user()->id,
                 'from_status' => 'shipped',
-                'to_status' => 'shipped',
-                'note' => 'Khách hàng xác nhận đã nhận được kiện hàng.',
+                'to_status' => 'delivered',
+                'note' => 'Khách hàng xác nhận đã nhận hàng; đơn được hoàn tất.'.($codPayment ? ' Thanh toán COD được ghi nhận hoàn tất.' : ''),
             ]);
         });
 
-        return back()->with('success', 'Đã ghi nhận bạn đã nhận hàng. Pawora sẽ đối chiếu và hoàn tất đơn hàng.');
+        return redirect()->route('account.orders.received.success', $order);
+    }
+
+    public function showOrderReceived(Request $request, Order $order)
+    {
+        abort_unless($order->user_id === $request->user()->id, 403);
+
+        $order->load(['items.product', 'items.variant', 'shipments', 'returnRequests']);
+
+        if ($order->status !== 'delivered' || ! $order->shipments->sortByDesc('id')->first()?->customer_received_at) {
+            return redirect()->route('account.orders.show', $order);
+        }
+
+        // Mỗi khách chỉ có một đánh giá cho mỗi sản phẩm, nên gộp các biến thể cùng sản phẩm thành một dòng.
+        $reviewItems = $order->items->unique(fn ($item) => $item->product_id ?? 'item-'.$item->id)->values();
+        $reviewedProductIds = $request->user()->productReviews()
+            ->whereIn('product_id', $reviewItems->pluck('product_id'))
+            ->pluck('product_id')
+            ->all();
+
+        return view('account.orders.received', compact('order', 'reviewItems', 'reviewedProductIds'));
     }
 
     public function reorder(Request $request, Order $order, CartService $cart)

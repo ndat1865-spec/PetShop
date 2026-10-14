@@ -172,6 +172,16 @@ class Order extends Model
         return $this->status === 'delivered' && $this->payment_status === 'paid';
     }
 
+    /**
+     * Khi giao hàng hoàn tất, tiền COD coi như đã thu. Trả về các cột cần cập nhật (rỗng nếu không phải COD chưa thu).
+     */
+    public function codPaymentOnDelivery(): array
+    {
+        return $this->payment_method === 'cod' && $this->payment_status !== 'paid'
+            ? ['payment_status' => 'paid', 'paid_at' => now()]
+            : [];
+    }
+
     public function deliveredAt(): ?Carbon
     {
         return $this->shipments->whereNotNull('delivered_at')->max('delivered_at');

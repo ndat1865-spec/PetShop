@@ -27,7 +27,7 @@
         $order->status === 'packed' => ['Vận chuyển', 'Nhập mã và bắt đầu giao', 'Mã vận đơn bắt buộc ở bước “Đang giao hàng” để khách có thông tin tra cứu.', '#shipment-control', 'Bàn giao vận chuyển'],
         $order->status === 'shipped' && $shipment?->customer_received_at => ['Admin giao nhận', 'Hoàn tất giao hàng', 'Khách đã xác nhận nhận kiện hàng. Chọn “Đã giao hàng” để hoàn tất đơn.', '#shipment-control', 'Hoàn tất đơn'],
         $order->status === 'shipped' => ['Admin giao nhận', 'Hoàn tất giao hàng', 'Khi đơn vị vận chuyển báo giao thành công, chọn “Đã giao hàng” để hoàn tất đơn. Không cần chờ khách bấm xác nhận.', '#shipment-control', 'Hoàn tất đơn'],
-        $order->status === 'delivered' => ['Hoàn tất', 'Đơn đã giao thành công', 'Quy trình giao hàng đã khóa. Thời hạn đổi trả được tính từ thời điểm giao.', '#shipment-summary', 'Xem bàn giao'],
+        $order->status === 'delivered' => ['Hoàn tất', 'Đơn đã giao thành công', ($shipment?->customer_received_at ? 'Khách đã xác nhận nhận hàng. ' : '').'Quy trình giao hàng đã khóa. Thời hạn đổi trả được tính từ thời điểm giao.', '#shipment-summary', 'Xem bàn giao'],
         default => ['Kiểm tra', 'Kiểm tra trạng thái đơn', 'Mở lịch sử để đối chiếu các thay đổi đã thực hiện.', '#order-history', 'Xem lịch sử'],
     };
 @endphp
