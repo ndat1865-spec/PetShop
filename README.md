@@ -172,7 +172,7 @@ Seeder và SQL export cùng tạo hai tài khoản sau:
 1. Đăng nhập `khach@pawora.vn`, thêm một sản phẩm còn hàng vào giỏ.
 2. Mở checkout, nhập/chọn địa chỉ hợp lệ và chọn **Thanh toán khi nhận hàng**.
 3. Nhấn **Xác nhận đặt hàng**. Hệ thống chỉ tạo một đơn ngay cả khi form bị gửi lại với cùng checkout token; F5 trang xác nhận không tạo thêm đơn.
-4. Trong admin, xác nhận và xử lý vận chuyển. COD chỉ chuyển sang đã thanh toán khi admin hoàn tất giao hàng (chọn “Đã giao hàng”). Khách có thể bấm “Tôi đã nhận được hàng” nhưng không bắt buộc; admin không cần chờ khách.
+4. Trong admin, xác nhận và xử lý vận chuyển đến “Đang giao hàng”. Đơn hoàn tất khi khách bấm “Tôi đã nhận được hàng” (khách được chuyển sang trang nhận hàng thành công để đánh giá sản phẩm), hoặc khi admin chọn “Đã giao hàng” nếu khách quên bấm. COD chuyển sang đã thanh toán tại thời điểm đơn hoàn tất.
 
 ## Trình diễn thanh toán QR (chuyển khoản SePay)
 
@@ -214,7 +214,7 @@ npm run build
 composer validate --strict
 ```
 
-Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`/`DB_PASSWORD` trước lệnh test hoặc điều chỉnh bản local của `phpunit.xml`. Ngược lại, nếu Windows đã có sẵn biến môi trường `DB_PASSWORD` cho project khác, biến đó sẽ ghi đè `.env` và mọi lệnh `php artisan` báo `Access denied`; chạy `$env:DB_PASSWORD = $null` trong cửa sổ PowerShell trước khi dùng artisan. Báo cáo lần kiểm thử gần nhất nằm tại `docs/testing-report.md`; checklist đóng gói ở `docs/submission-checklist.md`.
+Nếu MySQL dùng tài khoản khác, đặt biến môi trường `DB_USERNAME`/`DB_PASSWORD` trước lệnh test hoặc điều chỉnh bản local của `phpunit.xml`. Ngược lại, nếu Windows đã có sẵn biến môi trường `DB_PASSWORD` cho project khác, biến đó sẽ ghi đè `.env` và mọi lệnh `php artisan` báo `Access denied`; chạy `$env:DB_PASSWORD = $null` trong cửa sổ PowerShell trước khi dùng artisan.
 
 ## Database export
 
